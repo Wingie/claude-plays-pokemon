@@ -1,5 +1,7 @@
 ## Setup
 
+_tested on macos only_
+
 1. Create `.env` file with your Claude API key `CLAUDE_KEY={{key}}`
 2. Install GameBoy emulator https://sameboy.github.io/
 3. Download and run Pokemon Yellow ROM https://www.emulatorgames.net/roms/gameboy-color/pokemon-yellow-version/
