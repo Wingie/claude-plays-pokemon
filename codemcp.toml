@@ -1,0 +1,2 @@
+format = ["/Users/wingston/miniconda3/envs/codemcp_env/bin/python core.py"]
+test = ["cat core.py"]
