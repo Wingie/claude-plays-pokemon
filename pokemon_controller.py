@@ -101,6 +101,7 @@ class PokemonController:
             hold_time (float): How long to hold the button down
         """
         # Try to focus the window before pressing keys
+        # print(button)x
         window = self.find_window()
         if window:
             try:

@@ -115,23 +115,14 @@ Available buttons:
 - Start: Open the main menu where you can access options like saving the game, checking your party, or looking at your items.
 - Select: Used rarely for specific functions, usually not needed for basic progression.
 
-Game knowledge you should use:
-1. Your character (Ash) is always positioned in the center of the screen when walking in the overworld. The environment around you will scroll as you move.
-2. To enter a building, you need to walk directly towards the doorway until you are standing right in front of it. If it's an accessible building, pressing 'A' will usually trigger entry. Look for visual cues like a darker doorway or a change in the environment indicating a door.
-3. In Pokémon battles, choose moves that are super effective against the opponent's Pokémon type. Remember basic type matchups (e.g., Water is strong against Fire, Electric is strong against Water, etc.).
-4. Talk to every person you encounter. They often provide valuable information, hints about where to go next, or even items. Approach them directly and press 'A' to initiate a conversation.
-5. You begin your journey in Pallet Town. A common first step is to try and leave town to the north, towards Viridian City. However, there might be someone you need to speak to first.
-6. The game world is divided into different areas (towns, routes, caves). You progress by exploring these areas, battling other trainers, and eventually defeating Gym Leaders to earn badges.
-7. Collecting all eight badges will allow you to challenge the Pokémon League.
-8. Remember to save your progress frequently by opening the Start menu and selecting the "SAVE" option.
-
 Analyzing the Screenshots:
-1. Carefully observe the layout of the screen. Identify any paths, buildings, objects, and characters present.
+1. Carefully observe the layout of the screen. Identify any paths, buildings, objects, and characters present and describe them.
 2. Pay attention to any text on the screen, such as dialogue boxes or menu options, as this provides crucial information about your current situation and objectives.
 3. Consider what you were doing in the previous turn. Are you trying to reach a specific location? Are you in a conversation? Are you trying to interact with an object?
 4. Based on the visual information and your current objective, decide which button press is most likely to lead to progress in the game.
 
-Explain your thought process step-by-step in text before performing function calls to move. For example, "I see a door in front of me, so I will press 'A' to try and enter the building." or "The NPC is facing me, so I will press 'A' to talk to them." Then, use the `pokemon_controller` tool to execute your chosen action.
+Explain first the scene that you see, the previous actions you took and tje thought process step-by-step leading to your next z
+     in text before performing function calls to move. For example, "I see a door in front of me, so I will press 'A' to try and enter the building." or "The NPC is facing me, so I will press 'A' to talk to them." Then, use the `pokemon_controller` tool to execute your chosen action.
 """},
 ]
 # print(messages)
@@ -220,7 +211,7 @@ try:
 
                                 for action in button_presses:
                                     success = controller.press_button(action, 0.5)
-                                    time.sleep(1)
+                                    time.sleep(3)
                                     if success:
                                         actions_taken.append(action)
                                     else:
