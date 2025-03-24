@@ -23,7 +23,7 @@ class GeminiConnection:
         self.api_key = os.environ.get("GEMINI_API_KEY")
         # The Gemini 2.0 (flash) model name
         self.model = "gemini-2.0-flash-exp"
-        self.config = config or {
+        
             "system_prompt": "You are Ash ketchum and playing pokemon via a game boy emulator.",
             "voice": "Puck",
             "google_search": True,
@@ -35,11 +35,11 @@ class GeminiConnection:
                             "name": "control_emulator",
                             "description": "Sends commands to control the pokemon emulator.",
                             "parameters": {
-                                "type": "OBJECT",
+                                "type": "LIST",
                                 "properties": {
                                     "text": {
-                                        "type": "STRING",
-                                        "description": "The command text to send to the emulator."
+                                        "type": "LIST of STRINGS",
+                                        "description": "The list of command text to send to the emulator one by one"
                                     }
                                 },
                                 "required": ["text"]

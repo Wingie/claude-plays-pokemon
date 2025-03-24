@@ -1,0 +1,3 @@
+# CodeMCP configuration file
+[project]
+name = "claude-plays-pokemon"

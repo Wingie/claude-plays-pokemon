@@ -11,8 +11,6 @@ def getWindowByTitle(title: str):
 
     # Source: https://stackoverflow.com/questions/5286274/front-most-window-using-cgwindowlistcopywindowinfo
     windows = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListExcludeDesktopElements | Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID)
-    print(windows)
-    print(win)
     for win in windows:
         if title in win.get(Quartz.kCGWindowName, ''):
             return win
