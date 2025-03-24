@@ -11,6 +11,8 @@ def getWindowByTitle(title: str):
 
     # Source: https://stackoverflow.com/questions/5286274/front-most-window-using-cgwindowlistcopywindowinfo
     windows = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListExcludeDesktopElements | Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID)
+    print(windows)
+    print(win)
     for win in windows:
         if title in win.get(Quartz.kCGWindowName, ''):
             return win
@@ -50,9 +52,17 @@ class PokemonController:
             # Get all windows and find the one that matches our title
             window = getWindowByTitle(self.window_title)
             if window:
+                print(f"Found window: {self.window_title}")
                 return window
             
             print(f"No window with title containing '{self.window_title}' found.")
+            # List all window titles to help debug
+            windows = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListExcludeDesktopElements | Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID)
+            print("Available windows:")
+            for win in windows:
+                name = win.get(Quartz.kCGWindowName, '')
+                if name:
+                    print(f" - {name}")
         except Exception as e:
             print(f"Error finding window: {str(e)}")
         
@@ -67,14 +77,30 @@ class PokemonController:
         if window:
             # Bring window to front
             try:
-                # window.activate()
-                time.sleep(0.2)  # Give the window time to come to front
-                left, top, width, height = gw.getWindowGeometry(self.window_title)
-                # Capture the window
-                screenshot = ImageGrab.grab(bbox=(int(left), int(top), int(left + width), int(top + height)))
-                print(f"Captured window: {self.window_title}")
+                # Get the window bounds from the window info
+                window_bounds = window.get(Quartz.kCGWindowBounds)
+                if window_bounds:
+                    left = window_bounds['X']
+                    top = window_bounds['Y']
+                    width = window_bounds['Width']
+                    height = window_bounds['Height']
+                    
+                    # Capture the window
+                    screenshot = ImageGrab.grab(bbox=(int(left), int(top), int(left + width), int(top + height)))
+                    print(f"Captured window at position: ({left}, {top}, {width}, {height})")
+                else:
+                    print("Could not get window bounds")
             except Exception as e:
-                print(f"Error capturing window: {str(e)}")
+                print(f"Error capturing window using Quartz: {str(e)}")
+                
+                # Fallback to pygetwindow if Quartz method fails
+                try:
+                    left, top, width, height = gw.getWindowGeometry(self.window_title)
+                    # Capture the window
+                    screenshot = ImageGrab.grab(bbox=(int(left), int(top), int(left + width), int(top + height)))
+                    print(f"Captured window using pygetwindow: {self.window_title}")
+                except Exception as e2:
+                    print(f"Error capturing window using pygetwindow: {str(e2)}")
         
         # Fallback to region or full screen if window capture failed
         if screenshot is None:

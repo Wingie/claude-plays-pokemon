@@ -1,2 +1,6 @@
 .env
+.sav
+.gba
+.zip
+screenshots/
 __pycache__/
