@@ -91,7 +91,8 @@ game_memory = GameMemory()
 init_message = [
     {"role": "user", "content": """
 # Pokemon Game Agent Guide
-
+You are playing Pokemon on a game boy advanced.
+     
 ## Available Controls
 - Up, Down, Left, Right: Move your character in that direction
 - A: Interact/Confirm - Use when facing NPCs, signs, doors, or to confirm menu selections
