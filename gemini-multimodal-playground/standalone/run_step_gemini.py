@@ -9,6 +9,7 @@ from google.generativeai.types import FunctionDeclaration, Tool  # Import Functi
 import traceback
 # Load environment variables from .env file
 load_dotenv()
+from gamememory import GameMemory
 
 # Configure the emulator window title
 WINDOW_TITLE = "mGBA - 0.10.5"
@@ -62,7 +63,7 @@ pokemon_function_declaration = FunctionDeclaration(
 pokemon_tool = Tool(
     function_declarations=[pokemon_function_declaration],
 )
-
+game_memory = GameMemory()
 
 def make_image_message():
     # Capture the current state of the emulator
@@ -103,26 +104,68 @@ print(f"Starting game loop with {max_turns} max turns...")
 print("Press Ctrl+C to stop the loop at any time")
 print("-" * 50)
 # Initialize messages for Gemini
-messages = [
+init_message = [
     {"role": "user", "content": """
-Available function calls:
+You are a pokemon player with ability to interact in the world via function calls:
  - you must use function call to pokemon_controller to control the emulator, you can give a list of buttons in sequence - each time you call it.
-- Up, Down, Left, Right: Move your character one step in that direction on the current screen. You can only move along paths, grass, or other traversable tiles. You cannot walk through walls, buildings, trees, or other solid objects visible on the screen.
-- A: Interact with people (NPCs), objects (like items on the ground, signs), or the environment (like doors to enter buildings). You need to be directly facing the person or object to interact with it. This button is also used to select options in menus and confirm choices.
-- B: Cancel actions, go back in menus, or speed up the text in dialogues.
-- Start: Open the main menu where you can access options like saving the game, checking your party, or looking at your items.
-- Select: Used rarely for specific functions, usually not needed for basic progression.
 
-CURRENT Goal: Thoroughly explore the room to find all interactive objects, NPCs, and the exit.
+## Available Controls
+- Up, Down, Left, Right: Move your character in that direction
+- A: Interact/Confirm - Use when facing NPCs, signs, doors, or to confirm menu selections
+- B: Cancel/Back - Exit menus or speed up text
+- Start: Open main menu (Pokemon, Items, Save, etc.)
+- Select: Rarely used, specific functions
 
-Exploration Strategy:
-1. First, systematically explore the entire room by moving to all accessible areas.
-2. Interact with all objects, furniture, NPCs, and items you find (press A when facing them).
-3. Read any text that appears and describe what you observe.
-4. If a menu opens, describe the options and choose the most relevant one for exploration (or 'B' to close it).
-5. If an action has no visible effect, try a different action.
-6. Once you've explored everything, look for the exit (doors, stairs, openings).
+## Game Understanding
+- **Screen Types**: 
+  * Overworld: Free movement in the environment
+  * Dialog: Text boxes with conversation or information
+  * Menu: Selection screens for items, Pokemon, etc.
+  * Battle: Turn-based combat with wild Pokemon or trainers
+  
+- **Common Elements**:
+  * NPCs: Characters you can talk to
+  * Buildings: Can be entered through doors
+  * Items: Collectible objects on the ground (often appear as small balls)
+  * Pokemon Centers: Buildings with red roofs for healing Pokemon
+  * PokeMarts: Buildings with blue roofs for buying items
 
+## Memory System
+- **Locations Visited**: [This section will update as you explore]
+- **Key NPCs Met**: [This section will update as you meet characters]
+- **Items Found**: [This section will update as you find items]
+- **Current Location**: [Your current environment]
+- **Current Objective**: [Your active goal]
+
+## Navigation Strategy
+1. Build a mental map using cardinal directions (North, South, East, West)
+2. Note landmarks and connections between areas
+3. Explore systematically, starting from one corner and moving methodically
+4. Remember doors, paths, and blocked routes for future reference
+
+## Goal Framework
+- **Main Quest**: Progress through the Pokemon journey
+- **Current Objective**: [Current game objective]
+- **Immediate Task**: [What you should focus on right now]
+
+## Decision Making
+1. Observe the current screen carefully
+2. Identify important elements and game state
+3. Consider your current objective and location
+4. Choose the most appropriate action
+5. If an action doesn't work, try alternatives
+6. Update your mental map and memory based on results
+
+## When Stuck
+1. If an action produces no result, try a different approach
+2. Look for visual cues you might have missed
+3. Try talking to NPCs for hints
+4. Check your inventory or Pokemon team via the Start menu
+5. Try entering nearby buildings or taking different paths
+6. Vary your interaction methods (A button vs. directional movement)
+
+## Current Game State
+- [This section will update with your current status]
      
     """},
 ]
@@ -130,7 +173,7 @@ Exploration Strategy:
 try:
     while running and turn < max_turns:
         print(f"\nTurn {turn + 1}/{max_turns}")
-
+        
         # Capture and save the screenshot
         screenshot_file = controller.capture_screen()
         if save_screenshots:
@@ -142,18 +185,20 @@ try:
             except Exception as e:
                 print(f"Error saving screenshot: {str(e)}")
         prompt_parts = []
-        # Prepare messages for Gemini
-        messages.append({"role": "user", "content": """
-CURRENT Goal: Thoroughly explore the room to find all interactive objects, NPCs, and the exit.
+        # Prepare messages for Gemini to keep context short
+        messages = init_message.copy() 
+        memory_summary = game_memory.generate_summary()
+        print(f"Memory Summary:\n{memory_summary}")
+        # Prepare messages for Gemini with memory and goal
+        messages.append({"role": "user", "content": f"""
+        {memory_summary}
 
-Exploration Strategy:
-1. First, systematically explore the entire room by moving to all accessible areas.
-2. Interact with all objects, furniture, NPCs, and items you find (press A when facing them).
-3. Read any text that appears and describe what you observe.
-4. If a menu opens, describe the options and choose the most relevant one for exploration (or 'B' to close it).
-5. If an action has no visible effect, try a different action.
-6. Once you've explored everything, look for the exit (doors, stairs, openings).
-"""})
+        ## GOAL: FIND THE PROFESSOR
+
+        What do you observe in the current screen? What action will you take next?
+        """})
+        
+        # Add the current screenshot
         messages.append(make_image_message())
 
         # print("--- Debugging: Starting prompt_parts conversion loop ---") # ADDED
@@ -234,8 +279,10 @@ Exploration Strategy:
                                     result_msg_parts.append(f"Failed to press buttons: {', '.join(failed_actions)}.")
 
                                 result_msg = " ".join(result_msg_parts) if result_msg_parts else "No button presses attempted."
+                                game_memory.add_turn_summary(button_presses, result_msg)
                             else:
                                 result_msg = "No button presses found in the tool input."
+                                game_memory.add_turn_summary([], result_msg)
 
                             # Add the result back to Gemini
                             tool_response = {
@@ -273,6 +320,7 @@ except KeyboardInterrupt:
     running = False
 except Exception as e:
     print(f"\nUnexpected error in game loop: {str(e)}")
+    traceback.print_exc()
     running = False
 finally:
     # Final message when the game loop ends

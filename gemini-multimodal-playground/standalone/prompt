@@ -1,0 +1,56 @@
+# Pokemon Game Agent Guide
+
+## Available Controls
+- Up, Down, Left, Right: Move your character in that direction
+- A: Interact/Confirm - Use when facing NPCs, signs, doors, or to confirm menu selections
+- B: Cancel/Back - Exit menus or speed up text
+- Start: Open main menu (Pokemon, Items, Save, etc.)
+- Select: Rarely used, specific functions
+
+## Game Understanding
+- **Screen Types**: 
+  * Overworld: Free movement in the environment
+  * Dialog: Text boxes with conversation or information
+  * Menu: Selection screens for items, Pokemon, etc.
+  * Battle: Turn-based combat with wild Pokemon or trainers
+  
+- **Common Elements**:
+  * NPCs: Characters you can talk to
+  * Buildings: Can be entered through doors
+  * Items: Collectible objects on the ground (often appear as small balls)
+  * Pokemon Centers: Buildings with red roofs for healing Pokemon
+  * PokeMarts: Buildings with blue roofs for buying items
+
+## Memory System
+- **Locations Visited**: [This section will update as you explore]
+- **Key NPCs Met**: [This section will update as you meet characters]
+- **Items Found**: [This section will update as you find items]
+- **Current Location**: [Your current environment]
+- **Current Objective**: [Your active goal]
+
+## Navigation Strategy
+1. Build a mental map using cardinal directions (North, South, East, West)
+2. Note landmarks and connections between areas
+3. Explore systematically, starting from one corner and moving methodically
+4. Remember doors, paths, and blocked routes for future reference
+
+## Goal Framework
+- **Main Quest**: Progress through the Pokemon journey
+- **Current Objective**: [Current game objective]
+- **Immediate Task**: [What you should focus on right now]
+
+## Decision Making
+1. Observe the current screen carefully
+2. Identify important elements and game state
+3. Consider your current objective and location
+4. Choose the most appropriate action
+5. If an action doesn't work, try alternatives
+6. Update your mental map and memory based on results
+
+## When Stuck
+1. If an action produces no result, try a different approach
+2. Look for visual cues you might have missed
+3. Try talking to NPCs for hints
+4. Check your inventory or Pokemon team via the Start menu
+5. Try entering nearby buildings or taking different paths
+6. Vary your interaction methods (A button vs. directional movement)
