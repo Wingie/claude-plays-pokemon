@@ -9,7 +9,6 @@ from google.generativeai.types import FunctionDeclaration, Tool  # Import Functi
 import traceback
 # Load environment variables from .env file
 load_dotenv()
-import time
 
 # Configure the emulator window title
 WINDOW_TITLE = "mGBA - 0.10.5"
@@ -237,7 +236,7 @@ try:
                                 "content": [
                                     {
                                         "type": "tool_result",
-                                        "tool_use_id": button_presses,
+                                        "tool_use_id": tool_use.function_call.name,
                                         "content": result_msg
                                     }
                                 ]
@@ -283,10 +282,20 @@ finally:
                 for msg in messages:
                     if msg["role"] == "assistant" and "content" in msg:
                         for content in msg["content"]:
-                            if hasattr(content, "type") and content.type == "text":
-                                f.write(f"Gemini: {content.text}\n\n")
-                            elif hasattr(content, "type") and content.type == "tool_use":
-                                f.write(f"Action: {content.tool_use.input.get('action', 'unknown')}\n\n")  # Access tool_use from content
+                            if isinstance(content, dict) and "type" in content:
+                                if content["type"] == "text":
+                                    f.write(f"Gemini: {content['text']}\n\n")
+                                elif content["type"] == "tool_use":
+                                    tool_use_data = content["tool_use"]
+                                    if hasattr(tool_use_data, "function_call"):
+                                        f.write(f"Action: {tool_use_data.function_call.name}\n")
+                                        if hasattr(tool_use_data.function_call, "args"):
+                                            f.write(f"Args: {tool_use_data.function_call.args}\n\n")
+                    elif msg["role"] == "user" and "content" in msg:
+                        if isinstance(msg["content"], list):
+                            for item in msg["content"]:
+                                if isinstance(item, dict) and item.get("type") == "tool_result":
+                                    f.write(f"Result: {item.get('content', '')}\n\n")
             print(f"Saved conversation to {conversation_file}")
         except Exception as e:
             print(f"Error saving conversation: {str(e)}")
