@@ -105,26 +105,23 @@ print("-" * 50)
 # Initialize messages for Gemini
 messages = [
     {"role": "user", "content": """
-You are a streamer playing a lets play series of Pokémon Yellow on Game Boy Color. 
-Your task is to decide which button to press to explore the area.
-
-Available function cl:
+Available function calls:
  - you must use function call to pokemon_controller to control the emulator, you can give a list of buttons in sequence - each time you call it.
-
-Available buttons:
 - Up, Down, Left, Right: Move your character one step in that direction on the current screen. You can only move along paths, grass, or other traversable tiles. You cannot walk through walls, buildings, trees, or other solid objects visible on the screen.
 - A: Interact with people (NPCs), objects (like items on the ground, signs), or the environment (like doors to enter buildings). You need to be directly facing the person or object to interact with it. This button is also used to select options in menus and confirm choices.
 - B: Cancel actions, go back in menus, or speed up the text in dialogues.
 - Start: Open the main menu where you can access options like saving the game, checking your party, or looking at your items.
 - Select: Used rarely for specific functions, usually not needed for basic progression.
 
-CURRENT Goal: Explore the room and find the exit. 
-     
+CURRENT Goal: Thoroughly explore the room to find all interactive objects, NPCs, and the exit.
+
 Exploration Strategy:
-1. Prioritize finding and interacting with the exit.
-2. If no obvious exit is visible, explore all accessible areas of the room, interacting with objects and NPCs.
-3. If a menu opens, describe the options and choose the most relevant one for exploration (or 'B' to close it).
-4. If an action has no visible effect, try a different action.
+1. First, systematically explore the entire room by moving to all accessible areas.
+2. Interact with all objects, furniture, NPCs, and items you find (press A when facing them).
+3. Read any text that appears and describe what you observe.
+4. If a menu opens, describe the options and choose the most relevant one for exploration (or 'B' to close it).
+5. If an action has no visible effect, try a different action.
+6. Once you've explored everything, look for the exit (doors, stairs, openings).
 
      
     """},
@@ -146,7 +143,17 @@ try:
                 print(f"Error saving screenshot: {str(e)}")
         prompt_parts = []
         # Prepare messages for Gemini
-        messages.append({"role": "user", "content": "What button would you like to press next? Analyze the current game state and make your decision."})
+        messages.append({"role": "user", "content": """
+CURRENT Goal: Thoroughly explore the room to find all interactive objects, NPCs, and the exit.
+
+Exploration Strategy:
+1. First, systematically explore the entire room by moving to all accessible areas.
+2. Interact with all objects, furniture, NPCs, and items you find (press A when facing them).
+3. Read any text that appears and describe what you observe.
+4. If a menu opens, describe the options and choose the most relevant one for exploration (or 'B' to close it).
+5. If an action has no visible effect, try a different action.
+6. Once you've explored everything, look for the exit (doors, stairs, openings).
+"""})
         messages.append(make_image_message())
 
         # print("--- Debugging: Starting prompt_parts conversion loop ---") # ADDED
