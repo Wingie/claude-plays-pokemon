@@ -50,17 +50,9 @@ class PokemonController:
             # Get all windows and find the one that matches our title
             window = getWindowByTitle(self.window_title)
             if window:
-                print(f"Found window: {self.window_title}")
                 return window
-            
-            print(f"No window with title containing '{self.window_title}' found.")
-            # List all window titles to help debug
-            windows = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListExcludeDesktopElements | Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID)
-            print("Available windows:")
-            for win in windows:
-                name = win.get(Quartz.kCGWindowName, '')
-                if name:
-                    print(f" - {name}")
+            else:
+                raise Exception("Window Not FOUNDD!")
         except Exception as e:
             print(f"Error finding window: {str(e)}")
         
@@ -85,7 +77,7 @@ class PokemonController:
                     
                     # Capture the window
                     screenshot = ImageGrab.grab(bbox=(int(left), int(top), int(left + width), int(top + height)))
-                    print(f"Captured window at position: ({left}, {top}, {width}, {height})")
+                    # print(f"Captured window at position: ({left}, {top}, {width}, {height})")
                 else:
                     print("Could not get window bounds")
             except Exception as e:
@@ -96,7 +88,7 @@ class PokemonController:
                     left, top, width, height = gw.getWindowGeometry(self.window_title)
                     # Capture the window
                     screenshot = ImageGrab.grab(bbox=(int(left), int(top), int(left + width), int(top + height)))
-                    print(f"Captured window using pygetwindow: {self.window_title}")
+                    # print(f"Captured window using pygetwindow: {self.window_title}")
                 except Exception as e2:
                     print(f"Error capturing window using pygetwindow: {str(e2)}")
         

@@ -106,7 +106,11 @@ print("-" * 50)
 # Initialize messages for Gemini
 messages = [
     {"role": "user", "content": """
-You are a streamer playing a leets play series of Pokémon Yellow on Game Boy Color. You are an expert Pokémon player and will be given screenshots of the game. Your task is to decide which button to press to progress in the game intelligently.
+You are a streamer playing a lets play series of Pokémon Yellow on Game Boy Color. 
+Your task is to decide which button to press to explore the area.
+
+Available function cl:
+ - you must use function call to pokemon_controller to control the emulator, you can give a list of buttons in sequence - each time you call it.
 
 Available buttons:
 - Up, Down, Left, Right: Move your character one step in that direction on the current screen. You can only move along paths, grass, or other traversable tiles. You cannot walk through walls, buildings, trees, or other solid objects visible on the screen.
@@ -115,15 +119,16 @@ Available buttons:
 - Start: Open the main menu where you can access options like saving the game, checking your party, or looking at your items.
 - Select: Used rarely for specific functions, usually not needed for basic progression.
 
-Analyzing the Screenshots:
-1. Carefully observe the layout of the screen. Identify any paths, buildings, objects, and characters present and describe them.
-2. Pay attention to any text on the screen, such as dialogue boxes or menu options, as this provides crucial information about your current situation and objectives.
-3. Consider what you were doing in the previous turn. Are you trying to reach a specific location? Are you in a conversation? Are you trying to interact with an object?
-4. Based on the visual information and your current objective, decide which button press is most likely to lead to progress in the game.
+CURRENT Goal: Explore the room and find the exit. 
+     
+Exploration Strategy:
+1. Prioritize finding and interacting with the exit.
+2. If no obvious exit is visible, explore all accessible areas of the room, interacting with objects and NPCs.
+3. If a menu opens, describe the options and choose the most relevant one for exploration (or 'B' to close it).
+4. If an action has no visible effect, try a different action.
 
-Explain first the scene that you see, the previous actions you took and tje thought process step-by-step leading to your next z
-     in text before performing function calls to move. For example, "I see a door in front of me, so I will press 'A' to try and enter the building." or "The NPC is facing me, so I will press 'A' to talk to them." Then, use the `pokemon_controller` tool to execute your chosen action.
-"""},
+     
+    """},
 ]
 # print(messages)
 try:
@@ -145,7 +150,7 @@ try:
         messages.append({"role": "user", "content": "What button would you like to press next? Analyze the current game state and make your decision."})
         messages.append(make_image_message())
 
-        print("--- Debugging: Starting prompt_parts conversion loop ---") # ADDED
+        # print("--- Debugging: Starting prompt_parts conversion loop ---") # ADDED
         for msg in messages:
             if msg["role"] == "user":
                 content_part = []
@@ -194,13 +199,12 @@ try:
                         assistant_content_list.append({"type": "tool_use", "tool_use": part})
                         tool_use = part
                         tool_name = part.function_call.name
-                        print(tool_use)
+                        # print(tool_use)
                         
-
                         if tool_name == "pokemon_controller":
                             button_presses = []
                             for item,button_p in part.function_call.args.items():
-                                print(">>>>>>>",item)
+                                # print(">>>>>>>",item)
                                 for button in button_p:
                                     button_presses.append(button)
 
@@ -210,8 +214,8 @@ try:
                                 failed_actions = []
 
                                 for action in button_presses:
-                                    success = controller.press_button(action, 0.5)
-                                    time.sleep(3)
+                                    success = controller.press_button(action)
+                                    time.sleep(1)
                                     if success:
                                         actions_taken.append(action)
                                     else:
