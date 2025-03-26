@@ -1,97 +1,6 @@
-import os
-import sys
-import time
-import traceback
-import base64
-import shutil # Import shutil for file operations
-import warnings
-warnings.filterwarnings("ignore", category=UserWarning)
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-from dotenv import load_dotenv
-import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
-from langchain_google_genai import ChatGoogleGenerativeAI # Use Langchain wrapper for CrewAI
-from crewai import Agent, Task, Crew, Process, LLM
-from crewai.tools import BaseTool
-from crewai_tools import (
-    DirectoryReadTool,
-    FileReadTool,
-    SerperDevTool,
-    WebsiteSearchTool
-)
+from common_imports import *
 
-from pokemon_controller import PokemonController, read_image_to_base64
-from gamememory import GameMemory, init_message # 
-load_dotenv()
-# Configure the emulator window title
-WINDOW_TITLE = "mGBA - 0.10.5"
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL")
-# Game loop configuration
-running = True
-MAX_TURNS = 10  # Limit the number of turns
-turn = 0
-TURN_DELAY = 1.0  # Delay between turns in seconds
-save_screenshots = True  # Whether to save screenshots for later review
-screenshot_dir = "screenshots"  # Directory to save screenshots
-
-from argparse import ArgumentParser
-
-parser = ArgumentParser()
-parser.add_argument("-g", "--goal", dest="goal",
-                    help="short term run goal", metavar="FILE")
-args = parser.parse_args()
-GAME_GOAL= args.goal
-
-# Create screenshots directory if it doesn't exist and save_screenshots is enabled
-if save_screenshots:
-    try:
-        if not os.path.exists(screenshot_dir):
-            os.makedirs(screenshot_dir)
-            print(f"Created directory for screenshots: {screenshot_dir}")
-    except Exception as e:
-        print(f"Error creating screenshots directory: {str(e)}")
-        save_screenshots = False
-
-# Initialize Gemini client and Pokemon controller
-def init_game():
-    try:
-        controller = PokemonController(region=None, window_title=WINDOW_TITLE)
-        game_memory = GameMemory()
-        genai.configure(api_key=GEMINI_API_KEY) # Initialize genai with API key here
-        model = genai.GenerativeModel(model_name=os.getenv("GEMINI_MODEL"))  # Specify model name here
-        print(f"Looking for window with title: {WINDOW_TITLE}")
-        # Test if we can find the window right away
-        window = controller.find_window()
-        if not window:
-            print("\nWarning: Could not find the emulator window.")
-            print("Please make sure the mGBA emulator is running with a Pokemon game loaded.")
-            response = input("Do you want to continue anyway? (y/n): ")
-            if response.lower() != 'y':
-                sys.exit(1)
-        return (model, controller, window, game_memory)
-    except Exception as e:
-        print(f"Error initializing: {str(e)}")
-        # traceback.print_exc()  # Print the full traceback
-        sys.exit(1)
-
-def make_image_message():
-    # Capture the current state of the emulator
-    screenshot_file = controller.capture_screen()
-    game_state = read_image_to_base64(screenshot_file)
-    return {
-        "role": "user",
-        "content": [{
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": "image/jpeg",
-                "data": game_state,
-            },
-        }]
-    }
-
-model, controller, window, game_memory = init_game();
+model, controller, window, game_memory, llm = init_game();
 print(f"Starting game loop with {MAX_TURNS} max turns...")
 print("Press Ctrl+C to stop the loop at any time")
 print("-" * 50)
@@ -177,40 +86,6 @@ class PressButtonsTool(BaseTool):
         return result_msg
     
 
-
-def init_game_crewai():
-    global controller, game_memory # Use global instances
-    try:
-        llm = LLM(
-            model="gemini/gemini-2.0-flash", # Or another specific Gemini model ID
-            api_key=GEMINI_API_KEY
-        )
-        # llm = ChatGoogleGenerativeAI(
-        #     model="gemini-pro",
-        #     # model_kwargs={"provider": "google"},
-        #     verbose=True,
-        #     temperature=0.5, # Adjust temperature as needed
-        #     google_api_key=GEMINI_API_KEY,
-        #     # convert_system_message_to_human=True, # Often needed for multimodal models
-        #     safety_settings={
-        #         HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-        #         HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-        #         HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-        #         HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-        #     }
-        # )
-        print(f"Using Gemini model: {GEMINI_MODEL}")
-        return llm 
-
-    except Exception as e:
-        print(f"Error during initialization: {str(e)}")
-        traceback.print_exc()
-        sys.exit(1)
-
-# --- CrewAI Setup ---
-print("Setting up CrewAI...")
-llm = init_game_crewai() # Initialize game and get LLM
-
 # Instantiate tools (controller and game_memory are now global)
 capture_tool = CaptureScreenTool()
 press_tool = PressButtonsTool()
@@ -219,16 +94,17 @@ def create_vision_agent(tools):
     return Agent(
         role="Vision Analyst",
         goal="Analyze game screens to identify objects, characters, and navigable paths",
-        backstory="""You are an expert in analyzing Pokémon game screens...""",
+        backstory="""You are a cartographer who looks at gameboy screens and describes what you see there and what actions are possible for the player.""",
         tools=tools,
         verbose=True,
         allow_delegation=False,
-        llm=llm
+        llm=llm,
+        multimodal=True
     )
 
 # Define the Agent
 game_analyst = Agent(
-    role='Expert Pokemon Player AI',
+    role='Expert Pokemon Player',
     goal=f"Analyze the current Pokemon game screen, consult the game memory, and decide the best sequence of button presses to achieve the overall objective: '{GAME_GOAL}'. Then execute those presses.",
     backstory=(
         "You are an AI agent controlling a Pokemon game via an emulator. "
@@ -245,8 +121,6 @@ game_analyst = Agent(
     allow_delegation=False
 )
 
-# Define the Task
-# We use placeholders ({}) for dynamic input passed during kickoff
 analysis_task = Task(
     description=(
         "**Turn Number:** {turn_number}\n"
@@ -264,8 +138,7 @@ analysis_task = Task(
         "and confirmation that the 'Press Game Buttons' tool was used, including the result reported by the tool."
     ),
     agent=game_analyst,
-    # Tools can also be specified at the task level if needed, but agent level is fine here
-    # tools=[capture_tool, press_tool]
+
 )
 
 # Define the Crew
