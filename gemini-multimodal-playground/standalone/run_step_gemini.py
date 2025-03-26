@@ -13,32 +13,29 @@ from gamememory import GameMemory, init_message
 
 # Configure the emulator window title
 WINDOW_TITLE = "mGBA - 0.10.5"
-
-# Get Gemini API key from environment variables
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if not GEMINI_API_KEY:
-    print("Error: GEMINI_API_KEY not found in environment variables.")
-    print("Please create a .env file with your API key or set it in your environment.")
-    sys.exit(1)
 
 # Initialize Gemini client and Pokemon controller
-try:
-    controller = PokemonController(region=None, window_title=WINDOW_TITLE)
-    genai.configure(api_key=GEMINI_API_KEY) # Initialize genai with API key here
-    model = genai.GenerativeModel(model_name=os.getenv("GEMINI_MODEL"))  # Specify model name here
-    print(f"Looking for window with title: {WINDOW_TITLE}")
-    # Test if we can find the window right away
-    window = controller.find_window()
-    if not window:
-        print("\nWarning: Could not find the emulator window.")
-        print("Please make sure the mGBA emulator is running with a Pokemon game loaded.")
-        response = input("Do you want to continue anyway? (y/n): ")
-        if response.lower() != 'y':
-            sys.exit(1)
-except Exception as e:
-    print(f"Error initializing: {str(e)}")
-    # traceback.print_exc()  # Print the full traceback
-    sys.exit(1)
+def init_game():
+    try:
+        controller = PokemonController(region=None, window_title=WINDOW_TITLE)
+        game_memory = GameMemory()
+        genai.configure(api_key=GEMINI_API_KEY) # Initialize genai with API key here
+        model = genai.GenerativeModel(model_name=os.getenv("GEMINI_MODEL"))  # Specify model name here
+        print(f"Looking for window with title: {WINDOW_TITLE}")
+        # Test if we can find the window right away
+        window = controller.find_window()
+        if not window:
+            print("\nWarning: Could not find the emulator window.")
+            print("Please make sure the mGBA emulator is running with a Pokemon game loaded.")
+            response = input("Do you want to continue anyway? (y/n): ")
+            if response.lower() != 'y':
+                sys.exit(1)
+        return (model, controller, window, game_memory)
+    except Exception as e:
+        print(f"Error initializing: {str(e)}")
+        # traceback.print_exc()  # Print the full traceback
+        sys.exit(1)
 
 pokemon_function_declaration = FunctionDeclaration(
     name="pokemon_controller",
@@ -58,12 +55,10 @@ pokemon_function_declaration = FunctionDeclaration(
         "required": ["button_presses"]  # Changed required field to match the new parameter name
     }
 )
-
-
 pokemon_tool = Tool(
     function_declarations=[pokemon_function_declaration],
 )
-game_memory = GameMemory()
+
 
 def make_image_message():
     # Capture the current state of the emulator
@@ -100,11 +95,12 @@ if save_screenshots:
         print(f"Error creating screenshots directory: {str(e)}")
         save_screenshots = False
 
+model, controller, window, game_memory = init_game();
 print(f"Starting game loop with {max_turns} max turns...")
 print("Press Ctrl+C to stop the loop at any time")
 print("-" * 50)
 
-# print(messages)
+### GAME RUNNING LOOP ####
 try:
     while running and turn < max_turns:
         print(f"\nTurn {turn + 1}/{max_turns}")
@@ -141,7 +137,7 @@ try:
             if msg["role"] == "user":
                 content_part = []
                 if isinstance(msg["content"], str):  # Handle string content directly
-                    content_part.append(msg["content"])x
+                    content_part.append(msg["content"])
                 elif isinstance(msg["content"], list):  # Handle list of content items
                     for item in msg["content"]:
                         if item["type"] == "text":

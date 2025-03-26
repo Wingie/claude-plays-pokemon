@@ -127,13 +127,74 @@ You are playing Pokemon on a game boy advanced.
 4. Choose the most appropriate action
 5. If an action doesn't work, try alternatives
 
-## When Stuck
-1. If an action produces no result, try a different approach
-2. Look for visual cues you might have missed
-3. Try talking to NPCs for hints
-4. Check your inventory or Pokemon team via the Start menu
-5. Try entering nearby buildings or taking different paths
+## Navigation Guidelines
+- **Room Transitions**:
+  * Doors: Usually rectangular openings in walls - face them and press A to enter
+  * Stairs: Look for step-like patterns - up stairs are usually lighter, down stairs darker
+  * Carpets: Colored rectangles on the floor often indicate exits or stairs
+  * Gates: Outdoor passages between areas - walk through or interact with A
+  
+- **Common Room Types**:
+  * Houses: Small buildings with basic furniture, often have two floors
+  * Pokémon Centers: Red-roofed buildings with healing services
+  * Gyms: Large distinctive buildings with trainers inside
+  * Labs: Professor's labs contain research equipment and books
+  * Caves: Dark areas with rocky terrain and multiple paths
 
+- **Navigation Markers**:
+  * Look for colored tiles/carpets that often indicate stairs or exits
+  * Arrows or signs pointing to doorways or paths
+  * NPCs often stand near important room transitions
+  * Different floor textures can indicate where you can or cannot walk
+
+     ## Stair Navigation - IMPORTANT
+- Stairs in Pokémon games are **objects** you must approach and interact with:
+  * Stairs are NOT navigated by pressing "up" or "down" buttons directly
+  * You must FIRST position your character ON or NEXT TO the staircase
+  * In the image, stairs appear as step-like patterns on the side of the room
+  * To use stairs:
+     1. Walk TO the staircase (use left/right/up/down to position yourself)
+     2. Stand ON or DIRECTLY FACING the first step
+     3. Press the direction button TOWARD the stairs (if facing stairs, usually "left" or "right")
+     4. Your character will automatically climb or descend
+
+- Look at these visual indicators for stairs:
+  * Stairs appear as visible step patterns on walls
+  * They often have a different color or texture from surrounding tiles
+  * In the current image, you can see stairs on the LEFT side of the room
+  * You need to walk LEFT to reach those stairs, not press "up"
+
+     ## Game World Perspective
+- The game uses a top-down 2D view where:
+  * Your character is viewed from above
+  * "Up" button moves your character toward the top of the screen
+  * "Down" button moves your character toward the bottom of the screen
+  * "Left" and "Right" buttons move your character left and right on the screen
+  * These directions are relative to the SCREEN, not your character's facing direction
+  * The buttons do NOT directly correspond to "upstairs" or "downstairs"
+
+- To interact with objects (including stairs):
+  * Position your character directly adjacent to the object
+  * Face toward the object (use movement buttons to change facing direction)
+  * Press A to interact when facing the object
+  * For some objects like stairs, simply moving toward them will trigger the interaction
+
+ ## Systematic Exploration Framework
+- When exploring a building with multiple floors:
+  1. Completely explore one floor before moving to another floor
+  2. Make a mental note of which floor you are currently on (1F, 2F, etc.)
+  3. After fully exploring a floor, only then move to another floor
+  4. Once you've explored a new floor, don't return to previous floors unless:
+     * You found information directing you there
+     * You've fully explored all other accessible floors
+     * You're specifically backtracking to reach a new area
+
+- Track your exploration progress:
+  * Divide each room into sections (north, south, east, west)
+  * Check all objects and NPCs in each section before moving on
+  * Mark floors as "completely explored" or "partially explored" in your memory
+  * Avoid revisiting areas unless you have a specific reason 
+     
 ## Available function calls:
 - You must use function call to pokemon_controller to control the emulator, providing a list of buttons in sequence
 """}
