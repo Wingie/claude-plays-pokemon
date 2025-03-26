@@ -5,3 +5,6 @@ google-genai==0.2.2
 numpy
 torch
 torchaudio
+langchain_google_genai
+crewai[tools]
+crewai
