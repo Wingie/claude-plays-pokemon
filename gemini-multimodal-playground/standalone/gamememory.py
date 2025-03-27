@@ -1,4 +1,3 @@
-import random
 import numpy as np
 from PIL import Image
 import cv2
@@ -6,6 +5,7 @@ import base64
 import io
 import os
 import time
+import traceback
 
 class GameMemory:
     def __init__(self):
@@ -50,20 +50,19 @@ class GameMemory:
         # Tracking game progress
         self.last_screen_hash = None
         self.consecutive_similar_screens = 0
-        
+    
     def detect_player_and_elements(self, screenshot_path):
         """
         Analyze screenshot to detect the player character and key elements
         
-        This uses basic image processing to find:
-        - The player character (typically red hat in Pokémon)
-        - Carpets/walkable areas (green areas)
-        - Barriers/furniture (by color and position)
-        - Stairs (typically light-colored angled patterns)
+        Args:
+            screenshot_path: Path to the screenshot image
+            
+        Returns:
+            dict: Contains 'map_grid', 'player_position', 'stair_position', etc.
         """
         try:
             # Load image
-            print("#####",screenshot_path)
             img = cv2.imread(screenshot_path)
             if img is None:
                 print(f"Error: Failed to load image {screenshot_path}")
@@ -159,39 +158,63 @@ class GameMemory:
                         
                         map_grid[stair_grid_y, stair_grid_x] = 3  # Mark as stairs
                         stair_position = (stair_grid_x, stair_grid_y)
-                        print(f"Detected stairs at position: {stair_position}")
-            
-            # Create a visual representation of the map
-            map_display = self.visualize_map(map_grid, player_position, stair_position)
-            
-            # Save the most recent map
-            self.current_map = map_grid
-            self.player_position = player_position
-            
-            # Save a snapshot of the map
-            timestamp = int(time.time())
-            map_path = os.path.join(self.map_snapshot_path, f"map_{timestamp}.png")
-            cv2.imwrite(map_path, cv2.cvtColor(map_display, cv2.COLOR_RGB2BGR))
             
             return {
                 'map_grid': map_grid,
                 'player_position': player_position,
                 'stair_position': stair_position,
-                'map_display': map_display
+                'original_image': img_rgb
             }
             
         except Exception as e:
             print(f"Error analyzing screenshot: {str(e)}")
+            traceback.print_exc()  # Add this to see the full stack trace
             return None
-    
-    def visualize_map(self, map_grid, player_pos=None, stair_pos=None):
-        """Create a visual representation of the map grid"""
+        
+    def visualize_enhanced_map(self, screenshot_path, map_grid=None, player_pos=None, stair_pos=None, path=None, original_image_path=None):
+        """Create an enhanced visual map with coordinates, original image overlay, and path visualization"""
         # Constants for visualization
-        cell_size = 20
+        cell_size = 30  # Larger cells for better visualization
+
+        if screenshot_path and map_grid is None:
+            # Process the screenshot to get map info
+            map_info = self.detect_player_and_elements(screenshot_path)
+            if not map_info:
+                print(f"Error: Could not process screenshot at {screenshot_path}")
+                return
+            # Extract the map grid and other info from map_info
+            map_grid = map_info.get('map_grid')
+            player_pos = map_info.get('player_position')
+            stair_pos = map_info.get('stair_position')
         grid_height, grid_width = map_grid.shape
         
-        # Create a blank RGB image
-        vis_map = np.zeros((grid_height * cell_size, grid_width * cell_size, 3), dtype=np.uint8)
+        # Create a blank RGB image with margin for coordinate labels
+        margin = 30
+        vis_map = np.ones((grid_height * cell_size + margin, grid_width * cell_size + margin, 3), dtype=np.uint8) * 255
+        
+        # Draw coordinate grid
+        for x in range(grid_width + 1):
+            cv2.line(vis_map, 
+                    (x * cell_size + margin, margin), 
+                    (x * cell_size + margin, grid_height * cell_size + margin), 
+                    (0, 0, 0), 1)
+        for y in range(grid_height + 1):
+            cv2.line(vis_map, 
+                    (margin, y * cell_size + margin), 
+                    (grid_width * cell_size + margin, y * cell_size + margin), 
+                    (0, 0, 0), 1)
+        
+        # Draw coordinate labels
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.4
+        for x in range(grid_width):
+            cv2.putText(vis_map, str(x), 
+                    (x * cell_size + cell_size//2 + margin, 20), 
+                    font, font_scale, (0, 0, 0), 1)
+        for y in range(grid_height):
+            cv2.putText(vis_map, str(y), 
+                    (10, y * cell_size + cell_size//2 + margin), 
+                    font, font_scale, (0, 0, 0), 1)
         
         # Fill the map based on cell values
         for y in range(grid_height):
@@ -208,106 +231,122 @@ class GameMemory:
                     color = self.color_map['stairs']
                 elif cell_value == 4:  # Barrier
                     color = self.color_map['barrier']
+                else:
+                    color = (255, 255, 255)  # White for unknown
                 
-                # Draw the cell
-                y1 = y * cell_size
-                y2 = (y + 1) * cell_size
-                x1 = x * cell_size
-                x2 = (x + 1) * cell_size
-                vis_map[y1:y2, x1:x2] = color
+                # Draw the cell with coordinate offset
+                y1 = y * cell_size + margin
+                y2 = (y + 1) * cell_size + margin
+                x1 = x * cell_size + margin
+                x2 = (x + 1) * cell_size + margin
+                cv2.rectangle(vis_map, (x1, y1), (x2, y2), color, -1)
                 
-                # Add grid lines
-                cv2.rectangle(vis_map, (x1, y1), (x2, y2), (0, 0, 0), 1)
+                # Add coordinate text in each cell
+                coord_text = f"({x},{y})"
+                text_size = cv2.getTextSize(coord_text, font, font_scale*0.8, 1)[0]
+                text_x = x1 + (cell_size - text_size[0]) // 2
+                text_y = y1 + (cell_size + text_size[1]) // 2
+                cv2.putText(vis_map, coord_text, (text_x, text_y), font, font_scale*0.8, (0, 0, 0), 1)
         
         # Mark player position with a circle if provided
         if player_pos is not None:
             px, py = player_pos
-            center_x = px * cell_size + cell_size // 2
-            center_y = py * cell_size + cell_size // 2
-            cv2.circle(vis_map, (center_x, center_y), cell_size // 2, (255, 0, 0), -1)
+            center_x = px * cell_size + cell_size // 2 + margin
+            center_y = py * cell_size + cell_size // 2 + margin
+            cv2.circle(vis_map, (center_x, center_y), cell_size // 3, (0, 0, 255), -1)
+            cv2.putText(vis_map, "PLAYER", (center_x - 25, center_y - 15), font, font_scale, (0, 0, 0), 1)
         
         # Mark stairs position with a triangle if provided
         if stair_pos is not None:
             sx, sy = stair_pos
-            center_x = sx * cell_size + cell_size // 2
-            center_y = sy * cell_size + cell_size // 2
+            center_x = sx * cell_size + cell_size // 2 + margin
+            center_y = sy * cell_size + cell_size // 2 + margin
             
             triangle_points = np.array([
-                [center_x, center_y - cell_size // 2],
-                [center_x - cell_size // 2, center_y + cell_size // 2],
-                [center_x + cell_size // 2, center_y + cell_size // 2]
+                [center_x, center_y - cell_size // 3],
+                [center_x - cell_size // 3, center_y + cell_size // 3],
+                [center_x + cell_size // 3, center_y + cell_size // 3]
             ], np.int32)
             
-            cv2.fillPoly(vis_map, [triangle_points], self.color_map['stairs'])
+            cv2.fillPoly(vis_map, [triangle_points], (255, 255, 0))
+            cv2.putText(vis_map, "STAIRS", (center_x - 25, center_y + 25), font, font_scale, (0, 0, 0), 1)
         
-        return vis_map
-    
-    def suggest_path_to_destination(self, destination_type="stairs"):
-        """
-        Suggest a path from the player's position to a destination
-        
-        Args:
-            destination_type: Type of destination to find ("stairs", "carpet", etc.)
-            
-        Returns:
-            List of movements to reach the destination, or None if no path found
-        """
-        if self.current_map is None or self.player_position is None:
-            print("Cannot suggest path: Map or player position unknown")
-            return None
-        
-        # Find the destination coordinates based on type
-        destination = None
-        grid_height, grid_width = self.current_map.shape
-        
-        if destination_type == "stairs":
-            # Look for stairs (value 3) in the grid
-            stair_positions = np.where(self.current_map == 3)
-            if len(stair_positions[0]) > 0:
-                # Use the first stairs found
-                y = stair_positions[0][0]
-                x = stair_positions[1][0]
-                destination = (x, y)
-        
-        if destination is None:
-            print(f"Cannot find destination of type '{destination_type}'")
-            return None
-        
-        # Simple path finding using BFS
-        visited = np.zeros_like(self.current_map, dtype=bool)
-        queue = [(self.player_position, [])]  # (position, path)
-        
-        movement_map = {
-            (0, -1): "up",
-            (0, 1): "down",
-            (-1, 0): "left",
-            (1, 0): "right"
-        }
-        
-        while queue:
-            (x, y), path = queue.pop(0)
-            
-            # Check if we've reached the destination
-            if (x, y) == destination:
-                return path
-            
-            # Mark as visited
-            visited[y, x] = True
-            
-            # Try each direction
-            for (dx, dy), move_name in movement_map.items():
-                nx, ny = x + dx, y + dy
+        # Draw path if provided
+        if path is not None and player_pos is not None:
+            current_pos = player_pos
+            for i, move in enumerate(path):
+                # Calculate next position based on move direction
+                next_pos = list(current_pos)
+                if move == "up":
+                    next_pos[1] -= 1
+                elif move == "down":
+                    next_pos[1] += 1
+                elif move == "left":
+                    next_pos[0] -= 1
+                elif move == "right":
+                    next_pos[0] += 1
                 
-                # Check boundaries
-                if 0 <= nx < grid_width and 0 <= ny < grid_height:
-                    # Check if the cell is walkable and not visited
-                    # Values 0 (empty), 2 (carpet), and 3 (stairs) are walkable
-                    if not visited[ny, nx] and self.current_map[ny, nx] in [0, 2, 3]:
-                        queue.append(((nx, ny), path + [move_name]))
+                # Draw arrow from current to next position
+                start_x = current_pos[0] * cell_size + cell_size // 2 + margin
+                start_y = current_pos[1] * cell_size + cell_size // 2 + margin
+                end_x = next_pos[0] * cell_size + cell_size // 2 + margin
+                end_y = next_pos[1] * cell_size + cell_size // 2 + margin
+                
+                # Draw arrow line
+                cv2.arrowedLine(vis_map, (start_x, start_y), (end_x, end_y), (0, 0, 255), 2)
+                
+                # Add step number
+                cv2.putText(vis_map, str(i+1), (end_x-5, end_y-5), font, font_scale, (0, 0, 0), 1)
+                
+                current_pos = next_pos
         
-        # If we get here, no path was found
-        print("No path found to destination")
-        return None
+        # Add a legend
+        legend_y = grid_height * cell_size + margin + 20
+        cv2.putText(vis_map, "Legend: ", (10, legend_y), font, font_scale*1.2, (0, 0, 0), 1)
+        cv2.rectangle(vis_map, (70, legend_y-10), (90, legend_y+10), self.color_map['player'], -1)
+        cv2.putText(vis_map, "Player", (95, legend_y), font, font_scale, (0, 0, 0), 1)
+        
+        cv2.rectangle(vis_map, (150, legend_y-10), (170, legend_y+10), self.color_map['stairs'], -1)
+        cv2.putText(vis_map, "Stairs", (175, legend_y), font, font_scale, (0, 0, 0), 1)
+        
+        cv2.rectangle(vis_map, (230, legend_y-10), (250, legend_y+10), self.color_map['carpet'], -1)
+        cv2.putText(vis_map, "Walkable", (255, legend_y), font, font_scale, (0, 0, 0), 1)
+        
+        cv2.rectangle(vis_map, (320, legend_y-10), (340, legend_y+10), self.color_map['barrier'], -1)
+        cv2.putText(vis_map, "Barrier", (345, legend_y), font, font_scale, (0, 0, 0), 1)
+        
+        # If original image is provided, create a version with overlay
+        if screenshot_path:
+            try:
+                # Load original image
+                orig_img = cv2.imread(screenshot_path)
+                
+                # Extract the game area (assuming it's centered in the screenshot)
+                h, w = orig_img.shape[:2]
+                game_area = orig_img[int(h*0.1):int(h*0.9), int(w*0.1):int(w*0.9)]
+                
+                # Resize to match our grid size
+                game_area_resized = cv2.resize(game_area, 
+                                            (grid_width * cell_size, grid_height * cell_size))
+                
+                # Create a copy of the visualization with the game area embedded
+                vis_map_with_orig = vis_map.copy()
+                
+                # Insert the game area at the grid position
+                vis_map_with_orig[margin:margin+grid_height*cell_size, 
+                                margin:margin+grid_width*cell_size] = cv2.addWeighted(
+                    vis_map_with_orig[margin:margin+grid_height*cell_size, margin:margin+grid_width*cell_size],
+                    0.6, game_area_resized, 0.4, 0)
+                # save
+                timestamp = int(time.time())
+                map_path = os.path.join(self.map_snapshot_path, f"map_{timestamp}.png")
+                cv2.imwrite(map_path, cv2.cvtColor(vis_map_with_orig, cv2.COLOR_RGB2BGR))
+                return vis_map_with_orig
+            except Exception as e:
+                print(f"Error overlaying original image: {str(e)}")
+        
+        # Return just the basic visualization if no overlay
+        return vis_map
     
     def record_failed_move(self, direction):
         """Record a failed movement attempt"""
@@ -356,92 +395,7 @@ class GameMemory:
             is_loop = True
             
         return is_loop
-    
-    def suggest_alternative_action(self):
-        """Suggest an alternative action when stuck in a loop"""
-        # First, try to find a path to stairs if we know where they are
-        path_to_stairs = self.suggest_path_to_destination("stairs")
-        if path_to_stairs and len(path_to_stairs) > 0:
-            print(f"Suggesting path to stairs: {path_to_stairs}")
-            return path_to_stairs[0]  # Return the first step of the path
-        
-        # If we can't find a path to stairs, try a different approach
-        # Check which directions haven't been tried recently
-        tried_directions = set()
-        for turn in self.turn_history[-5:]:
-            for button in turn["buttons"]:
-                if button in ["up", "down", "left", "right"]:
-                    tried_directions.add(button)
-                    
-        all_directions = {"up", "down", "left", "right"}
-        untried_directions = all_directions - tried_directions
-        
-        # First look for directions that aren't blocked
-        unblocked_directions = set()
-        if self.player_position and self.current_map is not None:
-            x, y = self.player_position
-            grid_height, grid_width = self.current_map.shape
-            
-            # Check each direction for barriers
-            direction_deltas = {
-                "up": (0, -1),
-                "down": (0, 1),
-                "left": (-1, 0),
-                "right": (1, 0)
-            }
-            
-            for direction, (dx, dy) in direction_deltas.items():
-                nx, ny = x + dx, y + dy
-                if 0 <= nx < grid_width and 0 <= ny < grid_height:
-                    if self.current_map[ny, nx] != 4:  # Not a barrier
-                        unblocked_directions.add(direction)
-        
-        # Prefer untried and unblocked directions
-        viable_directions = untried_directions.intersection(unblocked_directions)
-        
-        if viable_directions:
-            return list(viable_directions)[0]
-        elif unblocked_directions:
-            return list(unblocked_directions)[0]
-        elif untried_directions:
-            return list(untried_directions)[0]
-        elif random.random() > 0.7:
-            return "b"  # Sometimes try canceling
-        else:
-            # Try a completely different approach
-            return random.choice(["down", "left", "a", "start"])
-    
-    def check_screen_change(self, screenshot_path):
-        """
-        Check if the screen has changed significantly from the last frame
-        Used to detect when the player is stuck against an obstacle
-        """
-        try:
-            # Get a simple hash of the image
-            img = Image.open(screenshot_path).resize((32, 32))
-            img_array = np.array(img)
-            img_hash = hash(img_array.tobytes())
-            
-            # Compare with previous hash
-            if self.last_screen_hash is None:
-                self.last_screen_hash = img_hash
-                return True  # First screen, assume it's new
-            
-            # Check if the screen is similar
-            is_similar = (img_hash == self.last_screen_hash)
-            
-            # Update counter of similar screens
-            if is_similar:
-                self.consecutive_similar_screens += 1
-            else:
-                self.consecutive_similar_screens = 0
-                self.last_screen_hash = img_hash
-            
-            return not is_similar
-            
-        except Exception as e:
-            print(f"Error checking screen change: {str(e)}")
-            return True  # Assume screen changed if we can't check
+  
     
     def update_from_response(self, response_text):
         """Extract information from Gemini's response to update memory"""
@@ -498,24 +452,36 @@ class GameMemory:
         """Enhanced turn summary with barrier detection and map analysis"""
         # Update map from screenshot if provided
         if screenshot_path:
-            # Check if screen has significantly changed
-            screen_changed = self.check_screen_change(screenshot_path)
-            print("****<>>M><><><><><>>")
-            # Analyze the screenshot for map information
-            map_info = self.detect_player_and_elements(screenshot_path)
-            print(map_info)
-            if map_info:
-                # If we've analyzed the map, update the room state
-                if self.current_location not in self.room_maps:
-                    self.room_maps[self.current_location] = {}
+            try:
+                # First process the screenshot to get map data
+                map_data = self.detect_player_and_elements(screenshot_path)
                 
-                # Update room map
-                self.room_maps[self.current_location]['map_grid'] = map_info['map_grid']
-                self.room_maps[self.current_location]['player_position'] = map_info['player_position']
-                
-                # Update current state
-                self.current_map = map_info['map_grid']
-                self.player_position = map_info['player_position']
+                if map_data is not None:
+                    print("Successfully processed screenshot")
+                    
+                    # Update room maps
+                    if self.current_location not in self.room_maps:
+                        self.room_maps[self.current_location] = {}
+                    
+                    # Update map data safely
+                    self.room_maps[self.current_location]['map_grid'] = map_data.get('map_grid')
+                    self.room_maps[self.current_location]['player_position'] = map_data.get('player_position')
+                    
+                    # Update current state
+                    self.current_map = map_data.get('map_grid')
+                    self.player_position = map_data.get('player_position')
+                    
+                    # Now generate and save visualization
+                    vis_map = self.visualize_enhanced_map(map_data)
+                    if vis_map is not None:
+                        timestamp = int(time.time())
+                        save_path = os.path.join(self.map_snapshot_path, f"map_{timestamp}.png")
+                        cv2.imwrite(save_path, vis_map)
+                else:
+                    print("Failed to process screenshot")
+            except Exception as e:
+                print(f"Error during map processing: {str(e)}")
+                traceback.print_exc()
         
         # Create the turn summary
         summary = {
@@ -525,7 +491,7 @@ class GameMemory:
             "barrier_detected": barrier_detected,
             "player_position": self.player_position
         }
-        
+
         # Keep track of the results of this action
         if barrier_detected:
             summary["result"] = "BARRIER"
@@ -554,9 +520,15 @@ class GameMemory:
         if self.current_map is None or self.player_position is None:
             return None
             
-        # Create a visualization of the current map
-        map_vis = self.visualize_map(self.current_map, self.player_position)
-        
+        map_data = {
+                'map_grid': self.current_map,
+                'player_position': self.player_position,
+                # Include other relevant data
+                'stair_position': None  # Add if you have it
+            }
+            
+        # Call visualize_enhanced_map with the map data
+        map_vis = self.visualize_enhanced_map(map_data)
         # Convert to base64
         try:
             # Convert to PIL Image
@@ -584,22 +556,7 @@ class GameMemory:
         # Add navigation information based on the map
         if self.player_position is not None:
             summary += f"**Player Position:** {self.player_position}\n"
-            
-            # Check if stairs are visible
-            stairs_visible = False
-            if self.current_map is not None:
-                stairs_positions = np.where(self.current_map == 3)
-                if len(stairs_positions[0]) > 0:
-                    stairs_visible = True
-                    y = stairs_positions[0][0]
-                    x = stairs_positions[1][0]
-                    summary += f"**Stairs Position:** ({x}, {y})\n"
-                    
-                    # Suggest a path to the stairs
-                    path = self.suggest_path_to_destination("stairs")
-                    if path:
-                        summary += f"**Path to Stairs:** {', '.join(path)}\n"
-        
+
         if self.locations_visited:
             summary += "**Locations Visited:** " + ", ".join(self.locations_visited) + "\n"
         
@@ -645,7 +602,7 @@ class GameMemory:
         
         if self.observations:
             summary += "\n**Key Observations:**\n- " + "\n- ".join(self.observations) + "\n"
-        
+        print(self.generate_map_description(),"**************************************")
         # Enhanced turn history with barrier information
         if self.turn_history:
             summary += "\n**Recent Actions:**\n"
@@ -655,6 +612,114 @@ class GameMemory:
                 summary += f"- Turn {turn['turn']}: Pressed {', '.join(turn['buttons'])}{barrier_info}{position_info} → {turn['observation']}\n"
         
         return summary
+    
+    def detect_barrier_from_movement(self, pre_screenshot, post_screenshot, direction):
+            """
+            Detect barriers by analyzing player movement between screenshots
+            
+            Args:
+                pre_screenshot: Path to screenshot before movement
+                post_screenshot: Path to screenshot after movement attempt
+                direction: Direction of attempted movement
+                
+            Returns:
+                tuple: (barrier_detected, barrier_position)
+            """
+            try:
+                # Detect player in both screenshots
+                pre_info = self.detect_player_and_elements(pre_screenshot)
+                post_info = self.detect_player_and_elements(post_screenshot)
+                
+                if not pre_info or not post_info:
+                    return False, None
+                    
+                pre_player_pos = pre_info.get('player_position')
+                post_player_pos = post_info.get('player_position')
+                
+                if not pre_player_pos or not post_player_pos:
+                    return False, None
+                    
+                # Check if player position changed significantly
+                px1, py1 = pre_player_pos
+                px2, py2 = post_player_pos
+                
+                # Calculate Euclidean distance between positions
+                movement_distance = ((px2-px1)**2 + (py2-py1)**2)**0.5
+                
+                # If player barely moved, likely hit a barrier
+                if movement_distance < 0.8:  # Threshold can be adjusted
+                    # Calculate where the barrier would be based on direction
+                    barrier_x, barrier_y = px1, py1
+                    
+                    if direction == "up":
+                        barrier_y -= 1
+                    elif direction == "down":
+                        barrier_y += 1
+                    elif direction == "left":
+                        barrier_x -= 1
+                    elif direction == "right":
+                        barrier_x += 1
+                        
+                    return True, (barrier_x, barrier_y)
+                    
+                return False, None
+                
+            except Exception as e:
+                print(f"Error in barrier detection: {str(e)}")
+                return False, None
+            
+    def generate_map_description(self):
+        """Generate a detailed textual description of the map for Gemini"""
+        if self.current_map is None or self.player_position is None:
+            return "Map not yet available."
+        
+        description = []
+        description.append("## Map Analysis")
+        
+        # Describe player position
+        px, py = self.player_position
+        description.append(f"- You (player) are at grid position ({px}, {py})")
+        
+        # Describe stairs if visible
+        stairs_visible = False
+        stairs_pos = None
+        if self.current_map is not None:
+            stairs_positions = np.where(self.current_map == 3)
+            if len(stairs_positions[0]) > 0:
+                stairs_visible = True
+                sy = stairs_positions[0][0]
+                sx = stairs_positions[1][0]
+                stairs_pos = (sx, sy)
+                description.append(f"- Stairs are at position ({sx}, {sy})")
+                
+                # Calculate relative direction to stairs
+                x_diff = sx - px
+                y_diff = sy - py
+                directions = []
+                
+                if abs(x_diff) > abs(y_diff):  # Primarily horizontal
+                    if x_diff > 0:
+                        directions.append("right/east")
+                    else:
+                        directions.append("left/west")
+                        
+                    if y_diff > 0:
+                        directions.append("slightly down/south")
+                    elif y_diff < 0:
+                        directions.append("slightly up/north")
+                else:  # Primarily vertical
+                    if y_diff > 0:
+                        directions.append("down/south")
+                    else:
+                        directions.append("up/north")
+                        
+                    if x_diff > 0:
+                        directions.append("slightly right/east")
+                    elif x_diff < 0:
+                        directions.append("slightly left/west")
+                        
+                direction_text = " and ".join(directions)
+                manhattan_dist = abs(x_diff)
 # Initialize memory at the beginning of your script (after other initializations)
 game_memory = GameMemory()
 
@@ -835,7 +900,7 @@ def are_images_similar(image1_path, image2_path, threshold=0.95):
         
         # Simple comparison - check percentage of identical pixels
         similar_pixels = np.sum(np.abs(arr1 - arr2) < 10) / arr1.size
-        print(similar_pixels)
+        # print(similar_pixels)
         return similar_pixels > threshold
     except Exception as e:
         print(f"Error comparing images: {e}")
