@@ -84,6 +84,7 @@ turn = 0
 turn_delay = 1.0  # Delay between turns in seconds
 save_screenshots = True  # Whether to save screenshots for later review
 screenshot_dir = "screenshots"  # Directory to save screenshots
+prev_spoken = ""
 
 # Create screenshots directory if it doesn't exist and save_screenshots is enabled
 if save_screenshots:
@@ -176,6 +177,7 @@ try:
                     # print("***function_call",part.function_call) if part.function_call else None
                     if part.text:
                         assistant_content_list.append({"type": "text", "text": part.text})
+                        prev_spoken = part.text
                         print(f"gemini-text: {part.text}")
                     elif part.function_call:
                         assistant_content_list.append({"type": "tool_use", "tool_use": part})
@@ -210,7 +212,8 @@ try:
                                     result_msg_parts.append(f"Failed to press buttons: {', '.join(failed_actions)}.")
 
                                 result_msg = " ".join(result_msg_parts) if result_msg_parts else "No button presses attempted."
-                                game_memory.add_turn_summary(button_presses, result_msg)
+                                # print(prev_spoken,"***----***",assistant_content_list[0])
+                                game_memory.add_turn_summary(button_presses, prev_spoken)
                             else:
                                 result_msg = "No button presses found in the tool input."
                                 game_memory.add_turn_summary([], result_msg)

@@ -8,6 +8,7 @@ class GameMemory:
         self.current_objective = "Find the Professor"
         self.observations = []
         self.turn_history = []
+        self.discoveries = []
         
     def update_from_response(self, response_text):
         """Extract information from Gemini's response to update memory"""
@@ -54,10 +55,21 @@ class GameMemory:
             "buttons": buttons_pressed,
             "observation": observation[:100] + "..." if len(observation) > 100 else observation
         }
+        print(summary)
         self.turn_history.append(summary)
         # Keep only the last 5 turns
         self.turn_history = self.turn_history[-5:]
-    
+        
+        # Add to GameMemory class
+    def add_discovery(self, discovery_type, description):
+        """Record a new discovery"""
+        discovery = {
+            "type": discovery_type,  # location, npc, item, pokemon
+            "description": description,
+            "turn": len(self.turn_history)
+        }
+        self.discoveries.append(discovery)
+        
     def generate_summary(self):
         """Generate a summary of the memory for the prompt"""
         summary = "## Game Memory\n"
@@ -189,11 +201,35 @@ You are playing Pokemon on a game boy advanced.
      * You've fully explored all other accessible floors
      * You're specifically backtracking to reach a new area
 
-- Track your exploration progress:
+## Track your exploration progress:
   * Divide each room into sections (north, south, east, west)
   * Check all objects and NPCs in each section before moving on
   * Mark floors as "completely explored" or "partially explored" in your memory
   * Avoid revisiting areas unless you have a specific reason 
+     
+## Memory Management
+After each observation, update your mental map so thateach of your text output is saved
+      and fed back to you as recent actions so you dont get into a loop. 
+     Its good for you to discover and note down:
+- Current location name and description
+- NPCs encountered (with any important dialog)
+- Items found or obtained
+- Key observations about the environment
+- Recent actions taken and their results
+
+## Screen Analysis Procedure
+1. First identify the screen type (Overworld, Dialog, Menu, Battle)
+2. For Overworld: Note character position, exits, NPCs, and interactive objects
+3. For Dialog: Read and interpret the text, identify the speaker
+4. For Menus: Identify all options and current selection
+5. For Battles: Note your Pokemon, enemy Pokemon, and available actions
+
+## Troubleshooting
+If you encounter unexpected results:
+1. Press B to cancel any menus or dialog
+2. Try moving in all four directions to check for paths
+3. If stuck in a loop, vary your approach (e.g., try a different path)
+4. If completely lost, use Start to open the map (but remember to press b to get back to the game from the menu)
      
 ## Available function calls:
 - You must use function call to pokemon_controller to control the emulator, providing a list of buttons in sequence

@@ -72,3 +72,19 @@ def init_game():
         print(f"Error initializing: {str(e)}")
         # traceback.print_exc()  # Print the full traceback
         sys.exit(1)
+
+def make_image_message(controller):
+    # Capture the current state of the emulator
+    screenshot_file = controller.capture_screen()
+    game_state = read_image_to_base64(screenshot_file)
+    return {
+        "role": "user",
+        "content": [{
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/jpeg",
+                "data": game_state,
+            },
+        }]
+    }

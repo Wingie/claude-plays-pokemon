@@ -28,7 +28,7 @@ class CaptureScreenTool(BaseTool):
                 except Exception as e:
                     print(f"[CaptureScreenTool] Error saving screenshot: {str(e)}")
 
-            return base64_image
+            return make_image_message(controller)
         except Exception as e:
             print(f"[CaptureScreenTool] Error capturing screen: {str(e)}")
             traceback.print_exc()
@@ -90,65 +90,84 @@ class PressButtonsTool(BaseTool):
 capture_tool = CaptureScreenTool()
 press_tool = PressButtonsTool()
 
-def create_vision_agent(tools):
-    return Agent(
-        role="Vision Analyst",
-        goal="Analyze game screens to identify objects, characters, and navigable paths",
-        backstory="""You are a cartographer who looks at gameboy screens and describes what you see there and what actions are possible for the player.""",
-        tools=tools,
-        verbose=True,
-        allow_delegation=False,
-        llm=llm,
-        multimodal=True
-    )
+# --- AGENT DEFS ---
 
-# Define the Agent
-game_analyst = Agent(
-    role='Expert Pokemon Player',
-    goal=f"Analyze the current Pokemon game screen, consult the game memory, and decide the best sequence of button presses to achieve the overall objective: '{GAME_GOAL}'. Then execute those presses.",
-    backstory=(
-        "You are an AI agent controlling a Pokemon game via an emulator. "
-        "You observe the game world through screenshots provided by the 'Capture Game Screen' tool. "
-        "You have access to a 'Game Memory' summarizing past actions and observations. "
-        "Your goal is to navigate the game world and achieve objectives. "
-        "You execute actions using the 'Press Game Buttons' tool, providing a list of button presses. "
-        "Think step-by-step: 1. Capture screen. 2. Analyze screen + memory. 3. Decide action(s). 4. Execute using Press Game Buttons tool."
-    ),
+# --- Agent Definitions ---
+observer_agent = Agent(
+    role="Screen Observer",
+    goal="Accurately perceive and describe the current state of the game screen.",
+    backstory="You are a meticulous observer focusing *only* on describing what is visually present on the game screen provided to you. Identify characters, objects, text, menus, and the general context (world, battle, menu).",
+    tools=[capture_tool], # ONLY capture tool
+    llm=llm,              # Needs to be multimodal
+    multimodal=True,      # Explicitly enable multimodal capabilities
     verbose=True,
-    memory=False, # We are managing memory manually via context
-    llm=llm,
-    tools=[capture_tool, press_tool],
     allow_delegation=False
 )
 
-analysis_task = Task(
-    description=(
-        "**Turn Number:** {turn_number}\n"
-        "**Overall Goal:** {current_goal}\n\n"
-        "**Game Memory Summary:**\n{memory_summary}\n\n"
-        "**Instructions:**\n"
-        "1. Use the 'Capture Game Screen' tool to get the current visual state of the game. You MUST do this first.\n"
-        "2. Analyze the captured screen image along with the provided Game Memory Summary and the Overall Goal.\n"
-        "3. Based on your analysis, decide the *best sequence* of button presses (e.g., ['down', 'down', 'a']) to make progress towards the goal. Keep sequences relatively short (e.g., 1-5 presses) to observe the results.\n"
-        "4. Use the 'Press Game Buttons' tool with the list of decided button presses.\n"
-        "5. Provide a brief summary of your observation, reasoning for the chosen action, and the action itself."
-    ),
-    expected_output=(
-        "A summary of your observation from the screen, your reasoning for the chosen button presses, "
-        "and confirmation that the 'Press Game Buttons' tool was used, including the result reported by the tool."
-    ),
-    agent=game_analyst,
-
+planner_agent = Agent(
+    role="Action Planner",
+    goal="Decide the next best sequence of button presses based on observation, memory, and goal, then execute them.",
+    backstory="You are a strategic Pokemon player. Given a description of the current screen, a summary of past actions, and an overall goal, your job is to devise the *best short sequence* of button presses (1-5 actions like 'up', 'a', 'b') to make progress. Clearly explain your reasoning before executing the presses.",
+    tools=[press_tool],   # ONLY press tool
+    llm=llm,              # Can be text-based or multimodal
+    verbose=True,
+    allow_delegation=False,
+    memory=False # Keep manual memory management
 )
 
-# Define the Crew
+# --- Task Definitions ---
+observe_task = Task(
+    description=(
+        "**Turn:** {turn_number}\n"
+        "1. Use the 'Capture Game Screen' tool *immediately* to get the current visual.\n"
+        "2. Analyze the captured image.\n"
+        "3. Provide a detailed description covering:\n"
+        "    - Player character's location and facing direction (if discernible).\n"
+        "    - Surrounding environment (e.g., 'in tall grass', 'in a building', 'on a path').\n"
+        "    - Visible NPCs or Pokemon.\n"
+        "    - Any open menus, dialogue boxes, or text prompts.\n"
+        "    - The general game state (e.g., 'overworld exploration', 'in battle', 'main menu open')."
+    ),
+    expected_output="A detailed textual description of the current game screen's content and context.",
+    agent=observer_agent,
+    tools=[capture_tool] # Explicitly associate tool with task/agent if needed by CrewAI version
+)
+
+plan_task = Task(
+    description=(
+        "**Turn:** {turn_number}\n"
+        "**Overall Goal:** {current_goal}\n\n"
+        "**Game Memory Summary:**\n{memory_summary}\n\n"
+        "**Current Screen Observation:**\n{{observe_task.output}}\n\n"
+        "Emumator screen is visible at /Users/wingston/code/claude-plays-pokemon/gemini-multimodal-playground/standalone/emulator_screen.jpg  "
+        "**Instructions:**\n"
+        "1. Review the Current Screen Observation, Game Memory, and Overall Goal.\n"
+        "2. Reason step-by-step about the *best short sequence* (1-5 presses) of button actions (e.g., ['down', 'down', 'a']) to make progress towards the goal based *specifically* on the current observation and memory.\n"
+        "   - If in a battle, decide the next move.\n"
+        "   - If in a menu, navigate or select.\n"
+        "   - If exploring, decide where to move or interact.\n"
+        "   - If in dialogue, advance it (usually 'a' or 'b').\n"
+        "3. Clearly state your reasoning.\n"
+        "4. Use the 'Press Game Buttons' tool with the exact list of chosen button presses."
+    ),
+    expected_output=(
+        "1. **Reasoning:** [Your step-by-step reasoning for the chosen actions based on observation, memory, and goal.]\n"
+        "2. **Action:** [The list of button presses you decided on, e.g., ['a', 'a']].\n"
+        "3. **Execution Result:** [Confirmation message from the 'Press Game Buttons' tool.]"
+    ),
+    agent=planner_agent,
+    context=[observe_task], # Tell CrewAI this task depends on the output of observe_task
+    tools=[press_tool]      # Explicitly associate tool with task/agent if needed
+)
+
+# --- Define the Crew ---
 pokemon_crew = Crew(
-    agents=[game_analyst],
-    tasks=[analysis_task],
-    process=Process.sequential,
-    verbose=True, 
-    memory=False,
-    manager_llm=llm
+    agents=[observer_agent, planner_agent],
+    tasks=[observe_task, plan_task],
+    process=Process.sequential, # IMPORTANT: Observe MUST happen before Plan
+    verbose=True,
+    memory=False, # Global memory off, passed via context
+    manager_llm=llm # Optional: can use a manager LLM or let agents coordinate
 )
 
 # --- Game Loop ---
