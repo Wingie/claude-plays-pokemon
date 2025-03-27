@@ -171,21 +171,41 @@ class GameMemory:
             traceback.print_exc()  # Add this to see the full stack trace
             return None
         
-    def visualize_enhanced_map(self, screenshot_path, map_grid=None, player_pos=None, stair_pos=None, path=None, original_image_path=None):
+    def visualize_enhanced_map(self, screenshot_path_or_data, map_grid=None, player_pos=None, stair_pos=None, path=None, original_image_path=None):
         """Create an enhanced visual map with coordinates, original image overlay, and path visualization"""
         # Constants for visualization
         cell_size = 30  # Larger cells for better visualization
 
-        if screenshot_path and map_grid is None:
-            # Process the screenshot to get map info
-            map_info = self.detect_player_and_elements(screenshot_path)
-            if not map_info:
-                print(f"Error: Could not process screenshot at {screenshot_path}")
-                return
-            # Extract the map grid and other info from map_info
-            map_grid = map_info.get('map_grid')
-            player_pos = map_info.get('player_position')
-            stair_pos = map_info.get('stair_position')
+        # Handle both parameter types (screenshot path or map data dictionary)
+        is_dict = isinstance(screenshot_path_or_data, dict)
+        screenshot_path = None
+        
+        if is_dict:
+            # Handle case where first parameter is a map data dictionary
+            map_data = screenshot_path_or_data
+            if map_grid is None:
+                map_grid = map_data.get('map_grid')
+            if player_pos is None:
+                player_pos = map_data.get('player_position')
+            if stair_pos is None:
+                stair_pos = map_data.get('stair_position')
+            
+            # Check if there's an original image in the data
+            screenshot_path = original_image_path
+        else:
+            # Handle case where first parameter is a screenshot path
+            screenshot_path = screenshot_path_or_data
+            
+            if screenshot_path and map_grid is None:
+                # Process the screenshot to get map info
+                map_info = self.detect_player_and_elements(screenshot_path)
+                if not map_info:
+                    print(f"Error: Could not process screenshot at {screenshot_path}")
+                    return
+                # Extract the map grid and other info from map_info
+                map_grid = map_info.get('map_grid')
+                player_pos = map_info.get('player_position')
+                stair_pos = map_info.get('stair_position')
         grid_height, grid_width = map_grid.shape
         
         # Create a blank RGB image with margin for coordinate labels
@@ -472,7 +492,9 @@ class GameMemory:
                     self.player_position = map_data.get('player_position')
                     
                     # Now generate and save visualization
-                    vis_map = self.visualize_enhanced_map(map_data)
+                    vis_map = self.visualize_enhanced_map(screenshot_path, map_data.get('map_grid'), 
+                                      map_data.get('player_position'), 
+                                      map_data.get('stair_position'))
                     if vis_map is not None:
                         timestamp = int(time.time())
                         save_path = os.path.join(self.map_snapshot_path, f"map_{timestamp}.png")
