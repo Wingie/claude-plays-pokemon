@@ -62,9 +62,12 @@ pokemon_tool = Tool(
 
 def make_image_message():
     # Capture the current state of the emulator
+    global controller, game_memory
     screenshot_file = controller.capture_screen()
     game_state = read_image_to_base64(screenshot_file)
-    return {
+    
+    # Create the message with proper structure
+    message = {
         "role": "user",
         "content": [{
             "type": "image",
@@ -75,6 +78,20 @@ def make_image_message():
             },
         }]
     }
+    
+    # Get the map visualization if available
+    map_base64 = game_memory.get_map_as_base64()
+    if map_base64:
+        message["content"].append({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/png",
+                "data": map_base64,
+            },
+        })
+        
+    return message
 
 
 # Game loop configuration
@@ -133,8 +150,9 @@ try:
         # Add the current screenshot
         messages.append(make_image_message())
 
-        # print("--- Debugging: Starting prompt_parts conversion loop ---") # ADDED
+        print("--- Debugging: Starting prompt_parts conversion loop ---") # ADDED
         for msg in messages:
+            print
             if msg["role"] == "user":
                 content_part = []
                 if isinstance(msg["content"], str):  # Handle string content directly
@@ -223,7 +241,7 @@ try:
 
                                 result_msg = " ".join(result_msg_parts) if result_msg_parts else "No button presses attempted."
                                 # print(prev_spoken,"***----***",assistant_content_list[0])
-                                game_memory.add_turn_summary(button_presses, prev_spoken) # barrier_detected=barrier_detected
+                                game_memory.add_turn_summary(button_presses, prev_spoken,screenshot_path=pre_action_screenshot) # barrier_detected=barrier_detected
                             else:
                                 result_msg = "No button presses found in the tool input."
                                 game_memory.add_turn_summary([], result_msg)
