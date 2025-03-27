@@ -9,7 +9,7 @@ from google.generativeai.types import FunctionDeclaration, Tool  # Import Functi
 import traceback
 # Load environment variables from .env file
 load_dotenv()
-from gamememory import GameMemory, init_message
+from gamememory import GameMemory, init_message, are_images_similar
 
 # Configure the emulator window title
 WINDOW_TITLE = "mGBA - 0.10.5"
@@ -193,13 +193,22 @@ try:
                                     button_presses.append(button)
 
                             if button_presses:
-                                print(f"********** Gemini chose to press: {button_presses}")
+                                print(f"********** Gemini requested to press: {button_presses}")
                                 actions_taken = []
                                 failed_actions = []
-
+                                pre_action_screenshot = controller.capture_screen()
                                 for action in button_presses:
                                     success = controller.press_button(action)
                                     time.sleep(1)
+                                        # After action, check if we hit a barrier
+                                    # if action in ["up", "down", "left", "right"]:
+                                    #     post_action_screenshot = controller.capture_screen()
+                                    #     barrier_detected = are_images_similar(pre_action_screenshot, post_action_screenshot)
+                                    #     if barrier_detected:
+                                    #         print(f"BARRIER DETECTED when moving {action}")
+                                    #         game_memory.record_failed_move(action)
+                                    #     pre_action_screenshot = post_action_screenshot
+
                                     if success:
                                         actions_taken.append(action)
                                     else:
@@ -213,7 +222,7 @@ try:
 
                                 result_msg = " ".join(result_msg_parts) if result_msg_parts else "No button presses attempted."
                                 # print(prev_spoken,"***----***",assistant_content_list[0])
-                                game_memory.add_turn_summary(button_presses, prev_spoken)
+                                game_memory.add_turn_summary(button_presses, prev_spoken) # barrier_detected=barrier_detected
                             else:
                                 result_msg = "No button presses found in the tool input."
                                 game_memory.add_turn_summary([], result_msg)
