@@ -299,6 +299,7 @@ def are_images_similar(image1_path, image2_path, threshold=0.95):
         
         # Simple comparison - check percentage of identical pixels
         similar_pixels = np.sum(np.abs(arr1 - arr2) < 10) / arr1.size
+        print(similar_pixels)
         return similar_pixels > threshold
     except Exception as e:
         print(f"Error comparing images: {e}")

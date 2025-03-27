@@ -200,14 +200,15 @@ try:
                                 for action in button_presses:
                                     success = controller.press_button(action)
                                     time.sleep(1)
-                                        # After action, check if we hit a barrier
-                                    # if action in ["up", "down", "left", "right"]:
-                                    #     post_action_screenshot = controller.capture_screen()
-                                    #     barrier_detected = are_images_similar(pre_action_screenshot, post_action_screenshot)
-                                    #     if barrier_detected:
-                                    #         print(f"BARRIER DETECTED when moving {action}")
-                                    #         game_memory.record_failed_move(action)
-                                    #     pre_action_screenshot = post_action_screenshot
+                                       # After action, check if we hit a barrier
+                                    if action in ["up", "down", "left", "right"]:
+                                        post_action_screenshot = controller.capture_screen()
+                                        barrier_detected = are_images_similar(pre_action_screenshot, post_action_screenshot)
+                                        if barrier_detected:
+                                            # print(f"BARRIER DETECTED when moving {action}")
+                                            # game_memory.record_failed_move(action)
+                                            pass
+                                        pre_action_screenshot = post_action_screenshot
 
                                     if success:
                                         actions_taken.append(action)
