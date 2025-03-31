@@ -6,6 +6,239 @@ import io
 import os
 import time
 import traceback
+from neo4j import GraphDatabase
+
+
+class Neo4jMemory:
+    """Class for storing and retrieving game memory in Neo4j"""
+    
+    def __init__(self):
+        """Initialize the Neo4j connection
+        
+        Args:
+            uri: Neo4j database URI
+            username: Neo4j username
+            password: Neo4j password
+        """
+         # Initialize Neo4j memory
+        neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+        neo4j_username = os.getenv("NEO4J_USERNAME", "neo4j")
+        neo4j_password = os.getenv("NEO4J_PASSWORD", "password")
+        self.driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
+        self.init_db()
+        
+    def close(self):
+        """Close the Neo4j connection"""
+        self.driver.close()
+        
+    def init_db(self):
+        """Initialize the database schema"""
+        with self.driver.session() as session:
+            # Create constraints and indexes
+            session.run("""
+                CREATE CONSTRAINT IF NOT EXISTS FOR (t:Turn) REQUIRE t.turn_id IS UNIQUE
+            """)
+            
+            # Create vector index for image embeddings if not exists
+            try:
+                session.run("""
+                    CREATE VECTOR INDEX image_embedding IF NOT EXISTS
+                    FOR (t:Turn) ON t.image_embedding
+                """)
+            except Exception as e:
+                print(f"Warning: Could not create vector index: {str(e)}")
+                print("Vector search functionality may not be available.")
+    
+    def update_memory(self, base64_image, gemini_text, turn_number):
+        """Store a game turn in Neo4j
+        
+        Args:
+            base64_image: Base64-encoded image of the game state
+            gemini_text: The text response from Gemini
+            turn_number: The turn number
+            
+        Returns:
+            str: The ID of the created turn node
+        """
+        # Generate embedding for the image
+        image_embedding = self._generate_image_embedding(base64_image)
+        
+        # Store in Neo4j
+        with self.driver.session() as session:
+            result = session.run("""
+                CREATE (t:Turn {
+                    turn_id: $turn_id,
+                    timestamp: datetime(),
+                    gemini_text: $gemini_text,
+                    image_base64: $image_base64,
+                    image_embedding: $image_embedding
+                })
+                RETURN t.turn_id as turn_id
+            """, {
+                "turn_id": f"turn_{turn_number}",
+                "gemini_text": gemini_text,
+                "image_base64": base64_image,
+                "image_embedding": image_embedding
+            })
+            
+            return result.single()["turn_id"]
+    
+    def query_memory(self, questions):
+        """Query the memory to answer specific questions
+        
+        Args:
+            questions: List of questions to answer
+            
+        Returns:
+            list: List of answers
+        """
+        answers = []
+        
+        with self.driver.session() as session:
+            for question in questions:
+                if "last turn" in question.lower() or "previous action" in question.lower():
+                    # Get the most recent turn
+                    result = session.run("""
+                        MATCH (t:Turn)
+                        RETURN t.turn_id, t.gemini_text
+                        ORDER BY t.timestamp DESC
+                        LIMIT 1
+                    """)
+                    
+                    record = result.single()
+                    if record:
+                        answers.append({
+                            "question": question,
+                            "answer": f"Last turn ({record['t.turn_id']}): {record['t.gemini_text']}"
+                        })
+                    else:
+                        answers.append({
+                            "question": question,
+                            "answer": "No turns recorded yet."
+                        })
+                
+                elif "similar" in question.lower() or "previous state" in question.lower():
+                    # Get the current turn's image embedding
+                    result = session.run("""
+                        MATCH (t:Turn)
+                        RETURN t.image_embedding
+                        ORDER BY t.timestamp DESC
+                        LIMIT 1
+                    """)
+                    
+                    record = result.single()
+                    if record and record["t.image_embedding"]:
+                        current_embedding = record["t.image_embedding"]
+                        
+                        # Find similar previous states using vector search
+                        try:
+                            similar_results = session.run("""
+                                MATCH (t:Turn)
+                                WHERE t.timestamp < datetime() - duration('PT10S')
+                                RETURN t.turn_id, t.gemini_text, t.timestamp,
+                                       distance(t.image_embedding, $current_embedding) as distance
+                                ORDER BY distance ASC
+                                LIMIT 3
+                            """, {"current_embedding": current_embedding})
+                            
+                            similar_states = []
+                            for record in similar_results:
+                                if record["distance"] < 0.2:  # Threshold for similarity
+                                    similar_states.append({
+                                        "turn_id": record["t.turn_id"],
+                                        "gemini_text": record["t.gemini_text"],
+                                        "distance": record["distance"]
+                                    })
+                            
+                            if similar_states:
+                                answer = "Similar previous states found:\n"
+                                for state in similar_states:
+                                    answer += f"- {state['turn_id']} (similarity: {1-state['distance']:.2f}): {state['gemini_text'][:50]}...\n"
+                                
+                                answers.append({
+                                    "question": question,
+                                    "answer": answer
+                                })
+                            else:
+                                answers.append({
+                                    "question": question,
+                                    "answer": "No similar previous states found."
+                                })
+                        except Exception as e:
+                            answers.append({
+                                "question": question,
+                                "answer": f"Error performing vector search: {str(e)}"
+                            })
+                    else:
+                        answers.append({
+                            "question": question,
+                            "answer": "No turns with embeddings available."
+                        })
+                
+                elif "all turns" in question.lower() or "history" in question.lower():
+                    # Get all turns
+                    result = session.run("""
+                        MATCH (t:Turn)
+                        RETURN t.turn_id, t.gemini_text
+                        ORDER BY t.timestamp ASC
+                    """)
+                    
+                    turns = []
+                    for record in result:
+                        turns.append(f"{record['t.turn_id']}: {record['t.gemini_text'][:50]}...")
+                    
+                    if turns:
+                        answers.append({
+                            "question": question,
+                            "answer": "\n".join(turns)
+                        })
+                    else:
+                        answers.append({
+                            "question": question,
+                            "answer": "No turns recorded yet."
+                        })
+                
+                else:
+                    answers.append({
+                        "question": question,
+                        "answer": "Question not recognized. Try asking about 'last turn', 'similar states', or 'history'."
+                    })
+        
+        return answers
+    
+    def _generate_image_embedding(self, base64_image):
+        """Generate a simple embedding for an image
+        
+        Args:
+            base64_image: Base64-encoded image
+            
+        Returns:
+            list: Image embedding as a vector
+        """
+        try:
+            # Convert base64 to image
+            image_data = base64.b64decode(base64_image)
+            image = Image.open(io.BytesIO(image_data))
+            
+            # Resize to a small size for faster processing
+            image = image.resize((32, 32)).convert('L')
+            
+            # Convert to numpy array and normalize
+            image_array = np.array(image).flatten() / 255.0
+            
+            # Reduce dimensions with simple averaging (basic embedding)
+            # In a real implementation, you'd use a proper embedding model
+            embedding = []
+            chunks = np.array_split(image_array, 64)  # Create a 64-dimensional embedding
+            for chunk in chunks:
+                embedding.append(float(np.mean(chunk)))
+            
+            return embedding
+        except Exception as e:
+            print(f"Error generating image embedding: {str(e)}")
+            return [0.0] * 64  # Return a zero vector as fallback
+        
+
 
 class GameMemory:
     def __init__(self,current_objective):
