@@ -86,12 +86,13 @@ class Neo4jMemory:
                 print(f"Warning: Could not create vector index: {str(e)}")
                 print("Vector search functionality may not be available.")
     
-    def update_memory(self, base64_image, gemini_text, turn_number):
+    def add_turn_summary(self, buttons_pressed, observation, base64_image=None, turn_number=-1):
         """Store a game turn in Neo4j
         
         Args:
             base64_image: Base64-encoded image of the game state
-            gemini_text: The text response from Gemini
+                def add_turn_summary(self, buttons_pressed, observation, base64_image=None, turn_number=-1):
+: The text response from Gemini
             turn_number: The turn number
             
         Returns:
@@ -113,7 +114,7 @@ class Neo4jMemory:
                 RETURN t.turn_id as turn_id
             """, {
                 "turn_id": f"turn_{turn_number}",
-                "gemini_text": gemini_text,
+                "gemini_text": observation,
                 "image_base64": base64_image,
                 "image_embedding": image_embedding
             })
