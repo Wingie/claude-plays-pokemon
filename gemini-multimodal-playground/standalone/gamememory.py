@@ -30,7 +30,44 @@ class Neo4jMemory:
     def close(self):
         """Close the Neo4j connection"""
         self.driver.close()
+
+    def get_map_as_base64(self,screen):
+        """Convert the current map visualization to a base64 string for embedding in prompts"""
+        if self.current_map is None or self.player_position is None:
+            return None
+            
+        return base64.b64encode(screen.getvalue()).decode('utf-8')
         
+    def generate_summary(self):
+        """Generate a text summary of the current memory state."""
+        summary = "## Game Memory from Neo4j\n\n"
+        
+        with self.driver.session() as session:
+            # Get most recent turns
+            result = session.run("""
+                MATCH (t:Turn)
+                RETURN t.turn_id, t.gemini_text, t.timestamp
+                ORDER BY t.timestamp DESC
+                LIMIT 5
+            """)
+            
+            turns = []
+            for record in result:
+                turns.append({
+                    "turn_id": record["t.turn_id"],
+                    "text": record["t.gemini_text"]
+                })
+            
+            if turns:
+                summary += "**Recent Actions:**\n"
+                for turn in reversed(turns):  # Show in chronological order
+                    summary += f"- {turn['turn_id']}: {turn['text'][:100]}...\n"
+            else:
+                summary += "No turns recorded yet.\n"
+        print("generate_summary >>>>> ", summary)
+
+        return summary
+    
     def init_db(self):
         """Initialize the database schema"""
         with self.driver.session() as session:

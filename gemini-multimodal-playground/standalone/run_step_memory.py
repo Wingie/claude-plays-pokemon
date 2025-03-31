@@ -92,17 +92,17 @@ def make_image_message():
         }]
     }
     
-    # Get the map visualization if available
-    map_base64 = game_memory.get_map_as_base64()
-    if map_base64:
-        message["content"].append({
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": "image/png",
-                "data": map_base64,
-            },
-        })
+    # # Get the map visualization if available
+    # map_base64 = game_memory.get_map_as_base64()
+    # if map_base64:
+    #     message["content"].append({
+    #         "type": "image",
+    #         "source": {
+    #             "type": "base64",
+    #             "media_type": "image/png",
+    #             "data": map_base64,
+    #         },
+    #     })
         
     return message
 
