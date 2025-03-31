@@ -1,6 +1,6 @@
 # SkyEmu MCP Server
 
-An MCP (Model Context Protocol) server for controlling SkyEmu through natural language commands via Claude or other LLMs.
+An MCP (Model Context Protocol) server for controlling [SkyEmu](https://github.com/skylersaleh/SkyEmu) through natural language commands via Claude or other LLMs.
 
 ## Overview
 
@@ -25,6 +25,15 @@ This project provides a bridge between Large Language Models (LLMs) like Claude 
    pip install -r requirements.txt
    ```
 
+3. Add to your claude config
+   ```
+   "skyemu-mcp": {
+      "command": "/Users/wingston/miniconda3/bin/python",
+      "args": [
+        "/Users/wingston/code/claude-plays-pokemon/skyemu-mcp/run_server.py"
+      ]
+    }
+   ```
 ## Usage
 
 ### Setting up SkyEmu
@@ -98,10 +107,10 @@ Here are some examples of natural language commands that Claude can process:
 
 ## License
 
-[Your license information here]
+- MIT License (c) Wingston Sharon
 
 ## Acknowledgments
 
 - SkyEmu for providing the HTTP Control Server API
 - Model Context Protocol for the framework
-- [Add any other acknowledgments]
+- Claude :)

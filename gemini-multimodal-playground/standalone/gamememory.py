@@ -8,13 +8,13 @@ import time
 import traceback
 
 class GameMemory:
-    def __init__(self):
+    def __init__(self,current_objective):
         # Existing attributes
         self.locations_visited = []
         self.npcs_met = []
         self.items_found = []
         self.current_location = "Unknown"
-        self.current_objective = "Find the Professor"
+        self.current_objective = current_objective
         self.observations = []
         self.turn_history = []
         
@@ -612,15 +612,7 @@ class GameMemory:
                 summary += "- The screen hasn't changed in several turns\n"
                 summary += "- You're likely hitting a barrier repeatedly\n"
                 
-            # Suggested alternative based on the map
-            alternative = self.suggest_alternative_action()
-            if isinstance(alternative, list):
-                summary += f"- Try this path: {', '.join(alternative)}\n"
-            else:
-                summary += f"- Try a completely different approach: '{alternative}'\n"
-                
-            summary += "- To reach the stairs, find a path AROUND furniture\n"
-            summary += "- Remember: You cannot walk through barriers - look for clear paths\n"
+
         
         if self.observations:
             summary += "\n**Key Observations:**\n- " + "\n- ".join(self.observations) + "\n"
@@ -742,8 +734,6 @@ class GameMemory:
                         
                 direction_text = " and ".join(directions)
                 manhattan_dist = abs(x_diff)
-# Initialize memory at the beginning of your script (after other initializations)
-game_memory = GameMemory()
 
 # Create the initial message with comprehensive instructions
 init_message = [

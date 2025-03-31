@@ -1,0 +1,9 @@
+Result: Button sequence Left executed
+
+Gemini: Okay, I'm at home with my mom, and my Pokémon are fainted. My objective is to find and win pokemon battles, but first I need to go to a Pokémon Center to heal them. I see stairs in the upper right, but based on the instructions I need to leave the house first. There is a red carpet to the left, which probably indicates the exit. I need to walk to the left to reach the exit.
+
+
+
+Action: pokemon_controller
+Args: <proto.marshal.collections.maps.MapComposite object at 0x13732fa00>
+

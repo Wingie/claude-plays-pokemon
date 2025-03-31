@@ -10,11 +10,6 @@ from google.genai.types import (GoogleSearch,Tool, GenerateContentConfig)
 
 from voice_activity_detector import VoiceActivityDetector
 
-
-def control_emulator(text):
-    print(f"Emulator control command: {text}")
-    return f"Emulator command executed: {text}"
-
 google_search_tool = Tool(google_search=GoogleSearch())
 
 class GeminiConnection:
@@ -23,31 +18,10 @@ class GeminiConnection:
         self.api_key = os.environ.get("GEMINI_API_KEY")
         # The Gemini 2.0 (flash) model name
         self.model = "gemini-2.0-flash-exp"
-        
-            "system_prompt": "You are Ash ketchum and playing pokemon via a game boy emulator.",
+        self.config = config or {
+            "system_prompt": "You are a friendly Gemini 2.0 model. Respond verbally in a casual, helpful tone.",
             "voice": "Puck",
-            "google_search": True,
-            "function_calling": True, # Enable/disable function calling
-            "tools": [
-                Tool(
-                    function_declarations=[
-                        {
-                            "name": "control_emulator",
-                            "description": "Sends commands to control the pokemon emulator.",
-                            "parameters": {
-                                "type": "LIST",
-                                "properties": {
-                                    "text": {
-                                        "type": "LIST of STRINGS",
-                                        "description": "The list of command text to send to the emulator one by one"
-                                    }
-                                },
-                                "required": ["text"]
-                            }
-                        }
-                    ]
-                )
-            ]
+            "google_search": True
         }
         
         # WebSocket endpoint for Gemini's BidiGenerateContent API
@@ -130,21 +104,11 @@ class GeminiConnection:
             if self.on_connect:
                 asyncio.get_event_loop().call_soon_threadsafe(self.on_connect)
             
-            # Run multiple tasks concurrently
-            tasks = [
-                asyncio.create_task(self.capture_audio()),
-                asyncio.create_task(self.receive_server_messages()),
-                asyncio.create_task(self.play_responses()),
-                asyncio.create_task(self.watch_cleanup())
-            ]
-            
-            # Wait for all tasks to complete or until an exception occurs
-            try:
-                await asyncio.gather(*tasks)
-            except Exception as e:
-                for task in tasks:
-                    task.cancel()
-                await asyncio.gather(*tasks, return_exceptions=True)
+            async with asyncio.TaskGroup() as tg:
+                tg.create_task(self.capture_audio())
+                tg.create_task(self.receive_server_messages())
+                tg.create_task(self.play_responses())
+                tg.create_task(self.watch_cleanup())
 
         except Exception as e:
             print(f"Error in Gemini connection: {e}")
@@ -241,8 +205,6 @@ class GeminiConnection:
                     elif "text" in p:
                         # If the model also responds with text, you can process it here
                         print("Gemini text response:", p["text"])
-                    else:
-                        print(p)
             except KeyError:
                 pass
 
