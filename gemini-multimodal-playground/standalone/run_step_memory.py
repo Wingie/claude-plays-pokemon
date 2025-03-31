@@ -16,7 +16,7 @@ def init_game():
         # Initialize the SkyEmu client and controller
         skyemu = SkyEmuClient()
         controller = SkyemuController(skyemu=skyemu)    
-        memory = Neo4jMemory()
+        memory = Neo4jMemory(GAME_GOAL)
         print(memory)
 
         # Initialize the Gemini model

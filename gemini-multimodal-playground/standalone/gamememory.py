@@ -11,21 +11,7 @@ from neo4j import GraphDatabase
 
 class Neo4jMemory:
     """Class for storing and retrieving game memory in Neo4j"""
-    
-    def __init__(self):
-        """Initialize the Neo4j connection
-        
-        Args:
-            uri: Neo4j database URI
-            username: Neo4j username
-            password: Neo4j password
-        """
-         # Initialize Neo4j memory
-        neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-        neo4j_username = os.getenv("NEO4J_USERNAME", "neo4j")
-        neo4j_password = os.getenv("NEO4J_PASSWORD", "password")
-        self.driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
-        self.init_db()
+
         
     def close(self):
         """Close the Neo4j connection"""
@@ -277,8 +263,6 @@ class Neo4jMemory:
             return [0.0] * 64  # Return a zero vector as fallback
         
 
-
-class GameMemory:
     def __init__(self,current_objective):
         # Existing attributes
         self.locations_visited = []
@@ -318,6 +302,13 @@ class GameMemory:
             'path': (0, 0, 255)       # Blue - suggested path
         }
         
+        # Initialize Neo4j memory
+        neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+        neo4j_username = os.getenv("NEO4J_USERNAME", "neo4j")
+        neo4j_password = os.getenv("NEO4J_PASSWORD", "password")
+        self.driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
+        self.init_db()
+
         # Tracking game progress
         self.last_screen_hash = None
         self.consecutive_similar_screens = 0

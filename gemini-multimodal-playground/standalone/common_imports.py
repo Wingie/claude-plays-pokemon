@@ -15,7 +15,7 @@ from crewai import Agent, Task, Crew, Process, LLM
 from crewai.tools import BaseTool
 
 from pokemon_controller import PokemonController, read_image_to_base64
-from gamememory import GameMemory, init_message # 
+from gamememory import Neo4jMemory,init_message # 
 load_dotenv()
 # Configure the emulator window title
 WINDOW_TITLE = "mGBA - 0.10.5"
