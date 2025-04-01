@@ -80,7 +80,7 @@ def make_image_message():
     }
     
     # Get the map visualization if available
-    map_base64 = game_memory.get_map_as_base64()
+    map_base64 = game_memory.get_map_as_base64(screenshot_file)
     if map_base64:
         message["content"].append({
             "type": "image",

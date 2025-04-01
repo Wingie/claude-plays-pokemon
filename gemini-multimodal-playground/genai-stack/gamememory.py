@@ -6,281 +6,8 @@ import io
 import os
 import time
 import traceback
-from neo4j import GraphDatabase
 
-def read_image_to_base64(image_path):
-    """
-    Reads an image file and converts it to a base64 encoded string.
-    
-    Args:
-        image_path (str): Path to the image file
-        
-    Returns:
-        str: Base64 encoded string representation of the image
-    """
-    try:
-        # print(">>>>",image_path)
-        with open(image_path, 'rb') as image_file:
-            return base64.b64encode(image_file.read()).decode('utf-8')
-    except Exception as e:
-        raise Exception(f"Error reading image file: {str(e)}") 
-
-class Neo4jMemory:
-    """Class for storing and retrieving game memory in Neo4j"""
-
-        
-    def close(self):
-        """Close the Neo4j connection"""
-        self.driver.close()
-
-    def get_map_as_base64(self,image_path):
-        """Convert the current map visualization to a base64 string for embedding in prompts"""
-        # if self.current_map is None or self.player_position is None:
-        #     return None
-        with open(image_path, 'rb') as image_file:
-            return base64.b64encode(image_file.read()).decode('utf-8')
-        
-    def generate_summary(self):
-        """Generate a text summary of the current memory state."""
-        summary = "## Game Memory from Neo4j\n\n"
-        
-        with self.driver.session() as session:
-            # Get most recent turns
-            result = session.run("""
-                MATCH (t:Turn)
-                RETURN t.turn_id, t.gemini_text, t.timestamp
-                ORDER BY t.timestamp DESC
-                LIMIT 5
-            """)
-            
-            turns = []
-            for record in result:
-                turns.append({
-                    "turn_id": record["t.turn_id"],
-                    "text": record["t.gemini_text"]
-                })
-            
-            if turns:
-                summary += "**Recent Actions:**\n"
-                for turn in reversed(turns):  # Show in chronological order
-                    summary += f"- {turn['turn_id']}: {turn['text'][:100]}...\n"
-            else:
-                summary += "No turns recorded yet.\n"
-        print("generate_summary >>>>> ", summary)
-
-        return summary
-    
-    def init_db(self):
-        """Initialize the database schema"""
-        with self.driver.session() as session:
-            # Create constraints and indexes
-            # session.run("""
-            #     CREATE CONSTRAINT IF NOT EXISTS FOR (t:Turn) REQUIRE t.turn_id IS UNIQUE
-            # """)
-            
-            # Create vector index for image embeddings if not exists
-            try:
-                session.run("""
-                    CREATE VECTOR INDEX image_embedding IF NOT EXISTS
-                    FOR (t:Turn) ON t.image_embedding
-                """)
-            except Exception as e:
-                print(f"Warning: Could not create vector index: {str(e)}")
-                print("Vector search functionality may not be available.")
-
-    def add_turn_neo4j(self, buttons_pressed, observation, screenshot_file=None, turn_number=-1):
-        """Store a game turn in Neo4j
-        
-        Args:
-            base64_image: Base64-encoded image of the game state
-                def add_turn_summary(self, buttons_pressed, observation, base64_image=None, turn_number=-1):
-: The text response from Gemini
-            turn_number: The turn number
-            
-        Returns:
-            str: The ID of the created turn node
-        """
-        # Generate embedding for the image
-        base64_image = read_image_to_base64(screenshot_file)
-        image_embedding = self._generate_image_embedding(base64_image)
-        
-        # Store in Neo4j
-        with self.driver.session() as session:
-            result = session.run("""
-                CREATE (t:Turn {
-                    turn_id: $turn_id,
-                    timestamp: datetime(),
-                    gemini_text: $gemini_text,
-                    image_base64: $image_base64,
-                    image_embedding: $image_embedding
-                })
-                RETURN t.turn_id as turn_id
-            """, {
-                "turn_id": f"turn_{turn_number}",
-                "gemini_text": observation,
-                "image_base64": base64_image,
-                "image_embedding": image_embedding
-            })
-            res = result.single()["turn_id"]
-            print("###### STORED {turn_number}",res)
-            return res
-    
-    def query_memory(self, questions):
-        """Query the memory to answer specific questions
-        
-        Args:
-            questions: List of questions to answer
-            
-        Returns:
-            list: List of answers
-        """
-        answers = []
-        
-        with self.driver.session() as session:
-            for question in questions:
-                if "last turn" in question.lower() or "previous action" in question.lower():
-                    # Get the most recent turn
-                    result = session.run("""
-                        MATCH (t:Turn)
-                        RETURN t.turn_id, t.gemini_text
-                        ORDER BY t.timestamp DESC
-                        LIMIT 1
-                    """)
-                    
-                    record = result.single()
-                    if record:
-                        answers.append({
-                            "question": question,
-                            "answer": f"Last turn ({record['t.turn_id']}): {record['t.gemini_text']}"
-                        })
-                    else:
-                        answers.append({
-                            "question": question,
-                            "answer": "No turns recorded yet."
-                        })
-                
-                elif "similar" in question.lower() or "previous state" in question.lower():
-                    # Get the current turn's image embedding
-                    result = session.run("""
-                        MATCH (t:Turn)
-                        RETURN t.image_embedding
-                        ORDER BY t.timestamp DESC
-                        LIMIT 1
-                    """)
-                    
-                    record = result.single()
-                    if record and record["t.image_embedding"]:
-                        current_embedding = record["t.image_embedding"]
-                        
-                        # Find similar previous states using vector search
-                        try:
-                            similar_results = session.run("""
-                                MATCH (t:Turn)
-                                WHERE t.timestamp < datetime() - duration('PT10S')
-                                RETURN t.turn_id, t.gemini_text, t.timestamp,
-                                       distance(t.image_embedding, $current_embedding) as distance
-                                ORDER BY distance ASC
-                                LIMIT 3
-                            """, {"current_embedding": current_embedding})
-                            
-                            similar_states = []
-                            for record in similar_results:
-                                if record["distance"] < 0.2:  # Threshold for similarity
-                                    similar_states.append({
-                                        "turn_id": record["t.turn_id"],
-                                        "gemini_text": record["t.gemini_text"],
-                                        "distance": record["distance"]
-                                    })
-                            
-                            if similar_states:
-                                answer = "Similar previous states found:\n"
-                                for state in similar_states:
-                                    answer += f"- {state['turn_id']} (similarity: {1-state['distance']:.2f}): {state['gemini_text'][:50]}...\n"
-                                
-                                answers.append({
-                                    "question": question,
-                                    "answer": answer
-                                })
-                            else:
-                                answers.append({
-                                    "question": question,
-                                    "answer": "No similar previous states found."
-                                })
-                        except Exception as e:
-                            answers.append({
-                                "question": question,
-                                "answer": f"Error performing vector search: {str(e)}"
-                            })
-                    else:
-                        answers.append({
-                            "question": question,
-                            "answer": "No turns with embeddings available."
-                        })
-                
-                elif "all turns" in question.lower() or "history" in question.lower():
-                    # Get all turns
-                    result = session.run("""
-                        MATCH (t:Turn)
-                        RETURN t.turn_id, t.gemini_text
-                        ORDER BY t.timestamp ASC
-                    """)
-                    
-                    turns = []
-                    for record in result:
-                        turns.append(f"{record['t.turn_id']}: {record['t.gemini_text'][:50]}...")
-                    
-                    if turns:
-                        answers.append({
-                            "question": question,
-                            "answer": "\n".join(turns)
-                        })
-                    else:
-                        answers.append({
-                            "question": question,
-                            "answer": "No turns recorded yet."
-                        })
-                
-                else:
-                    answers.append({
-                        "question": question,
-                        "answer": "Question not recognized. Try asking about 'last turn', 'similar states', or 'history'."
-                    })
-        
-        return answers
-    
-    def _generate_image_embedding(self, base64_image):
-        """Generate a simple embedding for an image
-        
-        Args:
-            base64_image: Base64-encoded image
-            
-        Returns:
-            list: Image embedding as a vector
-        """
-        try:
-            # Convert base64 to image
-            image_data = base64.b64decode(base64_image)
-            image = Image.open(io.BytesIO(image_data))
-            
-            # Resize to a small size for faster processing
-            image = image.resize((32, 32)).convert('L')
-            
-            # Convert to numpy array and normalize
-            image_array = np.array(image).flatten() / 255.0
-            
-            # Reduce dimensions with simple averaging (basic embedding)
-            # In a real implementation, you'd use a proper embedding model
-            embedding = []
-            chunks = np.array_split(image_array, 64)  # Create a 64-dimensional embedding
-            for chunk in chunks:
-                embedding.append(float(np.mean(chunk)))
-            
-            return embedding
-        except Exception as e:
-            print(f"Error generating image embedding: {str(e)}")
-            return [0.0] * 64  # Return a zero vector as fallback
-        
-
+class GameMemory:
     def __init__(self,current_objective):
         # Existing attributes
         self.locations_visited = []
@@ -320,13 +47,6 @@ class Neo4jMemory:
             'path': (0, 0, 255)       # Blue - suggested path
         }
         
-        # Initialize Neo4j memory
-        neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-        neo4j_username = os.getenv("NEO4J_USERNAME", "neo4j")
-        neo4j_password = os.getenv("NEO4J_PASSWORD", "password")
-        self.driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
-        self.init_db()
-
         # Tracking game progress
         self.last_screen_hash = None
         self.consecutive_similar_screens = 0
@@ -454,7 +174,7 @@ class Neo4jMemory:
     def visualize_enhanced_map(self, screenshot_path_or_data, map_grid=None, player_pos=None, stair_pos=None, path=None, original_image_path=None):
         """Create an enhanced visual map with coordinates, original image overlay, and path visualization"""
         # Constants for visualization
-        cell_size = 50  # Larger cells for better visualization
+        cell_size = 30  # Larger cells for better visualization
 
         # Handle both parameter types (screenshot path or map data dictionary)
         is_dict = isinstance(screenshot_path_or_data, dict)
@@ -548,7 +268,73 @@ class Neo4jMemory:
                 text_y = y1 + (cell_size + text_size[1]) // 2
                 cv2.putText(vis_map, coord_text, (text_x, text_y), font, font_scale*0.8, (0, 0, 0), 1)
         
-
+        # Mark player position with a circle if provided
+        if player_pos is not None:
+            px, py = player_pos
+            center_x = px * cell_size + cell_size // 2 + margin
+            center_y = py * cell_size + cell_size // 2 + margin
+            cv2.circle(vis_map, (center_x, center_y), cell_size // 3, (0, 0, 255), -1)
+            cv2.putText(vis_map, "PLAYER", (center_x - 25, center_y - 15), font, font_scale, (0, 0, 0), 1)
+        
+        # Mark stairs position with a triangle if provided
+        if stair_pos is not None:
+            sx, sy = stair_pos
+            center_x = sx * cell_size + cell_size // 2 + margin
+            center_y = sy * cell_size + cell_size // 2 + margin
+            
+            triangle_points = np.array([
+                [center_x, center_y - cell_size // 3],
+                [center_x - cell_size // 3, center_y + cell_size // 3],
+                [center_x + cell_size // 3, center_y + cell_size // 3]
+            ], np.int32)
+            
+            cv2.fillPoly(vis_map, [triangle_points], (255, 255, 0))
+            cv2.putText(vis_map, "STAIRS", (center_x - 25, center_y + 25), font, font_scale, (0, 0, 0), 1)
+        
+        # Draw path if provided
+        if path is not None and player_pos is not None:
+            current_pos = player_pos
+            for i, move in enumerate(path):
+                # Calculate next position based on move direction
+                next_pos = list(current_pos)
+                if move == "up":
+                    next_pos[1] -= 1
+                elif move == "down":
+                    next_pos[1] += 1
+                elif move == "left":
+                    next_pos[0] -= 1
+                elif move == "right":
+                    next_pos[0] += 1
+                
+                # Draw arrow from current to next position
+                start_x = current_pos[0] * cell_size + cell_size // 2 + margin
+                start_y = current_pos[1] * cell_size + cell_size // 2 + margin
+                end_x = next_pos[0] * cell_size + cell_size // 2 + margin
+                end_y = next_pos[1] * cell_size + cell_size // 2 + margin
+                
+                # Draw arrow line
+                cv2.arrowedLine(vis_map, (start_x, start_y), (end_x, end_y), (0, 0, 255), 2)
+                
+                # Add step number
+                cv2.putText(vis_map, str(i+1), (end_x-5, end_y-5), font, font_scale, (0, 0, 0), 1)
+                
+                current_pos = next_pos
+        
+        # Add a legend
+        legend_y = grid_height * cell_size + margin + 20
+        cv2.putText(vis_map, "Legend: ", (10, legend_y), font, font_scale*1.2, (0, 0, 0), 1)
+        cv2.rectangle(vis_map, (70, legend_y-10), (90, legend_y+10), self.color_map['player'], -1)
+        cv2.putText(vis_map, "Player", (95, legend_y), font, font_scale, (0, 0, 0), 1)
+        
+        cv2.rectangle(vis_map, (150, legend_y-10), (170, legend_y+10), self.color_map['stairs'], -1)
+        cv2.putText(vis_map, "Stairs", (175, legend_y), font, font_scale, (0, 0, 0), 1)
+        
+        cv2.rectangle(vis_map, (230, legend_y-10), (250, legend_y+10), self.color_map['carpet'], -1)
+        cv2.putText(vis_map, "Walkable", (255, legend_y), font, font_scale, (0, 0, 0), 1)
+        
+        cv2.rectangle(vis_map, (320, legend_y-10), (340, legend_y+10), self.color_map['barrier'], -1)
+        cv2.putText(vis_map, "Barrier", (345, legend_y), font, font_scale, (0, 0, 0), 1)
+        
         # If original image is provided, create a version with overlay
         if screenshot_path:
             try:
@@ -570,7 +356,7 @@ class Neo4jMemory:
                 vis_map_with_orig[margin:margin+grid_height*cell_size, 
                                 margin:margin+grid_width*cell_size] = cv2.addWeighted(
                     vis_map_with_orig[margin:margin+grid_height*cell_size, margin:margin+grid_width*cell_size],
-                    0.5, game_area_resized, 0.4, 0)
+                    0.6, game_area_resized, 0.4, 0)
                 # save
                 timestamp = int(time.time())
                 map_path = os.path.join(self.map_snapshot_path, f"map_{timestamp}.png")
@@ -682,10 +468,9 @@ class Neo4jMemory:
         self.items_found = self.items_found[-5:]
         self.observations = self.observations[-5:]  # Keep more observations
     
-    def add_turn_summary(self, turn, buttons_pressed, observation, barrier_detected=False, screenshot_path=None):
+    def add_turn_summary(self, buttons_pressed, observation, barrier_detected=False, screenshot_path=None):
         """Enhanced turn summary with barrier detection and map analysis"""
         # Update map from screenshot if provided
-        self.add_turn_neo4j(buttons_pressed, observation, screenshot_file=screenshot_path, turn_number=turn)
         if screenshot_path:
             try:
                 # First process the screenshot to get map data
@@ -751,7 +536,36 @@ class Neo4jMemory:
                     
             if direction:
                 self.record_failed_move(direction)
-
+    
+    def get_map_as_base64(self):
+        """Convert the current map visualization to a base64 string for embedding in prompts"""
+        if self.current_map is None or self.player_position is None:
+            return None
+            
+        map_data = {
+                'map_grid': self.current_map,
+                'player_position': self.player_position,
+                # Include other relevant data
+                'stair_position': None  # Add if you have it
+            }
+            
+        # Call visualize_enhanced_map with the map data
+        map_vis = self.visualize_enhanced_map(map_data)
+        # Convert to base64
+        try:
+            # Convert to PIL Image
+            map_pil = Image.fromarray(map_vis)
+            
+            # Save to bytes buffer
+            buffer = io.BytesIO()
+            map_pil.save(buffer, format="PNG")
+            
+            # Convert to base64
+            map_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+            return map_base64
+        except Exception as e:
+            print(f"Error converting map to base64: {str(e)}")
+            return None
     
     def generate_summary(self):
         """Enhanced summary with visual map and spatial awareness"""

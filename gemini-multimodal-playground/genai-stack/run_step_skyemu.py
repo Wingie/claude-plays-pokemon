@@ -1,53 +1,49 @@
-"""
-run_step_memory.py - Pokémon AI player with Neo4j memory storage for image embeddings and Gemini responses
-"""
-
-import io,shutil  # For saving screenshots
-from common_imports import *
-from google.generativeai.types import FunctionDeclaration, Tool
-load_dotenv()
-from gamememory import Neo4jMemory
-from skyemu_client import SkyEmuClient
+from dotenv import load_dotenv
+import os
+import sys
+import google.generativeai as genai
+import time
 from skyemu_controller import SkyemuController, read_image_to_base64
+import base64  # Import base64
+from google.generativeai.types import FunctionDeclaration, Tool  # Import FunctionDeclaration and Tool
+import traceback
+# Load environment variables from .env file
+load_dotenv()
+from gamememory import GameMemory, init_message, are_images_similar
+from skyemu_client import SkyEmuClient
+from argparse import ArgumentParser
+# Configure the emulator window title
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+parser = ArgumentParser()
+parser.add_argument("-g", "--goal", dest="goal",
+                    help="short term run goal", metavar="FILE")
+args = parser.parse_args()
+GAME_GOAL= args.goal
 
+
+# Initialize Gemini client and Pokemon controller
 def init_game():
-    """Initialize the game components."""
     try:
-        # Initialize the SkyEmu client and controller
+        # Initialize the SkyEmu client
         skyemu = SkyEmuClient()
-        controller = SkyemuController(skyemu=skyemu)    
-        memory = Neo4jMemory(GAME_GOAL)
-        print(memory)
-
-        # Initialize the Gemini model
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            print("Error: GEMINI_API_KEY environment variable not found.")
-            print("Please set it in the .env file.")
-            sys.exit(1)
-            
-        genai.configure(api_key=api_key)
-        model_name = os.getenv("GEMINI_MODEL", "gemini-pro")
-        model = genai.GenerativeModel(model_name=model_name)
-        
-        # Test if we can find the emulator window
+        controller = SkyemuController(skyemu=skyemu)
+        game_memory = GameMemory(current_objective=GAME_GOAL)
+        genai.configure(api_key=GEMINI_API_KEY) # Initialize genai with API key here
+        model = genai.GenerativeModel(model_name=os.getenv("GEMINI_MODEL"))  # Specify model name here
+        # Test if we can find the window right away
         status = controller.get_emulator_status()
         if not status:
             print("\nWarning: Could not find the emulator window.")
-            print("Please make sure the skyemu emulator is running with a Pokémon game loaded.")
+            print("Please make sure the skyemu emulator is running with a Pokemon game loaded.")
             response = input("Do you want to continue anyway? (y/n): ")
             if response.lower() != 'y':
                 sys.exit(1)
-                
-        # Test screenshot functionality
-        controller.capture_screen()
-        print("Screenshot functionality is working.")
-        
-        return (model, controller, memory)
-        
+
+        controller.capture_screen() ## test!
+        return (model, controller, game_memory)
     except Exception as e:
         print(f"Error initializing: {str(e)}")
-        traceback.print_exc()
+        # traceback.print_exc()  # Print the full traceback
         sys.exit(1)
 
 pokemon_function_declaration = FunctionDeclaration(
@@ -93,7 +89,7 @@ def make_image_message():
     }
     
     # Get the map visualization if available
-    map_base64 = game_memory.get_map_as_base64(screenshot_file)
+    map_base64 = game_memory.get_map_as_base64()
     if map_base64:
         message["content"].append({
             "type": "image",
@@ -155,7 +151,8 @@ try:
         messages.append({"role": "user", "content": f"""
         {memory_summary}
         Your current goal is: {GAME_GOAL}
-        What do you observe in the current screen? What action will you take next?
+        Descrive what you see, and try and map your next actions to a sequence of buttons.
+        review previous actions and ensure you dont repeat yourself into a loop.
         """})
         
         # Add the current screenshot
@@ -219,7 +216,7 @@ try:
                                 # print(">>>>>>>",item)
                                 for button in button_p:
                                     button_presses.append(button.capitalize())
-    
+
                             if button_presses:
                                 print(f"********** Gemini requested to press: {button_presses}")
                                 actions_taken = []
@@ -227,11 +224,10 @@ try:
                                 pre_action_screenshot = controller.capture_screen()
                                 result_msg = controller.press_sequence(button_presses,delay_between=2)
                                 print('result_msg',result_msg)
-                                game_memory.add_turn_summary(turn,button_presses, prev_spoken,screenshot_path=pre_action_screenshot) # barrier_detected=barrier_detected
-                    
+                                game_memory.add_turn_summary(button_presses, prev_spoken,screenshot_path=pre_action_screenshot) # barrier_detected=barrier_detected
                             else:
                                 result_msg = "No button presses found in the tool input."
-                                game_memory.add_turn_summary(turn,[], prev_spoken)
+                                game_memory.add_turn_summary([], result_msg)
 
                             # Add the result back to Gemini
                             tool_response = {
@@ -245,8 +241,7 @@ try:
                                 ]
                             }
                             messages.append(tool_response)
-
-                            
+                        
             else:
                 print("Warning: Gemini response was empty or incomplete.")
 
@@ -264,6 +259,7 @@ try:
         # Small delay between turns
         print(f"Waiting {turn_delay} seconds before next turn...")
         time.sleep(turn_delay)
+
 except KeyboardInterrupt:
     print("\nGame loop interrupted by user.")
     running = False
@@ -303,6 +299,6 @@ finally:
             print(f"Saved conversation to {conversation_file}")
         except Exception as e:
             print(f"Error saving conversation: {str(e)}")
-        
+
     print("Exiting program.")
     sys.exit(0)
