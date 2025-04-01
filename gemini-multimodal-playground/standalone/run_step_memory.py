@@ -2,7 +2,10 @@
 run_step_memory.py - Pokémon AI player with Neo4j memory storage for image embeddings and Gemini responses
 """
 
-import io,shutil  # For saving screenshots
+import io, shutil  # For saving screenshots
+import os
+import json
+from datetime import datetime
 from common_imports import *
 from google.generativeai.types import FunctionDeclaration, Tool
 load_dotenv()
@@ -107,6 +110,93 @@ def make_image_message():
     return message
 
 
+def update_game_progress_file(model, memory):
+    """
+    Update the game progress summary file by asking the AI to optimize
+    and summarize the last 10 turns from Neo4j.
+    
+    Args:
+        model: The Gemini model instance
+        memory: The Neo4jMemory instance
+        
+    Returns:
+        str: Path to the created progress file, or None if failed
+    """
+    try:
+        # Create game_progress directory if it doesn't exist
+        progress_dir = "game_progress"
+        if not os.path.exists(progress_dir):
+            os.makedirs(progress_dir)
+            print(f"Created directory for game progress: {progress_dir}")
+            
+        # Get the last 10 turns from Neo4j memory
+        recent_turns = memory.get_recent_turns(10)
+        
+        if not recent_turns:
+            print("No turns found in memory. Cannot create progress summary.")
+            return None
+            
+        # Prepare timestamp and filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        progress_file = os.path.join(progress_dir, f"progress_summary_{timestamp}.md")
+        
+        # Format the turns for the AI prompt
+        turns_text = ""
+        for turn in recent_turns:
+            turns_text += f"Turn {turn['turn_id']}: {turn['gemini_text']}\n\n"
+        
+        # Ask the AI to optimize and summarize the turns
+        prompt = f"""
+        Based on the following recent game turns, create an optimized and summarized progress report 
+        for our Pokémon FireRed/LeafGreen gameplay. Format it as a well-structured Markdown document
+        with sections for current status, recent actions, key discoveries, and next objectives.
+        
+        Current goal: {GAME_GOAL}
+        
+        Recent turns:
+        {turns_text}
+        
+        Please create a coherent narrative that captures important progress, challenges, and future plans.
+        Include any insights about the game world, obstacles faced, and strategies that worked or failed.
+        """
+        
+        response = model.generate_content(prompt, generation_config={"max_output_tokens": 1500})
+        
+        # Save the AI's summary to the progress file
+        with open(progress_file, 'w') as f:
+            f.write(f"# Pokémon Game Progress Summary\n\n")
+            f.write(f"**Generated on:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            f.write(f"**Current Goal:** {GAME_GOAL}\n\n")
+            f.write(response.text)
+        
+        print(f"Updated game progress summary at {progress_file}")
+        
+        # Also update a latest.md file that always contains the most recent summary
+        latest_file = os.path.join(progress_dir, "latest.md")
+        with open(latest_file, 'w') as f:
+            f.write(f"# Pokémon Game Progress Summary\n\n")
+            f.write(f"**Generated on:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            f.write(f"**Current Goal:** {GAME_GOAL}\n\n")
+            f.write(response.text)
+        
+        return progress_file
+        
+    except Exception as e:
+        print(f"Error updating game progress file: {str(e)}")
+        traceback.print_exc()
+        return None
+
+
+def store_prompt_in_neo4j(memory, prompt_text, prompt_type="default"):
+    """Store the prompt used for the AI in Neo4j for future reference"""
+    try:
+        prompt_id = memory.add_prompt(prompt_text, prompt_type)
+        return prompt_id
+    except Exception as e:
+        print(f"Error storing prompt in Neo4j: {str(e)}")
+        return None
+
+
 # Game loop configuration
 running = True
 max_turns = 100  # Limit the number of turns
@@ -126,7 +216,24 @@ if save_screenshots:
         print(f"Error creating screenshots directory: {str(e)}")
         save_screenshots = False
 
-model, controller, game_memory = init_game();
+# Create game_progress directory if it doesn't exist
+progress_dir = "game_progress"
+try:
+    if not os.path.exists(progress_dir):
+        os.makedirs(progress_dir)
+        print(f"Created directory for game progress: {progress_dir}")
+except Exception as e:
+    print(f"Error creating game progress directory: {str(e)}")
+
+model, controller, game_memory = init_game()
+
+# First, update the game progress file using the last 10 turns from the previous runs
+progress_file = update_game_progress_file(model, game_memory)
+if progress_file:
+    print(f"Created initial game progress summary at {progress_file}")
+else:
+    print("No initial game progress summary created (possibly no previous turns found).")
+
 print(f"Starting game loop with {max_turns} max turns...")
 print("Press Ctrl+C to stop the loop at any time")
 print("-" * 50)
@@ -148,15 +255,29 @@ try:
                 print(f"Error saving screenshot: {str(e)}")
         prompt_parts = []
         # Prepare messages for Gemini to keep context short
+        ## OK, lets try and update the init_prompt
+        if turn%10 == 0:
+            init_message = game_memory.get_updated_prompt()
+            print(past)
         messages = init_message.copy() 
         memory_summary = game_memory.generate_summary()
         print(f"Memory Summary:\n{memory_summary}")
-        # Prepare messages for Gemini with memory and goal
-        messages.append({"role": "user", "content": f"""
+        
+        # Store the memory summary as a prompt in Neo4j
+        memory_prompt_id = store_prompt_in_neo4j(game_memory, memory_summary, "memory_summary")
+        
+        # Prepare the AI prompt with memory and goal
+        ai_prompt = f"""
         {memory_summary}
         Your current goal is: {GAME_GOAL}
         What do you observe in the current screen? What action will you take next?
-        """})
+        """
+        
+        # Store the AI prompt in Neo4j
+        ai_prompt_id = store_prompt_in_neo4j(game_memory, ai_prompt, "ai_prompt")
+        
+        # Prepare messages for Gemini with memory and goal
+        messages.append({"role": "user", "content": ai_prompt})
         
         # Add the current screenshot
         messages.append(make_image_message())
@@ -187,7 +308,7 @@ try:
                             pass
                         elif item["type"] == "tool_result":
                             pass
-        # print(prompt_parts) # ADDED
+        
         try:
             # Get gemini's next move
             response = model.generate_content(
@@ -195,28 +316,29 @@ try:
                 generation_config={"max_output_tokens": 1000},
                 tools=[pokemon_tool]  # Pass the Tool object here
             )
-            # print(response) # Print the entire response object
+            
             assistant_content_list = []
-            # Print Gemini's thinking and process tool use
+            # Process Gemini's response
             if response.candidates and response.candidates[0].content.parts:  # Check if candidates and parts exist
                 for part in response.candidates[0].content.parts:
-                    # print(dir(part))
-                    # print(">>>test>>>",part.text) if part.text else None
-                    # print("***function_call",part.function_call) if part.function_call else None
                     if part.text:
                         assistant_content_list.append({"type": "text", "text": part.text})
                         prev_spoken = part.text
                         print(f"gemini-text: {part.text}")
+                        
+                        # Store the Gemini response in Neo4j and link it to the prompt
+                        response_id = store_prompt_in_neo4j(game_memory, part.text, "gemini_response")
+                        if response_id and ai_prompt_id:
+                            game_memory.link_prompt_to_response(ai_prompt_id, response_id)
+                            
                     elif part.function_call:
                         assistant_content_list.append({"type": "tool_use", "tool_use": part})
                         tool_use = part
                         tool_name = part.function_call.name
-                        # print(tool_use)
                         
                         if tool_name == "pokemon_controller":
                             button_presses = []
-                            for item,button_p in part.function_call.args.items():
-                                # print(">>>>>>>",item)
+                            for item, button_p in part.function_call.args.items():
                                 for button in button_p:
                                     button_presses.append(button.capitalize())
     
@@ -225,13 +347,19 @@ try:
                                 actions_taken = []
                                 failed_actions = []
                                 pre_action_screenshot = controller.capture_screen()
-                                result_msg = controller.press_sequence(button_presses,delay_between=2)
-                                print('result_msg',result_msg)
-                                game_memory.add_turn_summary(turn,button_presses, prev_spoken,screenshot_path=pre_action_screenshot) # barrier_detected=barrier_detected
+                                result_msg = controller.press_sequence(button_presses, delay_between=2)
+                                print('result_msg', result_msg)
+                                
+                                # Add turn summary with button presses to Neo4j memory
+                                turn_id = game_memory.add_turn_summary(turn, button_presses, prev_spoken, screenshot_path=pre_action_screenshot)
+                                
+                                # Link the turn to the prompt and response
+                                if turn_id and ai_prompt_id and response_id:
+                                    game_memory.link_turn_to_prompt_response(turn_id, ai_prompt_id, response_id)
                     
                             else:
                                 result_msg = "No button presses found in the tool input."
-                                game_memory.add_turn_summary(turn,[], prev_spoken)
+                                game_memory.add_turn_summary(turn, [], prev_spoken)
 
                             # Add the result back to Gemini
                             tool_response = {
@@ -245,7 +373,6 @@ try:
                                 ]
                             }
                             messages.append(tool_response)
-
                             
             else:
                 print("Warning: Gemini response was empty or incomplete.")
@@ -260,6 +387,12 @@ try:
 
         # Increment turn counter
         turn += 1
+        
+        # Update game progress summary every 5 turns
+        if turn % 5 == 0:
+            progress_file = update_game_progress_file(model, game_memory)
+            if progress_file:
+                print(f"Updated game progress summary at {progress_file}")
 
         # Small delay between turns
         print(f"Waiting {turn_delay} seconds before next turn...")
@@ -277,6 +410,11 @@ finally:
         print(f"\nGame session ended after {max_turns} turns.")
     else:
         print(f"\nGame session ended after {turn} turns.")
+
+    # Create a final game progress summary
+    progress_file = update_game_progress_file(model, game_memory)
+    if progress_file:
+        print(f"Created final game progress summary at {progress_file}")
 
     # Save the conversation if there was at least one turn
     if turn > 0 and save_screenshots:

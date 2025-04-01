@@ -40,7 +40,7 @@ class Neo4jMemory:
         with open(image_path, 'rb') as image_file:
             return base64.b64encode(image_file.read()).decode('utf-8')
         
-    def generate_summary(self):
+    def recent_turns_summary(self):
         """Generate a text summary of the current memory state."""
         summary = "## Game Memory from Neo4j\n\n"
         
@@ -48,26 +48,30 @@ class Neo4jMemory:
             # Get most recent turns
             result = session.run("""
                 MATCH (t:Turn)
-                RETURN t.turn_id, t.gemini_text, t.timestamp
-                ORDER BY t.timestamp DESC
-                LIMIT 5
+                WHERE t.gemini_text IS NOT NULL 
+                RETURN "Turn" as type, t.turn_id as id, t.gemini_text as text, 
+                    t.buttons as buttons, t.timestamp as timestamp
+                LIMIT 25
             """)
-            
             turns = []
             for record in result:
                 turns.append({
-                    "turn_id": record["t.turn_id"],
-                    "text": record["t.gemini_text"]
+                    "id": record["id"],
+                    "text": record["text"]
                 })
             
             if turns:
                 summary += "**Recent Actions:**\n"
                 for turn in reversed(turns):  # Show in chronological order
-                    summary += f"- {turn['turn_id']}: {turn['text'][:100]}...\n"
+                    summary += f"- {turn['id']}: {turn['text'][:1000]}\n"
             else:
                 summary += "No turns recorded yet.\n"
         print("generate_summary >>>>> ", summary)
 
+        return summary
+    
+    def get_updated_prompt(self):
+        summary = self.recent_turns_summary()
         return summary
     
     def init_db(self):
@@ -87,14 +91,141 @@ class Neo4jMemory:
             except Exception as e:
                 print(f"Warning: Could not create vector index: {str(e)}")
                 print("Vector search functionality may not be available.")
+                
+            # Create indexes for new node types
+            try:
+                session.run("""
+                    CREATE INDEX prompt_id_index IF NOT EXISTS
+                    FOR (p:Prompt) ON p.prompt_id
+                """)
+            except Exception as e:
+                print(f"Warning: Could not create Prompt index: {str(e)}")
+                print("Prompt functionality may be limited.")
+    
+    def get_recent_turns(self, limit=10):
+        """Get the most recent turns from Neo4j
+        
+        Args:
+            limit: Maximum number of turns to retrieve
+            
+        Returns:
+            list: List of turn dictionaries
+        """
+        turns = []
+        
+        with self.driver.session() as session:
+            result = session.run("""
+                MATCH (t:Turn)
+                RETURN t.turn_id, t.gemini_text, t.timestamp
+                ORDER BY t.timestamp DESC
+                LIMIT $limit
+            """, {"limit": limit})
+            
+            for record in result:
+                turns.append({
+                    "turn_id": record["t.turn_id"],
+                    "gemini_text": record["t.gemini_text"],
+                    "timestamp": record["t.timestamp"]
+                })
+                
+        # Sort by turn_id for better readability
+        turns.sort(key=lambda x: x["turn_id"])
+        return turns
+    
+    def add_prompt(self, prompt_text, prompt_type="default"):
+        """Store a prompt in Neo4j
+        
+        Args:
+            prompt_text: The prompt text
+            prompt_type: Type of prompt (default, memory_summary, ai_prompt, etc.)
+            
+        Returns:
+            str: ID of the created prompt node
+        """
+        prompt_id = f"prompt_{int(time.time())}_{prompt_type}"
+        
+        with self.driver.session() as session:
+            result = session.run("""
+                CREATE (p:Prompt {
+                    prompt_id: $prompt_id,
+                    prompt_text: $prompt_text,
+                    prompt_type: $prompt_type,
+                    timestamp: datetime()
+                })
+                RETURN p.prompt_id as prompt_id
+            """, {
+                "prompt_id": prompt_id,
+                "prompt_text": prompt_text,
+                "prompt_type": prompt_type
+            })
+            
+            return result.single()["prompt_id"]
+    
+    def link_prompt_to_response(self, prompt_id, response_id):
+        """Create a relationship between a prompt and a response
+        
+        Args:
+            prompt_id: ID of the prompt node
+            response_id: ID of the response node
+            
+        Returns:
+            bool: True if successful
+        """
+        with self.driver.session() as session:
+            result = session.run("""
+                MATCH (p:Prompt {prompt_id: $prompt_id})
+                MATCH (r:Prompt {prompt_id: $response_id})
+                CREATE (p)-[:GENERATED]->(r)
+                RETURN count(*) as count
+            """, {
+                "prompt_id": prompt_id,
+                "response_id": response_id
+            })
+            
+            return result.single()["count"] > 0
+    
+    def link_turn_to_prompt_response(self, turn_id, prompt_id, response_id):
+        """Link a game turn to both the prompt and response
+        
+        Args:
+            turn_id: ID of the turn node
+            prompt_id: ID of the prompt node
+            response_id: ID of the response node
+            
+        Returns:
+            bool: True if successful
+        """
+        with self.driver.session() as session:
+            # Link turn to prompt
+            session.run("""
+                MATCH (t:Turn {turn_id: $turn_id})
+                MATCH (p:Prompt {prompt_id: $prompt_id})
+                CREATE (t)-[:BASED_ON]->(p)
+            """, {
+                "turn_id": turn_id,
+                "prompt_id": prompt_id
+            })
+            
+            # Link turn to response
+            result = session.run("""
+                MATCH (t:Turn {turn_id: $turn_id})
+                MATCH (r:Prompt {prompt_id: $response_id})
+                CREATE (t)-[:RESULTED_IN]->(r)
+                RETURN count(*) as count
+            """, {
+                "turn_id": turn_id,
+                "response_id": response_id
+            })
+            
+            return result.single()["count"] > 0
 
     def add_turn_neo4j(self, buttons_pressed, observation, screenshot_file=None, turn_number=-1):
         """Store a game turn in Neo4j
         
         Args:
-            base64_image: Base64-encoded image of the game state
-                def add_turn_summary(self, buttons_pressed, observation, base64_image=None, turn_number=-1):
-: The text response from Gemini
+            buttons_pressed: List of button presses
+            observation: The text response from Gemini
+            screenshot_file: Path to the screenshot file
             turn_number: The turn number
             
         Returns:
@@ -104,6 +235,9 @@ class Neo4jMemory:
         base64_image = read_image_to_base64(screenshot_file)
         image_embedding = self._generate_image_embedding(base64_image)
         
+        # Convert buttons to string for storage
+        buttons_str = ",".join(buttons_pressed) if buttons_pressed else ""
+        
         # Store in Neo4j
         with self.driver.session() as session:
             result = session.run("""
@@ -111,6 +245,7 @@ class Neo4jMemory:
                     turn_id: $turn_id,
                     timestamp: datetime(),
                     gemini_text: $gemini_text,
+                    buttons: $buttons,
                     image_base64: $image_base64,
                     image_embedding: $image_embedding
                 })
@@ -118,6 +253,7 @@ class Neo4jMemory:
             """, {
                 "turn_id": f"turn_{turn_number}",
                 "gemini_text": observation,
+                "buttons": buttons_str,
                 "image_base64": base64_image,
                 "image_embedding": image_embedding
             })

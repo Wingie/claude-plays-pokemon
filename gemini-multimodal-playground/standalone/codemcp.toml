@@ -1,3 +1,5 @@
 # CodeMCP configuration file
 [project]
 name = "claude-plays-pokemon"
+format = ["./run_format.sh"]
+test = ["./run_test.sh"]
