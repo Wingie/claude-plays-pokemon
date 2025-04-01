@@ -924,162 +924,122 @@ class Neo4jMemory:
 # Create the initial message with comprehensive instructions
 init_message = [
     {"role": "user", "content": """
-# Pokemon Game Agent Guide
-You are playing Pokemon on a game boy advanced.
-     
-## Available Controls
-- Up, Down, Left, Right: Move your character in that direction
-- A: Interact/Confirm - Use when facing NPCs, signs, doors, or to confirm menu selections
-- B: Cancel/Back - Exit menus or speed up text
-- Start: Open main menu (Pokemon, Items, Save, etc.)
-- Select: Rarely used, specific functions
+# Enhanced Pokémon Game Agent Guide
 
-## Game Understanding
-- **Screen Types**: 
-  * Overworld: Free movement in the environment
-  * Dialog: Text boxes with conversation or information
-  * Menu: Selection screens for items, Pokemon, etc.
-  * Battle: Turn-based combat with wild Pokemon or trainers
-  
-- **Common Elements**:
-  * NPCs: Characters you can talk to
-  * Buildings: Can be entered through doors
-  * Items: Collectible objects on the ground (often appear as small balls)
-  * Pokemon Centers: Buildings with red roofs for healing Pokemon
-  * PokeMarts: Buildings with blue roofs for buying items
+You are playing Pokémon FireRed/FlameRed on a Game Boy Advance emulator. Your current objective is to **reach Viridian City**.
 
-## Navigation Strategy
-1. Build a mental map using cardinal directions (North, South, East, West)
-2. Note landmarks and connections between areas
-3. Explore systematically, starting from one corner and moving methodically
-4. Remember doors, paths, and blocked routes for future reference
+## TURN STRUCTURE
+For every turn, follow this exact process:
 
-## Decision Making
-1. Observe the current screen carefully
-2. Identify important elements and game state
-3. Consider your current objective and location
-4. Choose the most appropriate action
-5. If an action doesn't work, try alternatives
+1. **OBSERVE**: Carefully analyze the current screen
+   - Identify screen type (Overworld, Dialog, Menu, Battle)
+   - Note your character position coordinates (x, y)
+   - Compare current coordinates to previous coordinates
+   - Identify key elements (NPCs, objects, exits, text)
+   - Look for obstacles that might block movement
+   - Note any changes from previous turns
 
-## Navigation Guidelines
-- **Room Transitions**:
-  * Doors: Usually rectangular openings in walls - face them and press A to enter
-  * Stairs: Look for step-like patterns - up stairs are usually lighter, down stairs darker
-  * Carpets: Colored rectangles on the floor often indicate exits or stairs
-  * Gates: Outdoor passages between areas - walk through or interact with A
-  
-- **Common Room Types**:
-  * Houses: Small buildings with basic furniture, often have two floors
-  * Pokémon Centers: Red-roofed buildings with healing services
-  * Gyms: Large distinctive buildings with trainers inside
-  * Labs: Professor's labs contain research equipment and books
-  * Caves: Dark areas with rocky terrain and multiple paths
+2. **ANALYZE**: Process what you see
+   - Determine your current location
+   - Update your mental map
+   - Evaluate progress toward your goal
+   - Check if you're stuck in a loop
+   - Check if position coordinates changed after movement
+   - If coordinates didn't change, identify the obstacle
 
-- **Navigation Markers**:
-  * Look for colored tiles/carpets that often indicate stairs or exits
-  * Arrows or signs pointing to doorways or paths
-  * NPCs often stand near important room transitions
-  * Different floor textures can indicate where you can or cannot walk
+3. **PLAN**: Decide your next moves
+   - Set a specific short-term objective
+   - Determine optimal path/action sequence
+   - Plan paths AROUND obstacles, not through them
+   - Avoid repeating failed movements
+   - Prepare contingencies
+   - If blocked, plan a zigzag path (move sideways, then forward)
 
-     ## Stair Navigation - IMPORTANT
-- Stairs in Pokémon games are **objects** you must approach and interact with:
-  * Stairs are NOT navigated by pressing "up" or "down" buttons directly
-  * You must FIRST position your character ON or NEXT TO the staircase
-  * In the image, stairs appear as step-like patterns on the side of the room
-  * To use stairs:
-     1. Walk TO the staircase (use left/right/up/down to position yourself)
-     2. Stand ON or DIRECTLY FACING the first step
-     3. Press the direction button TOWARD the stairs (if facing stairs, usually "left" or "right")
-     4. Your character will automatically climb or descend
+4. **ACT**: Execute your plan
+   - Select specific button presses
+   - Use minimal, precise inputs (1-2 buttons per turn)
+   - NEVER repeat the same button if it didn't change your position
+   - Try a completely different direction if blocked
 
-- Look at these visual indicators for stairs:
-  * Stairs appear as visible step patterns on walls
-  * They often have a different color or texture from surrounding tiles
-  * In the current image, you can see stairs on the LEFT side of the room
-  * You need to walk LEFT to reach those stairs, not press "up"
+## SCREEN TYPE PROTOCOLS
 
-     ## Game World Perspective
-- The game uses a top-down 2D view where:
-  * Your character is viewed from above
-  * "Up" button moves your character toward the top of the screen
-  * "Down" button moves your character toward the bottom of the screen
-  * "Left" and "Right" buttons move your character left and right on the screen
-  * These directions are relative to the SCREEN, not your character's facing direction
-  * The buttons do NOT directly correspond to "upstairs" or "downstairs"
+### Overworld Protocol
+1. Identify your current location and surroundings
+2. Check cardinal directions (N/S/E/W) for paths
+3. Prioritize unexplored paths toward your destination
+4. Move using single directional presses
+5. If blocked, try another direction
+6. Interact with objects/NPCs using A when facing them
 
-- To interact with objects (including stairs):
-  * Position your character directly adjacent to the object
-  * Face toward the object (use movement buttons to change facing direction)
-  * Press A to interact when facing the object
-  * For some objects like stairs, simply moving toward them will trigger the interaction
+### Dialog Protocol
+1. Read and understand the text content
+2. Press A to advance dialog
+3. For questions/options, carefully select appropriate response
+4. If multiple A presses don't advance, try B to exit
 
- ## Systematic Exploration Framework
-- When exploring a building with multiple floors:
-  1. Completely explore one floor before moving to another floor
-  2. Make a mental note of which floor you are currently on (1F, 2F, etc.)
-  3. After fully exploring a floor, only then move to another floor
-  4. Once you've explored a new floor, don't return to previous floors unless:
-     * You found information directing you there
-     * You've fully explored all other accessible floors
-     * You're specifically backtracking to reach a new area
+### Menu Protocol
+1. Identify current menu context
+2. Use directional buttons to navigate options
+3. Press A to select, B to cancel/back
+4. In item/Pokémon menus, select based on current needs
 
-## Track your exploration progress:
-  * Divide each room into sections (north, south, east, west)
-  * Check all objects and NPCs in each section before moving on
-  * Mark floors as "completely explored" or "partially explored" in your memory
-  * Avoid revisiting areas unless you have a specific reason 
-     
-## Memory Management
-After each observation, update your mental map so thateach of your text output is saved
-      and fed back to you as recent actions so you dont get into a loop. 
-     Its good for you to discover and note down:
-- Current location name and description
-- NPCs encountered (with any important dialog)
-- Items found or obtained
-- Key observations about the environment
-- Recent actions taken and their results
+### Battle Protocol
+1. If Pokémon are low health, prioritize escaping (Down + A on RUN)
+2. For required battles, use strongest attacks (typically first option)
+3. After fainting, you'll be taken to the last Pokémon Center or home
+4. Heal at Pokémon Centers before continuing exploration
 
-## Screen Analysis Tips
-1. First identify the screen type (Overworld, Dialog, Menu, Battle)
-2. For Overworld: Note character position, exits, NPCs, and interactive objects
-3. For Dialog: Read and interpret the text, identify the speaker
-4. For Menus: Identify all options and current selection
-5. For Battles: Note your Pokemon, enemy Pokemon, and available actions
+## NAVIGATION STRATEGIES
 
-## Troubleshooting if something goes wrong
-If you encounter unexpected results:
-1. Press B to cancel any menus or dialog
-2. Try moving in all four directions to check for paths
-3. If stuck in a loop, vary your approach (e.g., try a different path)
-4. If completely lost, use Start to open the map (but remember to press b to get back to the game from the)
-     
-## Barrier Navigation - CRITICAL
-- When you encounter a barrier (furniture, walls, counters):
-  * You CANNOT walk through barriers - you must go AROUND them
-  * If you try to move in a direction and don't change position, there's a barrier
-  * Look for an alternate path - if you can't go right, try going down then right
-  * If your recent movements aren't working, try a completely different direction
-  * DO NOT repeat the same movement pattern if it's not working
+### Town Navigation
+- Towns have buildings, NPCs, and paths
+- Identify exits (typically at town edges)
+- For Pallet Town, the exit to Route 1 is at the NORTH edge
+- For unknown towns, explore systematically clockwise from entry point
 
-## Room Navigation Strategy
-- For rooms with furniture (like the bedroom you're in):
-  * Furniture blocks your path - you must navigate around it
-  * There is always a valid path to reach stairs or doors
-  * Sometimes you need to plan and think step by step by describing the image, 
-  * It's important to make a plan for every navigation goal so that you can 
-     think about how to sequence and plan out the button presses.
-  * Review the memory sumary to ensure you dont repeat the same strategy again and again. be varied.
+### Route Navigation
+- Routes are linear or branching paths connecting towns
+- Stay on clear paths to avoid unnecessary wild Pokémon encounters
+- Route 1 is a mostly linear path heading NORTH to Viridian City
+- Routes have obstacles (signs, ledges, trainers) that you must navigate AROUND
+- If blocked by a sign when going north:
+  * Try going LEFT, then UP, then RIGHT to go around it
+  * Or try going RIGHT, then UP, then LEFT
+  * NEVER repeatedly try to walk straight through signs or obstacles
 
-## When You're Stuck
-- If the memory indicates you're in a movement loop:
-  1. Stop repeating the failed approach
-  2. Try a completely different path (often the opposite direction)
-  3. Map out the room by trying each direction systematically
-  4. Remember that you might need to take a longer path around barriers
-     
-## Available function calls:
-- You must use function call to pokemon_controller to control the emulator, providing a list of buttons in sequence
-"""}
+### Building Navigation
+- Doors are entered by facing them and pressing A
+- Inside buildings, explore all accessible areas
+- Stairs connect floors (position yourself on stairs, then press direction)
+- Exit buildings through doors on first floor (often indicated by light/rug)
+
+## OBSTACLE AVOIDANCE & ANTI-LOOPING MEASURES
+
+### Common Obstacles
+- **Signs**: Cannot walk through signs - must go AROUND them (left or right)
+- **Trees**: Block movement, always navigate around them
+- **Fences/Walls**: Cannot be passed through, find an opening
+- **NPCs**: Cannot walk through people, navigate around them
+- **Flowers/Tall Grass**: Can walk through but may trigger Pokémon battles
+- **Water**: Cannot cross without special moves/Pokémon
+
+
+## AVAILABLE CONTROLS
+- **Up/Down/Left/Right**: Move your character
+- **A**: Interact/Confirm - Use for NPCs, signs, doors, menu selections
+- **B**: Cancel/Back - Exit menus or speed up text
+- **Start**: Open main menu (rarely needed)
+- **Select**: Rarely used
+
+## FUNCTION CALL FORMAT
+You must use function calls to control the emulator, providing a list of buttons in sequence:
+
+```
+pokemon_controller: Takes a list of buttons to press in sequence
+```
+
+Remember: Always analyze the current screen carefully before making moves. Use minimal precise inputs rather than many speculative inputs.
+     """}
 ]
 
 def are_images_similar(image1_path, image2_path, threshold=0.95):
