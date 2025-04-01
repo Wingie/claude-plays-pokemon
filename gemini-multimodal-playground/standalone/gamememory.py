@@ -70,9 +70,10 @@ class Neo4jMemory:
 
         return summary
     
-    def get_updated_prompt(self):
+    def get_updated_prompt(self,old_prompt,session_goal):
         summary = self.recent_turns_summary()
-        return summary
+        old_prompt['content'] = self.gemini_critique(summary,old_prompt,session_goal)
+        return old_prompt
     
     def init_db(self):
         """Initialize the database schema"""
