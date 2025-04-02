@@ -93,11 +93,18 @@ async def get_screenshot() -> str:
     Returns:
         Base64 encoded PNG image of the current screen
     """
-    screen = skyemu.get_screen()
+    screen = skyemu.get_screen(embed_state=True)
     buffered = BytesIO()
     screen.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode()
-    return img_str
+    # Convert to RGB mode (in case it was captured as RGBA)
+    screen_rgb = screen.convert('RGB')
+    screen_rgb.save("/Users/wingston/code/pokemon/fireRed/current_emulator_screen.jpg", 'JPEG')
+    jpeg_buffer = BytesIO()
+    screen_rgb.save(jpeg_buffer, format='JPEG',quality=50)
+    jpeg_bytes = jpeg_buffer.getvalue()
+    base64_bytes = base64.b64encode(jpeg_bytes)
+    base64_string = base64_bytes.decode('utf-8')
+    return base64_string
 
 @app.tool()
 async def step_frames(frames: int = 1) -> str:
@@ -163,7 +170,7 @@ async def get_emulator_status() -> str:
         JSON string containing emulator status information
     """
     status = skyemu.get_status()
-    return json.dumps(status, indent=2)
+    return status
 
 @app.tool()
 async def execute_sequence(

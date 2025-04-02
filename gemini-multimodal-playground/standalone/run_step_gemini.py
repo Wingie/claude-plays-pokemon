@@ -102,6 +102,9 @@ turn_delay = 1.0  # Delay between turns in seconds
 save_screenshots = True  # Whether to save screenshots for later review
 screenshot_dir = "screenshots"  # Directory to save screenshots
 prev_spoken = ""
+prompt_refinement_interval = 5  # Refine the prompt every 5 turns
+session_goal = "FIND THE PROFESSOR"  # Current gameplay objective
+current_prompt = {"content": init_message[0]["content"]}  # Initialize with the base prompt
 
 # Create screenshots directory if it doesn't exist and save_screenshots is enabled
 if save_screenshots:
@@ -134,18 +137,28 @@ try:
             except Exception as e:
                 print(f"Error saving screenshot: {str(e)}")
         prompt_parts = []
+        # Check if it's time to refine the prompt
+        if turn > 0 and turn % prompt_refinement_interval == 0:
+            print(f"\nRefinement interval reached ({turn} turns). Updating prompt...")
+            current_prompt = game_memory.get_updated_prompt(current_prompt, session_goal)
+            print(f"Prompt refined based on recent gameplay.")
+        
         # Prepare messages for Gemini to keep context short
-        messages = init_message.copy() 
+        messages = []
+        messages.append({"role": "user", "content": current_prompt["content"]})
+        
         memory_summary = game_memory.generate_summary()
         print(f"Memory Summary:\n{memory_summary}")
+        
         # Prepare messages for Gemini with memory and goal
         messages.append({"role": "user", "content": f"""
         {memory_summary}
 
-        ## GOAL: FIND THE PROFESSOR
+        ## GOAL: {session_goal}
 
         What do you observe in the current screen? What action will you take next?
         """})
+        
         
         # Add the current screenshot
         messages.append(make_image_message())

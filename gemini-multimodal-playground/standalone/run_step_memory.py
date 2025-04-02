@@ -254,11 +254,10 @@ try:
             except Exception as e:
                 print(f"Error saving screenshot: {str(e)}")
         prompt_parts = []
-        # Prepare messages for Gemini to keep context short
-        ## OK, lets try and update the init_prompt
-        if turn%10 == 0:
-            init_message = game_memory.get_updated_prompt(init_message,GAME_GOAL)
-            print(init_message)
+
+        # if turn%25 == 0:
+        #     init_message = game_memory.get_updated_prompt(init_message,GAME_GOAL)
+        #     print("------>*>*>*>*> get_updated_prompt >*>*>*>",init_message)
         messages = init_message.copy() 
         memory_summary = game_memory.generate_summary()
         print(f"Memory Summary:\n{memory_summary}")

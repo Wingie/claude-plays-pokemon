@@ -71,9 +71,26 @@ class Neo4jMemory:
         return summary
     
     def get_updated_prompt(self,old_prompt,session_goal):
+        """
+        Update the game prompt based on Gemini's critique of recent gameplay
+        
+        Args:
+            old_prompt: The current prompt dictionary
+            session_goal: The current gameplay objective
+            
+        Returns:
+            dict: Updated prompt dictionary with refined content
+        """
+        from gemini_critique import GeminiCritique
+        
+        # Get summary of recent turns from Neo4j
         summary = self.recent_turns_summary()
-        old_prompt['content'] = self.gemini_critique(summary,old_prompt,session_goal)
-        return old_prompt
+        
+        # Initialize the critique module and get prompt refinements
+        critique_module = GeminiCritique()
+        old_prompt[0]['content'] = critique_module.critique_gameplay(summary, old_prompt, session_goal)
+        
+        return old_prompt.copy()
     
     def init_db(self):
         """Initialize the database schema"""
@@ -332,7 +349,7 @@ class Neo4jMemory:
                             if similar_states:
                                 answer = "Similar previous states found:\n"
                                 for state in similar_states:
-                                    answer += f"- {state['turn_id']} (similarity: {1-state['distance']:.2f}): {state['gemini_text'][:50]}...\n"
+                                    answer += f"- {state['turn_id']} (similarity: {1-state['distance']:.2f}): {state['gemini_text']}...\n"
                                 
                                 answers.append({
                                     "question": question,
@@ -364,7 +381,7 @@ class Neo4jMemory:
                     
                     turns = []
                     for record in result:
-                        turns.append(f"{record['t.turn_id']}: {record['t.gemini_text'][:50]}...")
+                        turns.append(f"{record['t.turn_id']}: {record['t.gemini_text']}...")
                     
                     if turns:
                         answers.append({
@@ -861,7 +878,7 @@ class Neo4jMemory:
         summary = {
             "turn": len(self.turn_history) + 1,
             "buttons": buttons_pressed,
-            "observation": observation[:150] + "..." if len(observation) > 150 else observation,
+            "observation": observation,
             "barrier_detected": barrier_detected,
             "player_position": self.player_position
         }
@@ -1059,125 +1076,14 @@ class Neo4jMemory:
                 manhattan_dist = abs(x_diff)
 
 # Create the initial message with comprehensive instructions
-init_message = [
-    {"role": "user", "content": """
-# Enhanced Pokémon Game Agent Guide
 
-You are playing Pokémon FireRed/FlameRed on a Game Boy Advance emulator. Your current objective is to **reach Viridian City**.
-
-## TURN STRUCTURE
-For every turn, follow this exact process:
-
-1. **OBSERVE**: Carefully analyze the current screen
-   - Identify screen type (Overworld, Dialog, Menu, Battle)
-   - Note your character position coordinates (x, y)
-   - Compare current coordinates to previous coordinates
-   - Identify key elements (NPCs, objects, exits, text)
-   - Look for obstacles that might block movement
-   - Note any changes from previous turns
-
-2. **ANALYZE**: Process what you see
-   - Determine your current location
-   - Update your mental map
-   - Evaluate progress toward your goal
-   - Check if you're stuck in a loop
-   - Check if position coordinates changed after movement
-   - If coordinates didn't change, identify the obstacle
-
-3. **PLAN**: Decide your next moves
-   - Set a specific short-term objective
-   - Determine optimal path/action sequence
-   - Plan paths AROUND obstacles, not through them
-   - Avoid repeating failed movements
-   - Prepare contingencies
-   - If blocked, plan a zigzag path (move sideways, then forward)
-
-4. **ACT**: Execute your plan
-   - Select specific button presses
-   - Use minimal, precise inputs (1-2 buttons per turn)
-   - NEVER repeat the same button if it didn't change your position
-   - Try a completely different direction if blocked
-
-## SCREEN TYPE PROTOCOLS
-
-### Overworld Protocol
-1. Identify your current location and surroundings
-2. Check cardinal directions (N/S/E/W) for paths
-3. Prioritize unexplored paths toward your destination
-4. Move using single directional presses
-5. If blocked, try another direction
-6. Interact with objects/NPCs using A when facing them
-
-### Dialog Protocol
-1. Read and understand the text content
-2. Press A to advance dialog
-3. For questions/options, carefully select appropriate response
-4. If multiple A presses don't advance, try B to exit
-
-### Menu Protocol
-1. Identify current menu context
-2. Use directional buttons to navigate options
-3. Press A to select, B to cancel/back
-4. In item/Pokémon menus, select based on current needs
-
-### Battle Protocol
-1. If Pokémon are low health, prioritize escaping (Down + A on RUN)
-2. For required battles, use strongest attacks (typically first option)
-3. After fainting, you'll be taken to the last Pokémon Center or home
-4. Heal at Pokémon Centers before continuing exploration
-
-## NAVIGATION STRATEGIES
-
-### Town Navigation
-- Towns have buildings, NPCs, and paths
-- Identify exits (typically at town edges)
-- For Pallet Town, the exit to Route 1 is at the NORTH edge
-- For unknown towns, explore systematically clockwise from entry point
-
-### Route Navigation
-- Routes are linear or branching paths connecting towns
-- Stay on clear paths to avoid unnecessary wild Pokémon encounters
-- Route 1 is a mostly linear path heading NORTH to Viridian City
-- Routes have obstacles (signs, ledges, trainers) that you must navigate AROUND
-- If blocked by a sign when going north:
-  * Try going LEFT, then UP, then RIGHT to go around it
-  * Or try going RIGHT, then UP, then LEFT
-  * NEVER repeatedly try to walk straight through signs or obstacles
-
-### Building Navigation
-- Doors are entered by facing them and pressing A
-- Inside buildings, explore all accessible areas
-- Stairs connect floors (position yourself on stairs, then press direction)
-- Exit buildings through doors on first floor (often indicated by light/rug)
-
-## OBSTACLE AVOIDANCE & ANTI-LOOPING MEASURES
-
-### Common Obstacles
-- **Signs**: Cannot walk through signs - must go AROUND them (left or right)
-- **Trees**: Block movement, always navigate around them
-- **Fences/Walls**: Cannot be passed through, find an opening
-- **NPCs**: Cannot walk through people, navigate around them
-- **Flowers/Tall Grass**: Can walk through but may trigger Pokémon battles
-- **Water**: Cannot cross without special moves/Pokémon
-
-
-## AVAILABLE CONTROLS
-- **Up/Down/Left/Right**: Move your character
-- **A**: Interact/Confirm - Use for NPCs, signs, doors, menu selections
-- **B**: Cancel/Back - Exit menus or speed up text
-- **Start**: Open main menu (rarely needed)
-- **Select**: Rarely used
-
-## FUNCTION CALL FORMAT
-You must use function calls to control the emulator, providing a list of buttons in sequence:
-
-```
-pokemon_controller: Takes a list of buttons to press in sequence
-```
-
-Remember: Always analyze the current screen carefully before making moves. Use minimal precise inputs rather than many speculative inputs.
-     """}
-]
+def read_prompt(file_path):
+    with open(file_path, 'r', encoding='utf-8') as f:
+        file_content = f.read()
+        return [
+            {"role": "user", "content": file_content}
+        ]
+init_message = read_prompt("prompts/fight_pokemon_2.md")
 
 def are_images_similar(image1_path, image2_path, threshold=0.95):
     """Compare two images to detect if movement was blocked by a barrier"""
