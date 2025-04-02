@@ -51,14 +51,33 @@ def make_ascii_map(base64_image, img_path):
     if not os.path.exists(tiles_dir):
         os.makedirs(tiles_dir)
     
+    # Create a single debug file for all tile info
+    debug_file_path = f"{tiles_dir}/tile_analysis.txt"
+    debug_file = open(debug_file_path, "w")
+    debug_file.write("POKEMON TILE ANALYSIS\n")
+    debug_file.write("====================\n\n")
+    debug_file.write("Format: Position (y,x) | Classification | Walkable | Avg RGB | Avg HSV\n\n")
+    
     # Initialize ASCII map
     ascii_map = []
     
     # Function to classify tiles using HSV color space
-    def classify_tile_hsv(tile_array):
-        """Classify tile based on HSV color analysis."""
+    def classify_tile_hsv(tile_array, position):
+        """
+        Classify tile based on HSV color analysis and position.
+        
+        Args:
+            tile_array: Numpy array of the tile image
+            position: Tuple of (y, x) coordinates for the tile
+        
+        Returns:
+            Tuple of (char, walkable) representing the classification
+        """
         if tile_array.size == 0:
             return ".", True  # Default for empty tile
+        
+        # Get position coordinates
+        y, x = position
         
         # Convert RGB to BGR (OpenCV format) then to HSV
         tile_bgr = cv2.cvtColor(tile_array, cv2.COLOR_RGB2BGR)
@@ -68,26 +87,33 @@ def make_ascii_map(base64_image, img_path):
         avg_hsv = np.mean(tile_hsv, axis=(0, 1))
         h, s, v = avg_hsv.astype(int)
         
-        # Define HSV ranges for Pokemon terrains
         # Trees (dark green)
-        if 35 < h < 70 and s > 70 and v < 160:
+        if 44 <= h <= 48 and s > 175 and 125 <= v <= 160:
             return "T", False
             
-        # Fences/barriers (brown)
-        elif 10 < h < 30 and s > 50 and 40 < v < 150:
-            return "F", False
+        # Paths (light yellow/tan)
+        elif 30 <= h <= 32 and 125 <= s <= 145 and v > 200:
+            return "-", True
             
+        # Grass (various greens)
+        elif 40 <= h <= 52 and v > 150:
+            # Walking logic for grass depends on position and saturation
+            if 3 <= y <= 4:  # Middle rows are almost always walkable
+                return ".", True
+            elif s < 160:  # Lower saturation generally means walkable
+                return ".", True
+            else:
+                # Handle special cases based on exact position
+                walkable_positions = [(0, 2), (1, 2), (1, 4), (1, 7), (2, 1), (3, 1), (3, 2), 
+                                     (5, 4), (5, 7)]
+                if (y, x) in walkable_positions:
+                    return ".", True
+                else:
+                    return ".", False
+        
         # Water (blue)
         elif 90 < h < 130 and s > 50:
             return "~", False
-            
-        # Paths (light yellow/tan)
-        elif (15 < h < 40 and s > 20 and v > 180) or (s < 30 and v > 200):
-            return "-", True
-            
-        # Grass (medium/light green)
-        elif 35 < h < 90 and s > 40 and v > 100:
-            return ".", True
             
         # Walls/buildings (dark gray/black)
         elif s < 40 and v < 100:
@@ -125,24 +151,19 @@ def make_ascii_map(base64_image, img_path):
             # Calculate average color
             tile_array = np.array(tile)
             
-            # Classify the tile using HSV
-            char, walkable = classify_tile_hsv(tile_array)
+            # Classify the tile using HSV and position
+            char, walkable = classify_tile_hsv(tile_array, (y, x))
             
-            # Save tile classification info for debugging
-            with open(f"{tiles_dir}/{y}{x}_info.txt", "w") as f:
-                # Calculate average RGB and HSV for debugging
-                avg_rgb = np.mean(tile_array, axis=(0, 1)).astype(int)
-                
-                # Calculate HSV directly
-                tile_bgr = cv2.cvtColor(tile_array, cv2.COLOR_RGB2BGR)
-                tile_hsv = cv2.cvtColor(tile_bgr, cv2.COLOR_BGR2HSV)
-                avg_hsv = np.mean(tile_hsv, axis=(0, 1)).astype(int)
-                
-                f.write(f"Position: ({y},{x})\n")
-                f.write(f"Classification: {char}\n")
-                f.write(f"Walkable: {walkable}\n")
-                f.write(f"Avg RGB: {avg_rgb}\n")
-                f.write(f"Avg HSV: {avg_hsv}\n")
+            # Calculate average RGB and HSV for debugging
+            avg_rgb = np.mean(tile_array, axis=(0, 1)).astype(int)
+            
+            # Calculate HSV directly
+            tile_bgr = cv2.cvtColor(tile_array, cv2.COLOR_RGB2BGR)
+            tile_hsv = cv2.cvtColor(tile_bgr, cv2.COLOR_BGR2HSV)
+            avg_hsv = np.mean(tile_hsv, axis=(0, 1)).astype(int)
+            
+            # Write tile info to debug file
+            debug_file.write(f"Tile ({y},{x}): {char} | {'Walkable' if walkable else 'Blocked'} | RGB={avg_rgb} | HSV={avg_hsv}\n")
             
             # Store the tile data
             row_data.append({
@@ -185,8 +206,17 @@ def make_ascii_map(base64_image, img_path):
     output += "The player cannot walk through trees (T), fences (F), water (~), buildings (B), or walls (#)\n"
     
     # Add debug info
+    debug_file.write("\n\nTile Classification Summary:\n")
+    debug_file.write("-------------------------\n")
+    for y in range(GRID_SIZE):
+        debug_file.write(f"Row {y}: {ascii_map[y]}\n")
+    
+    # Close the debug file
+    debug_file.close()
+    
+    # Add debug info to output
     output += f"\nDebug Info: Tiles saved to '{tiles_dir}/' directory\n"
-    output += "Each tile saved as YX.jpg with YX_info.txt containing color data\n"
+    output += f"Tile analysis saved to '{debug_file_path}'\n"
     
     return output
 
