@@ -587,14 +587,14 @@ def main():
     # Create client with debug flag from command line args
     client = SkyEmuClient(args.url, debug=args.debug)
     
-    # Try to get SkyEmu status first
-    try:
-        status = client.status()
-        print(f"SkyEmu status: {status}")
-    except Exception as e:
-        print(f"Error connecting to SkyEmu at {args.url}: {e}")
-        print("Make sure SkyEmu is running with the HTTP server enabled.")
-        return
+    # # Try to get SkyEmu status first
+    # try:
+    #     status = client.status()
+    #     print(f"SkyEmu status: {status}")
+    # except Exception as e:
+    #     print(f"Error connecting to SkyEmu at {args.url}: {e}")
+    #     print("Make sure SkyEmu is running with the HTTP server enabled.")
+    #     return
 
     # Test if we can read basic memory addresses before proceeding
     print("\nTesting basic memory access...")
