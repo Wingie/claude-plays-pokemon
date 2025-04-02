@@ -1,72 +1,218 @@
+"""
+Pokemon Game Screen ASCII Converter
+
+This module processes screenshots from a Pokemon game emulator and converts them to
+a simple 8x8 ASCII grid map showing terrain types and walkability.
+It also saves individual tiles to a tiles/ directory for debugging.
+"""
+
 import base64
 from io import BytesIO
-# Ensure Pillow (PIL) is installed: pip install Pillow
 from PIL import Image
-import asyncio
+import numpy as np
+import cv2  # For HSV conversion
 import os
-import json
-import time
-import base64
-from io import BytesIO
-from typing import Dict, List, Optional, Any, Union
-
-from mcp.server.fastmcp import FastMCP
-from PIL import Image
-
 from skyemu_client import SkyEmuClient
 
 # Initialize the SkyEmu client
 skyemu = SkyEmuClient()
 
+def make_ascii_map(base64_image, img_path):
+    """
+    Convert a Pokemon game screenshot to a simple 8x8 ASCII grid map.
+    
+    Args:
+        base64_image: Base64 encoded string of the image
+        img_path: Path to the saved image file
+        
+    Returns:
+        String containing the ASCII map with legend
+    """
+    # Load the image
+    try:
+        image_data = base64.b64decode(base64_image)
+        img = Image.open(BytesIO(image_data))
+    except:
+        img = Image.open(img_path)
+    
+    # Convert to RGB
+    img = img.convert('RGB')
+    
+    # Define grid size (8x8 for Pokemon's tile-based system)
+    GRID_SIZE = 8
+    
+    # Calculate tile dimensions
+    width, height = img.size
+    tile_width = width // GRID_SIZE
+    tile_height = height // GRID_SIZE
+    
+    # Create tiles directory if it doesn't exist
+    tiles_dir = "tiles"
+    if not os.path.exists(tiles_dir):
+        os.makedirs(tiles_dir)
+    
+    # Initialize ASCII map
+    ascii_map = []
+    
+    # Function to classify tiles using HSV color space
+    def classify_tile_hsv(tile_array):
+        """Classify tile based on HSV color analysis."""
+        if tile_array.size == 0:
+            return ".", True  # Default for empty tile
+        
+        # Convert RGB to BGR (OpenCV format) then to HSV
+        tile_bgr = cv2.cvtColor(tile_array, cv2.COLOR_RGB2BGR)
+        tile_hsv = cv2.cvtColor(tile_bgr, cv2.COLOR_BGR2HSV)
+        
+        # Calculate average HSV color
+        avg_hsv = np.mean(tile_hsv, axis=(0, 1))
+        h, s, v = avg_hsv.astype(int)
+        
+        # Define HSV ranges for Pokemon terrains
+        # Trees (dark green)
+        if 35 < h < 70 and s > 70 and v < 160:
+            return "T", False
+            
+        # Fences/barriers (brown)
+        elif 10 < h < 30 and s > 50 and 40 < v < 150:
+            return "F", False
+            
+        # Water (blue)
+        elif 90 < h < 130 and s > 50:
+            return "~", False
+            
+        # Paths (light yellow/tan)
+        elif (15 < h < 40 and s > 20 and v > 180) or (s < 30 and v > 200):
+            return "-", True
+            
+        # Grass (medium/light green)
+        elif 35 < h < 90 and s > 40 and v > 100:
+            return ".", True
+            
+        # Walls/buildings (dark gray/black)
+        elif s < 40 and v < 100:
+            return "#", False
+            
+        # Buildings/structures (usually gray/red)
+        elif (0 <= h < 20 or 160 < h <= 179) and s > 50 and v > 80:
+            return "B", False
+        
+        # Default - assume walkable
+        else:
+            return ".", True
+    
+    # Create a map of tiles with their classifications
+    tile_data = []
+    
+    # Process each tile in the grid
+    for y in range(GRID_SIZE):
+        row = ""
+        row_data = []
+        
+        for x in range(GRID_SIZE):
+            # Get tile region
+            start_x = x * tile_width
+            start_y = y * tile_height
+            end_x = start_x + tile_width
+            end_y = start_y + tile_height
+            
+            tile = img.crop((start_x, start_y, end_x, end_y))
+            
+            # Save the tile image for debugging
+            tile_filename = f"{tiles_dir}/{y}{x}.jpg"
+            tile.save(tile_filename)
+            
+            # Calculate average color
+            tile_array = np.array(tile)
+            
+            # Classify the tile using HSV
+            char, walkable = classify_tile_hsv(tile_array)
+            
+            # Save tile classification info for debugging
+            with open(f"{tiles_dir}/{y}{x}_info.txt", "w") as f:
+                # Calculate average RGB and HSV for debugging
+                avg_rgb = np.mean(tile_array, axis=(0, 1)).astype(int)
+                
+                # Calculate HSV directly
+                tile_bgr = cv2.cvtColor(tile_array, cv2.COLOR_RGB2BGR)
+                tile_hsv = cv2.cvtColor(tile_bgr, cv2.COLOR_BGR2HSV)
+                avg_hsv = np.mean(tile_hsv, axis=(0, 1)).astype(int)
+                
+                f.write(f"Position: ({y},{x})\n")
+                f.write(f"Classification: {char}\n")
+                f.write(f"Walkable: {walkable}\n")
+                f.write(f"Avg RGB: {avg_rgb}\n")
+                f.write(f"Avg HSV: {avg_hsv}\n")
+            
+            # Store the tile data
+            row_data.append({
+                'x': x,
+                'y': y,
+                'char': char,
+                'walkable': walkable
+            })
+            
+            # Mark player position at the center (for now)
+            if x == GRID_SIZE // 2 and y == GRID_SIZE // 2:
+                char = "P"
+            
+            row += char
+        
+        ascii_map.append(row)
+        tile_data.append(row_data)
+    
+    # Format the output
+    output = "Pokemon 8x8 Grid Map:\n"
+    output += "  " + "".join([f"{i}" for i in range(GRID_SIZE)]) + "\n"
+    
+    for y, row in enumerate(ascii_map):
+        output += f"{y} {row}\n"
+    
+    # Add legend
+    output += "\nLegend:\n"
+    output += "P - Player (center position)\n"
+    output += ". - Grass (walkable)\n"
+    output += "- - Path (walkable)\n"
+    output += "T - Tree (not walkable)\n"
+    output += "F - Fence (not walkable)\n"
+    output += "~ - Water (not walkable)\n"
+    output += "B - Building (not walkable)\n"
+    output += "# - Wall (not walkable)\n"
+    
+    # Add walkability explanation
+    output += "\nWalkability Guide:\n"
+    output += "The player can walk on grass (.) and paths (-)\n"
+    output += "The player cannot walk through trees (T), fences (F), water (~), buildings (B), or walls (#)\n"
+    
+    # Add debug info
+    output += f"\nDebug Info: Tiles saved to '{tiles_dir}/' directory\n"
+    output += "Each tile saved as YX.jpg with YX_info.txt containing color data\n"
+    
+    return output
 
 def get_screenshot_jpeg_base64_resized():
     """
-    Captures a screenshot, resizes it smaller by a given percentage,
-    converts it to JPEG, saves it to a file, and returns a
-    base64 encoded string of the resized JPEG image.
+    Capture a screenshot and convert to ASCII map
     """
-    if not 0 < reduction_percentage < 100:
-        print("Error: Reduction percentage must be between 0 and 100.")
-        return None
-
     try:
-        # 1. Get the screen image (assuming it's a PIL Image)
         screen = skyemu.get_screen(embed_state=True)
-
-        # 3. Resize the image
-        # Use Image.Resampling.LANCZOS for high-quality downscaling
-        # (Older Pillow versions might use Image.ANTIALIAS)
-        resized_screen = screen.resize(new_size, resample=Image.Resampling.LANCZOS)
-
-        # 4. Convert the *resized* image to RGB mode (required for JPEG)
-        resized_screen_rgb = resized_screen.convert('RGB')
-
-        # 5. Save the *resized* RGB image to the specified file as JPEG
-        file_path = "/tmp/emulator_screen_resized.jpg" # Changed filename
-        resized_screen_rgb.save(file_path, 'JPEG', quality=85) # Added quality setting
+        resized_screen_rgb = screen.convert('RGB')
+        file_path = "/tmp/emulator_screen_resized.jpg"
+        resized_screen_rgb.save(file_path, 'JPEG', quality=85)
         print(f"Resized screenshot saved as JPEG to: {file_path}")
-
-        # 6. Save the *resized* RGB image to an in-memory buffer as JPEG
+        
         jpeg_buffer = BytesIO()
-        resized_screen_rgb.save(jpeg_buffer, format='JPEG', quality=85) # Added quality setting
-
-        # 7. Get the raw bytes from the in-memory JPEG buffer
+        resized_screen_rgb.save(jpeg_buffer, format='JPEG', quality=85)
         jpeg_bytes = jpeg_buffer.getvalue()
-
-        # 8. Encode these JPEG bytes into base64
         base64_bytes = base64.b64encode(jpeg_bytes)
-
-        # 9. Decode the base64 bytes into a UTF-8 string
         base64_string = base64_bytes.decode('utf-8')
-
-        # 10. Return the base64 string
-        return base64_string
-
+        
+        return make_ascii_map(base64_string, file_path)
+    
     except Exception as e:
-        print(f"An error occurred: {e}")
-        # Handle the error appropriately, maybe return None or raise it
+        print(f"Error: {e}")
         return None
 
 if __name__ == "__main__":
     s = get_screenshot_jpeg_base64_resized()
-    print(len(s))
+    print(s)
