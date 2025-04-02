@@ -221,6 +221,8 @@ class PokemonFireRedReader(PokemonGameReader):
         'party_data': 0x02024284,      # Start of party data structure 
         'player_name': 0x02024C0A,     # Player's name
         'player_coords': 0x02037318,   # X, Y coordinates in current map (2 bytes each)
+        'player_coords_alt1': 0x020370B8,  # Potential alternate coordinates location
+        'player_coords_alt2': 0x030031F8,  # Another potential alternate (from IRAM)
         'map_bank': 0x02037354,        # Map bank (area group)
         'map_id': 0x02037355,          # Map ID within bank
         'money': 0x02025840,           # Money (raw value requires XOR decryption)
@@ -234,7 +236,22 @@ class PokemonFireRedReader(PokemonGameReader):
         """Read the current game state for Pokémon FireRed/LeafGreen"""
         try:
             player_name = self._read_player_name()
-            x, y = self._read_coordinates()
+            
+            # Try multiple coordinate locations and use the most reasonable one
+            print("\nTrying multiple player coordinate locations...")
+            
+            # Try main coordinates first
+            x, y = self._read_coordinates_at(self.ADDRESSES['player_coords'])
+            
+            # If those coordinates are unreasonable, try alternate locations
+            if x > 1023 or y > 1023 or (x == 0 and y == 0):
+                print("Main coordinates look invalid, trying alternate location 1...")
+                x, y = self._read_coordinates_at(self.ADDRESSES['player_coords_alt1'])
+                
+                if x > 1023 or y > 1023 or (x == 0 and y == 0):
+                    print("Alternate coordinates 1 look invalid, trying alternate location 2...")
+                    x, y = self._read_coordinates_at(self.ADDRESSES['player_coords_alt2'])
+            
             location = self._read_location()
             money = self._read_money()
             party = self._read_party_pokemon()
@@ -272,19 +289,56 @@ class PokemonFireRedReader(PokemonGameReader):
             print(f"Error reading player name: {e}")
             return "Unknown"
     
-    def _read_coordinates(self) -> Tuple[int, int]:
-        """Read player's current X,Y coordinates"""
+    def _read_coordinates_at(self, address) -> Tuple[int, int]:
+        """Read player's current X,Y coordinates from a specific memory address"""
         try:
-            coords_bytes = self.client.read_bytes(self.ADDRESSES['player_coords'], 4)
-            if not coords_bytes or len(coords_bytes) < 4:
+            # Make 4 individual requests for the coordinate bytes
+            response_x = requests.get(f"{self.client.base_url}/read_byte", {'addr': f"{address:X}"})
+            response_x2 = requests.get(f"{self.client.base_url}/read_byte", {'addr': f"{address + 1:X}"})
+            response_y = requests.get(f"{self.client.base_url}/read_byte", {'addr': f"{address + 2:X}"})
+            response_y2 = requests.get(f"{self.client.base_url}/read_byte", {'addr': f"{address + 3:X}"})
+            
+            print(f"Reading coordinates from 0x{address:08X}")
+            print(f"X coordinate raw responses: '{response_x.text.strip()}', '{response_x2.text.strip()}'")
+            print(f"Y coordinate raw responses: '{response_y.text.strip()}', '{response_y2.text.strip()}'")
+            
+            # Parse hex values
+            try:
+                # Clean hex values
+                x1 = ''.join(c for c in response_x.text.strip() if c in '0123456789abcdefABCDEF')
+                x2 = ''.join(c for c in response_x2.text.strip() if c in '0123456789abcdefABCDEF')
+                y1 = ''.join(c for c in response_y.text.strip() if c in '0123456789abcdefABCDEF')
+                y2 = ''.join(c for c in response_y2.text.strip() if c in '0123456789abcdefABCDEF')
+                
+                # Parse individual bytes
+                x_low = int(x1, 16) if x1 else 0
+                x_high = int(x2, 16) if x2 else 0
+                y_low = int(y1, 16) if y1 else 0
+                y_high = int(y2, 16) if y2 else 0
+                
+                # Combine bytes (little-endian)
+                x = x_low | (x_high << 8)
+                y = y_low | (y_high << 8)
+                
+                print(f"Parsed coordinates: X={x} (0x{x:04X}), Y={y} (0x{y:04X})")
+                
+                # Coordinates in Pokémon games are typically 16-bit values in the range of 0-255
+                # If they're outside that range, something is probably wrong with our parsing
+                if x > 1023 or y > 1023:
+                    print(f"Warning: Coordinates outside expected range! ({x}, {y})")
+                
+                return (x, y)
+            except (ValueError, IndexError) as e:
+                print(f"Error parsing coordinates: {e}")
                 return (0, 0)
                 
-            x = int.from_bytes(coords_bytes[0:2], byteorder='little')
-            y = int.from_bytes(coords_bytes[2:4], byteorder='little')
-            return (x, y)
         except Exception as e:
             print(f"Error reading coordinates: {e}")
             return (0, 0)
+            
+    def _read_coordinates(self) -> Tuple[int, int]:
+        """Read player's current X,Y coordinates (uses the default address)"""
+        return self._read_coordinates_at(self.ADDRESSES['player_coords'])
     
     def _read_location(self) -> str:
         """Read current location name"""
@@ -605,7 +659,19 @@ def main():
         0x03000000,  # Start of IRAM
         0x02024029,  # Party count
         0x02024284,  # Party data
-        0x02037354,  # Map bank/ID - seeing '4f' and '33' here
+        0x02037318,  # Player coords (original)
+        0x02037319,  # Player coords (original) + 1
+        0x0203731A,  # Player coords (original) + 2
+        0x0203731B,  # Player coords (original) + 3
+        0x020370B8,  # Player coords (alternate 1)
+        0x020370B9,  # Player coords (alternate 1) + 1
+        0x020370BA,  # Player coords (alternate 1) + 2
+        0x020370BB,  # Player coords (alternate 1) + 3
+        0x030031F8,  # Player coords (alternate 2)
+        0x030031F9,  # Player coords (alternate 2) + 1
+        0x030031FA,  # Player coords (alternate 2) + 2
+        0x030031FB,  # Player coords (alternate 2) + 3
+        0x02037354,  # Map bank/ID
     ] 
     
     test_results = []
