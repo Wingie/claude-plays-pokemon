@@ -1,0 +1,81 @@
+POKEMON TILE ANALYSIS
+====================
+
+Format: Position (y,x) | Classification | Walkable | Avg RGB | Avg HSV
+
+Tile (0,0): T | Blocked | RGB=[ 77 153  32] | HSV=[ 48 208 153]
+Tile (0,1): . | Blocked | RGB=[100 173  53] | HSV=[ 48 181 173]
+Tile (0,2): . | Walkable | RGB=[140 197  79] | HSV=[ 43 153 197]
+Tile (0,3): - | Walkable | RGB=[215 223 112] | HSV=[ 32 126 223]
+Tile (0,4): . | Walkable | RGB=[150 199  76] | HSV=[ 41 159 199]
+Tile (0,5): . | Blocked | RGB=[113 183  42] | HSV=[ 45 196 183]
+Tile (0,6): . | Walkable | RGB=[137 150  41] | HSV=[ 32 185 166]
+Tile (0,7): . | Blocked | RGB=[127 191  67] | HSV=[ 45 165 191]
+Tile (1,0): . | Blocked | RGB=[101 181  43] | HSV=[ 48 201 181]
+Tile (1,1): . | Blocked | RGB=[114 189  59] | HSV=[ 47 176 189]
+Tile (1,2): . | Walkable | RGB=[133 193  83] | HSV=[ 45 147 193]
+Tile (1,3): - | Walkable | RGB=[214 222 111] | HSV=[ 32 127 222]
+Tile (1,4): . | Walkable | RGB=[135 192  79] | HSV=[ 44 152 192]
+Tile (1,5): T | Blocked | RGB=[ 82 132  36] | HSV=[ 44 178 132]
+Tile (1,6): . | Walkable | RGB=[104 120  37] | HSV=[ 35 173 129]
+Tile (1,7): . | Walkable | RGB=[ 96 165  60] | HSV=[ 48 161 165]
+Tile (2,0): . | Blocked | RGB=[ 87 164  38] | HSV=[ 48 204 164]
+Tile (2,1): . | Walkable | RGB=[107 180  57] | HSV=[ 47 178 180]
+Tile (2,2): . | Blocked | RGB=[122 177  65] | HSV=[ 43 167 178]
+Tile (2,3): - | Walkable | RGB=[207 214 106] | HSV=[ 32 131 214]
+Tile (2,4): . | Walkable | RGB=[144 198  77] | HSV=[ 42 158 198]
+Tile (2,5): . | Walkable | RGB=[170 177  60] | HSV=[ 32 166 183]
+Tile (2,6): . | Walkable | RGB=[151 176  85] | HSV=[ 39 129 177]
+Tile (2,7): . | Walkable | RGB=[133 185  72] | HSV=[ 43 152 187]
+Tile (3,0): T | Blocked | RGB=[ 81 157  33] | HSV=[ 48 208 157]
+Tile (3,1): . | Walkable | RGB=[102 175  54] | HSV=[ 48 180 175]
+Tile (3,2): . | Walkable | RGB=[130 181  73] | HSV=[ 43 157 186]
+Tile (3,3): . | Walkable | RGB=[199 195  96] | HSV=[ 29 142 206]
+Tile (3,4): . | Walkable | RGB=[134 191  79] | HSV=[ 44 156 200]
+Tile (3,5): . | Walkable | RGB=[132 211  87] | HSV=[ 49 149 211]
+Tile (3,6): . | Walkable | RGB=[118 199  73] | HSV=[ 49 164 199]
+Tile (3,7): . | Walkable | RGB=[109 173  63] | HSV=[ 44 168 180]
+Tile (4,0): . | Walkable | RGB=[103 183  44] | HSV=[ 48 200 183]
+Tile (4,1): . | Walkable | RGB=[116 191  61] | HSV=[ 47 175 191]
+Tile (4,2): . | Walkable | RGB=[131 191  78] | HSV=[ 45 152 191]
+Tile (4,3): - | Walkable | RGB=[208 214 106] | HSV=[ 32 131 216]
+Tile (4,4): . | Walkable | RGB=[124 194  80] | HSV=[ 48 152 196]
+Tile (4,5): . | Walkable | RGB=[112 200  80] | HSV=[ 51 152 200]
+Tile (4,6): . | Walkable | RGB=[112 200  80] | HSV=[ 51 152 200]
+Tile (4,7): . | Walkable | RGB=[112 200  80] | HSV=[ 52 152 200]
+Tile (5,0): T | Blocked | RGB=[ 66 137  30] | HSV=[ 48 206 137]
+Tile (5,1): T | Blocked | RGB=[ 88 158  50] | HSV=[ 48 180 158]
+Tile (5,2): . | Walkable | RGB=[136 193  76] | HSV=[ 44 157 193]
+Tile (5,3): - | Walkable | RGB=[215 223 112] | HSV=[ 32 127 223]
+Tile (5,4): . | Walkable | RGB=[132 203  83] | HSV=[ 47 150 203]
+Tile (5,5): . | Blocked | RGB=[121 205  68] | HSV=[ 49 169 205]
+Tile (5,6): . | Blocked | RGB=[126 187  67] | HSV=[ 44 164 193]
+Tile (5,7): . | Walkable | RGB=[122 184  74] | HSV=[ 45 148 184]
+Tile (6,0): . | Walkable | RGB=[135 170  83] | HSV=[ 39 129 171]
+Tile (6,1): . | Walkable | RGB=[133 169  82] | HSV=[ 39 129 170]
+Tile (6,2): . | Walkable | RGB=[136 183  84] | HSV=[ 42 137 186]
+Tile (6,3): - | Walkable | RGB=[205 211 108] | HSV=[ 32 125 213]
+Tile (6,4): . | Blocked | RGB=[129 191  69] | HSV=[ 45 165 191]
+Tile (6,5): T | Blocked | RGB=[ 90 157  36] | HSV=[ 46 194 157]
+Tile (6,6): . | Walkable | RGB=[129 136  38] | HSV=[ 32 187 153]
+Tile (6,7): . | Blocked | RGB=[103 178  62] | HSV=[ 49 167 178]
+Tile (7,0): - | Walkable | RGB=[214 223 112] | HSV=[ 32 127 223]
+Tile (7,1): - | Walkable | RGB=[215 223 112] | HSV=[ 32 127 223]
+Tile (7,2): - | Walkable | RGB=[215 223 112] | HSV=[ 32 127 223]
+Tile (7,3): - | Walkable | RGB=[215 223 112] | HSV=[ 32 127 223]
+Tile (7,4): . | Walkable | RGB=[149 202  83] | HSV=[ 42 150 202]
+Tile (7,5): . | Walkable | RGB=[126 147  44] | HSV=[ 37 172 151]
+Tile (7,6): . | Walkable | RGB=[112 138  60] | HSV=[ 40 144 141]
+Tile (7,7): . | Walkable | RGB=[115 173  66] | HSV=[ 45 154 174]
+
+
+Tile Classification Summary:
+-------------------------
+Row 0: T..-....
+Row 1: ...-.T..
+Row 2: ...-....
+Row 3: T.......
+Row 4: ...-P...
+Row 5: TT.-....
+Row 6: ...-.T..
+Row 7: ----....
