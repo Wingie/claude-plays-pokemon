@@ -617,6 +617,21 @@ def interactive_mode(eevee, args):
     print("🔮 " + "="*60)
     print("🔮 EEVEE INTERACTIVE MODE - Pokemon AI Assistant")
     print("🔮 " + "="*60)
+    
+    # Load session continuity
+    previous_state = get_session_state()
+    user_goal = get_user_goal()
+    
+    print(f"🎯 Current Goal: {user_goal}")
+    
+    if previous_state.get("last_session"):
+        print(f"📅 Resuming from last session: {previous_state['last_session']}")
+        if previous_state.get("current_location"):
+            print(f"📍 Last known location: {previous_state['current_location']}")
+        if previous_state.get("locations_discovered"):
+            locations = ", ".join(previous_state["locations_discovered"][-3:])  # Show last 3
+            print(f"🗺️  Known locations: {locations}")
+    
     print("💬 Type your tasks or use /commands for control")
     print("📋 Available commands: /pause, /resume, /status, /memory, /help, /quit")
     print("🎮 Game state updates will appear in real-time")
@@ -629,7 +644,11 @@ def interactive_mode(eevee, args):
         "task_thread": None,
         "command_queue": queue.Queue(),
         "response_queue": queue.Queue(),
-        "running": True
+        "running": True,
+        "user_goal": user_goal,
+        "session_data": previous_state,
+        "active_runs": 0,
+        "max_runs": 5
     }
     
     # Initialize OKR tracking if enabled
@@ -679,14 +698,18 @@ def handle_interactive_command(command, session_state, eevee, args):
     
     if cmd == "/help":
         print("\n📋 INTERACTIVE COMMANDS:")
-        print("  /pause     - Pause current task execution")
-        print("  /resume    - Resume paused task")
-        print("  /status    - Show current game state and task status")
-        print("  /memory    - Show recent memory and context")
-        print("  /okr       - Show current objectives and key results")
-        print("  /clear     - Clear current task and reset")
-        print("  /help      - Show this help message")
-        print("  /quit      - Exit interactive mode")
+        print("  /pause          - Pause current task execution")
+        print("  /resume         - Resume paused task")
+        print("  /status         - Show current game state and task status")
+        print("  /memory         - Show recent memory and context")
+        print("  /okr            - Show current objectives and key results")
+        print("  /clear          - Clear current task and reset")
+        print("  /reset-memory   - Clear navigation memory for fresh test")
+        print("  /show-route     - Display known routes from memory")
+        print("  /location-stats - Show location recognition confidence")
+        print("  /goal           - Show current USER_GOAL and suggest task")
+        print("  /help           - Show this help message")
+        print("  /quit           - Exit interactive mode")
         print("\n💡 Or just type a natural language task to execute it!")
     
     elif cmd == "/pause":
@@ -724,7 +747,21 @@ def handle_interactive_command(command, session_state, eevee, args):
         session_state["paused"] = False
         print("🧹 Cleared current task. Ready for new instructions.")
     
+    elif cmd == "/reset-memory":
+        reset_navigation_memory(eevee, args)
+    
+    elif cmd == "/show-route":
+        show_known_routes(eevee, args)
+    
+    elif cmd == "/location-stats":
+        show_location_stats(eevee, args)
+    
+    elif cmd == "/goal":
+        show_goal_and_suggestions(session_state, args)
+    
     elif cmd == "/quit":
+        # Save session state before quitting
+        save_current_session_state(session_state, eevee)
         session_state["running"] = False
         print("👋 Goodbye! Exiting interactive mode...")
     
@@ -864,6 +901,52 @@ def show_memory_status(eevee, args):
     print("=" * 30)
 
 
+def get_user_goal():
+    """Get user goal from environment variable"""
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        user_goal = os.getenv("USER_GOAL", "Complete Pokemon League Challenge")
+        return user_goal.strip()
+    except Exception as e:
+        print(f"⚠️ Could not load USER_GOAL: {e}")
+        return "Complete Pokemon League Challenge"
+
+
+def get_session_state():
+    """Get the last session state for continuity"""
+    try:
+        project_root = Path(__file__).parent.parent
+        state_file = project_root / "session_state.json"
+        
+        if state_file.exists():
+            with open(state_file, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"⚠️ Could not load session state: {e}")
+    
+    return {
+        "last_session": None,
+        "current_objective": None,
+        "progress": {},
+        "memory_session": "default",
+        "locations_discovered": [],
+        "current_location": None
+    }
+
+
+def save_session_state(state):
+    """Save current session state for continuity"""
+    try:
+        project_root = Path(__file__).parent.parent
+        state_file = project_root / "session_state.json"
+        
+        with open(state_file, 'w') as f:
+            json.dump(state, f, indent=2)
+    except Exception as e:
+        print(f"⚠️ Could not save session state: {e}")
+
+
 def update_okr_file(event, event_type, success=None):
     """Update OKR.md file with progress tracking"""
     try:
@@ -881,12 +964,17 @@ def update_okr_file(event, event_type, success=None):
         timestamp = datetime.now().strftime("%H:%M:%S")
         
         if event_type == "session_start":
-            new_entry = f"\n## Session {datetime.now().strftime('%Y-%m-%d %H:%M')}\n- 🎬 Interactive session started\n"
+            user_goal = get_user_goal()
+            new_entry = f"\n## Session {datetime.now().strftime('%Y-%m-%d %H:%M')}\n- 🎬 Interactive session started\n- 🎯 Current Goal: {user_goal}\n"
         elif event_type == "task_start":
             new_entry = f"- 🎯 [{timestamp}] Started: {event}\n"
         elif event_type == "task_complete":
             emoji = "✅" if success else "❌"
             new_entry = f"- {emoji} [{timestamp}] {event}\n"
+        elif event_type == "location_discovered":
+            new_entry = f"- 📍 [{timestamp}] Location discovered: {event}\n"
+        elif event_type == "navigation_success":
+            new_entry = f"- 🗺️ [{timestamp}] Navigation success: {event}\n"
         elif event_type == "session_end":
             new_entry = f"- 🏁 [{timestamp}] Interactive session ended\n\n"
         else:
@@ -902,25 +990,188 @@ def update_okr_file(event, event_type, success=None):
 
 def create_initial_okr_content():
     """Create initial OKR.md content structure"""
+    user_goal = get_user_goal()
+    
     return f"""# Pokemon Fire Red - Objectives & Key Results
 
 ## Current Objectives
-### Primary Goal: Complete Pokemon League Challenge
-- **KR1**: Collect Gym Badges (Target: 8/8) - Current Score: 0/10
-- **KR2**: Build Strong Pokemon Team (Target: 6 Pokemon, Level 50+) - Current Score: 0/10  
-- **KR3**: Efficient Resource Management - Current Score: 5/10
-- **KR4**: Strategic Battle Performance - Current Score: 5/10
+### Primary Goal: {user_goal}
+- **KR1**: Navigation & Exploration - Current Score: 0/10
+- **KR2**: Memory & Learning - Current Score: 0/10  
+- **KR3**: Task Completion Efficiency - Current Score: 5/10
+- **KR4**: Strategic Decision Making - Current Score: 5/10
 
 ### Secondary Goals:
-- **Pokedex Completion**: See/Catch diverse Pokemon species
-- **Exploration Efficiency**: Navigate areas without getting lost
-- **Knowledge Retention**: Learn and apply Pokemon type advantages
+- **Location Discovery**: Find and remember key locations
+- **Route Optimization**: Learn efficient navigation paths
+- **Visual Recognition**: Recognize landmarks and game states
+- **Knowledge Retention**: Remember successful strategies
 
 ## Progress Log
 *This file auto-updates during interactive sessions*
 
 Started: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+Current Goal: {user_goal}
 """
+
+
+def reset_navigation_memory(eevee, args):
+    """Reset navigation memory for fresh testing"""
+    try:
+        if hasattr(eevee, 'memory') and eevee.memory:
+            print("🧹 Clearing navigation memory...")
+            eevee.memory.clear_navigation_memory()
+            print("✅ Navigation memory reset. Ready for fresh navigation test.")
+            
+            # Update OKR if enabled
+            if args.enable_okr:
+                update_okr_file("Navigation memory reset for fresh test", "memory_reset")
+        else:
+            print("⚠️ Memory system not available.")
+    except Exception as e:
+        print(f"❌ Error resetting memory: {e}")
+
+
+def show_known_routes(eevee, args):
+    """Display known routes from memory"""
+    try:
+        if hasattr(eevee, 'memory') and eevee.memory:
+            print("\n🗺️ KNOWN ROUTES & LOCATIONS")
+            print("=" * 30)
+            
+            # Get all known routes
+            routes = eevee.memory.get_all_known_routes()
+            if routes:
+                print("🛤️ Known navigation routes:")
+                for i, route in enumerate(routes[:5], 1):
+                    if route.get("from_location") and route.get("to_location"):
+                        print(f"  {i}. {route['from_location']} → {route['to_location']}")
+                        if route.get("steps_taken"):
+                            print(f"     Steps: {route['steps_taken']}, Success count: {route.get('success_count', 1)}")
+                    else:
+                        print(f"  {i}. {route['route_id']}: {route['description'][:60]}...")
+            else:
+                print("🛤️ No navigation routes learned yet.")
+            
+            # Get location history
+            if hasattr(eevee.memory, 'get_location_history'):
+                locations = eevee.memory.get_location_history(limit=10)
+                if locations:
+                    print("\n📍 Recently visited locations:")
+                    for i, loc in enumerate(locations[:5]):
+                        print(f"  {i+1}. {loc['location']} (visited: {loc['visited_at'][:16]})")
+            
+            # Show visual memory stats if available
+            if hasattr(eevee.memory, 'neo4j_memory') and eevee.memory.neo4j_memory:
+                stats = eevee.memory.get_memory_stats().get('neo4j_visual_memory', {})
+                if stats.get('connected'):
+                    print(f"\n🔗 Visual memories: {stats.get('session_screenshots', 0)}")
+            
+            print("=" * 30)
+        else:
+            print("⚠️ Memory system not available.")
+    except Exception as e:
+        print(f"❌ Error showing routes: {e}")
+
+
+def show_location_stats(eevee, args):
+    """Show location recognition confidence for current area"""
+    try:
+        print("\n📊 LOCATION RECOGNITION STATS")
+        print("=" * 35)
+        
+        # Get current context
+        if hasattr(eevee, '_capture_current_context'):
+            context = eevee._capture_current_context()
+            
+            print(f"🕒 Last screenshot: {context.get('timestamp', 'unknown')}")
+            print(f"🔗 Game connection: {'✅' if context.get('window_found') else '❌'}")
+            
+            # Show visual memory stats if available
+            if hasattr(eevee, 'memory') and eevee.memory and hasattr(eevee.memory, 'neo4j_memory'):
+                if eevee.memory.neo4j_memory:
+                    stats = eevee.memory.neo4j_memory.get_memory_stats()
+                    print(f"📸 Visual memories: {stats.get('session_screenshots', 0)}")
+                    print(f"🔍 Similarity threshold: {stats.get('similarity_threshold', 0.85)}")
+            
+            print("=" * 35)
+        else:
+            print("❌ Cannot capture current context.")
+    except Exception as e:
+        print(f"❌ Error getting location stats: {e}")
+
+
+def show_goal_and_suggestions(session_state, args):
+    """Show current USER_GOAL and suggest relevant tasks"""
+    try:
+        user_goal = session_state.get("user_goal", get_user_goal())
+        
+        print(f"\n🎯 CURRENT GOAL: {user_goal}")
+        print("=" * 50)
+        
+        # Parse goal and suggest tasks
+        goal_lower = user_goal.lower()
+        
+        suggestions = []
+        if "viridian forest" in goal_lower:
+            suggestions = [
+                "Navigate to Viridian Forest from Pokemon Center",
+                "Explore Viridian Forest and map the area", 
+                "Battle trainers in Viridian Forest",
+                "Find and catch Pokemon in Viridian Forest",
+                "Return to Pokemon Center from Viridian Forest"
+            ]
+        elif "gym" in goal_lower or "badge" in goal_lower:
+            suggestions = [
+                "Navigate to the nearest gym",
+                "Challenge the gym leader",
+                "Train Pokemon before gym battle"
+            ]
+        else:
+            suggestions = [
+                "Explore current area and identify location",
+                "Navigate to Pokemon Center for healing",
+                "Check Pokemon party status and health",
+                "Explore nearby areas for trainers or items"
+            ]
+        
+        print("💡 Suggested tasks based on your goal:")
+        for i, suggestion in enumerate(suggestions, 1):
+            print(f"  {i}. {suggestion}")
+        
+        print(f"\n📝 Just type any of these tasks or describe what you want Claude to do!")
+        print("=" * 50)
+        
+    except Exception as e:
+        print(f"❌ Error showing goal: {e}")
+
+
+def save_current_session_state(session_state, eevee):
+    """Save current session state for continuity"""
+    try:
+        # Get current context if possible
+        current_location = "unknown"
+        if hasattr(eevee, '_capture_current_context'):
+            context = eevee._capture_current_context()
+            # Would extract location from context analysis here
+        
+        state = {
+            "last_session": datetime.now().isoformat(),
+            "current_objective": session_state.get("user_goal"),
+            "progress": {
+                "tasks_completed": 0,  # Would track from session
+                "locations_found": 0
+            },
+            "memory_session": getattr(eevee, 'memory_session', 'default'),
+            "locations_discovered": session_state.get("session_data", {}).get("locations_discovered", []),
+            "current_location": current_location
+        }
+        
+        save_session_state(state)
+        print("💾 Session state saved for next time.")
+        
+    except Exception as e:
+        print(f"⚠️ Could not save session state: {e}")
 
 
 def show_okr_status():

@@ -316,6 +316,188 @@ class Neo4jVisualMemory:
             CREATE (s)-[:DURING_TASK]->(t)
         """, {"memory_id": memory_id, "task_description": task_description})
     
+    def store_navigation_success(self, from_location: str, to_location: str, route_description: str, steps_taken: int) -> str:
+        """
+        Store a successful navigation route for future reference
+        
+        Args:
+            from_location: Starting location
+            to_location: Destination location
+            route_description: Description of the route taken
+            steps_taken: Number of steps/actions taken
+            
+        Returns:
+            Route ID
+        """
+        if not self.connected:
+            return "route_fallback"
+        
+        try:
+            route_id = f"route_{from_location}_{to_location}_{int(datetime.now().timestamp())}"
+            
+            with self.driver.session() as session:
+                # Create route node
+                session.run("""
+                    MERGE (from:Location {name: $from_location})
+                    MERGE (to:Location {name: $to_location})
+                    CREATE (route:Route {
+                        id: $route_id,
+                        from_location: $from_location,
+                        to_location: $to_location,
+                        description: $route_description,
+                        steps_taken: $steps_taken,
+                        success_count: 1,
+                        last_used: $timestamp,
+                        session_name: $session_name
+                    })
+                    CREATE (from)-[:CONNECTS_TO {via: route.id}]->(to)
+                    CREATE (route)-[:FROM]->(from)
+                    CREATE (route)-[:TO]->(to)
+                """, {
+                    "route_id": route_id,
+                    "from_location": from_location,
+                    "to_location": to_location,
+                    "route_description": route_description,
+                    "steps_taken": steps_taken,
+                    "timestamp": datetime.now().isoformat(),
+                    "session_name": self.session_name
+                })
+            
+            return route_id
+            
+        except Exception as e:
+            self.logger.error(f"Error storing navigation success: {e}")
+            return "route_error"
+    
+    def get_known_routes(self, from_location: str = None, to_location: str = None) -> List[Dict[str, Any]]:
+        """
+        Get known routes between locations
+        
+        Args:
+            from_location: Filter by starting location
+            to_location: Filter by destination location
+            
+        Returns:
+            List of known routes with success rates
+        """
+        if not self.connected:
+            return []
+        
+        try:
+            with self.driver.session() as session:
+                query = """
+                    MATCH (route:Route)
+                    WHERE route.session_name = $session_name
+                """
+                params = {"session_name": self.session_name}
+                
+                if from_location:
+                    query += " AND route.from_location = $from_location"
+                    params["from_location"] = from_location
+                
+                if to_location:
+                    query += " AND route.to_location = $to_location"
+                    params["to_location"] = to_location
+                
+                query += """
+                    RETURN route
+                    ORDER BY route.success_count DESC, route.last_used DESC
+                    LIMIT 10
+                """
+                
+                result = session.run(query, params)
+                
+                routes = []
+                for record in result:
+                    route_node = record["route"]
+                    routes.append({
+                        "route_id": route_node["id"],
+                        "from_location": route_node["from_location"],
+                        "to_location": route_node["to_location"],
+                        "description": route_node["description"],
+                        "steps_taken": route_node["steps_taken"],
+                        "success_count": route_node["success_count"],
+                        "last_used": route_node["last_used"]
+                    })
+                
+                return routes
+                
+        except Exception as e:
+            self.logger.error(f"Error getting known routes: {e}")
+            return []
+    
+    def find_route_to_location(self, current_location: str, target_location: str) -> Optional[Dict[str, Any]]:
+        """
+        Find the best known route from current location to target
+        
+        Args:
+            current_location: Current location name
+            target_location: Desired destination
+            
+        Returns:
+            Best route information or None if no route known
+        """
+        if not self.connected:
+            return None
+        
+        try:
+            routes = self.get_known_routes(from_location=current_location, to_location=target_location)
+            
+            if routes:
+                # Return the most successful/recently used route
+                best_route = max(routes, key=lambda r: (r["success_count"], r["last_used"]))
+                return best_route
+            
+            # Try to find indirect routes
+            with self.driver.session() as session:
+                result = session.run("""
+                    MATCH path = (from:Location {name: $current})-[:CONNECTS_TO*1..3]-(to:Location {name: $target})
+                    WHERE from.name <> to.name
+                    RETURN path, length(path) as distance
+                    ORDER BY distance ASC
+                    LIMIT 1
+                """, {"current": current_location, "target": target_location})
+                
+                record = result.single()
+                if record:
+                    return {
+                        "route_type": "indirect",
+                        "distance": record["distance"],
+                        "from_location": current_location,
+                        "to_location": target_location,
+                        "description": f"Indirect route via {record['distance']} connections"
+                    }
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error finding route: {e}")
+            return None
+    
+    def clear_navigation_memory(self):
+        """Clear all navigation-related memory for fresh testing"""
+        if not self.connected:
+            return
+        
+        try:
+            with self.driver.session() as session:
+                # Clear routes and location connections for this session
+                session.run("""
+                    MATCH (route:Route {session_name: $session_name})
+                    DETACH DELETE route
+                """, {"session_name": self.session_name})
+                
+                # Clear location relationships for this session
+                session.run("""
+                    MATCH (s:Screenshot {session_name: $session_name})-[r:TAKEN_AT]->()
+                    DELETE r
+                """, {"session_name": self.session_name})
+                
+                self.logger.info(f"Cleared navigation memory for session: {self.session_name}")
+                
+        except Exception as e:
+            self.logger.error(f"Error clearing navigation memory: {e}")
+    
     def _store_visual_memory_fallback(self, screenshot_data: str, context: Dict[str, Any], task_description: str = None) -> str:
         """Fallback storage when Neo4j is not available"""
         memory_id = f"fallback_{int(datetime.now().timestamp())}"

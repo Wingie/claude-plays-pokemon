@@ -680,6 +680,96 @@ class MemorySystem:
         
         return stats
     
+    def store_navigation_route(self, from_location: str, to_location: str, route_description: str, steps_taken: int) -> str:
+        """Store a successful navigation route"""
+        if self.neo4j_memory:
+            try:
+                return self.neo4j_memory.store_navigation_success(from_location, to_location, route_description, steps_taken)
+            except Exception as e:
+                print(f"⚠️ Navigation route storage failed: {e}")
+        
+        # Fallback: store as learned knowledge
+        return self.store_learned_knowledge(
+            knowledge_type="navigation",
+            subject=f"{from_location}_to_{to_location}",
+            content=f"Route: {route_description}, Steps: {steps_taken}",
+            confidence_score=0.9
+        )
+    
+    def get_route_to_location(self, current_location: str, target_location: str) -> Optional[Dict[str, Any]]:
+        """Find the best known route to a location"""
+        if self.neo4j_memory:
+            try:
+                return self.neo4j_memory.find_route_to_location(current_location, target_location)
+            except Exception as e:
+                print(f"⚠️ Route finding failed: {e}")
+        
+        # Fallback: search SQLite knowledge
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                SELECT content, confidence_score 
+                FROM learned_knowledge 
+                WHERE knowledge_type = 'navigation' 
+                AND subject LIKE ?
+                ORDER BY confidence_score DESC
+                LIMIT 1
+            """, (f"%{current_location}_to_{target_location}%",))
+            
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "route_type": "learned",
+                    "description": row[0],
+                    "confidence": row[1],
+                    "from_location": current_location,
+                    "to_location": target_location
+                }
+        
+        return None
+    
+    def get_all_known_routes(self) -> List[Dict[str, Any]]:
+        """Get all known navigation routes"""
+        if self.neo4j_memory:
+            try:
+                return self.neo4j_memory.get_known_routes()
+            except Exception as e:
+                print(f"⚠️ Route retrieval failed: {e}")
+        
+        # Fallback: get from SQLite
+        routes = []
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                SELECT subject, content, confidence_score 
+                FROM learned_knowledge 
+                WHERE knowledge_type = 'navigation'
+                ORDER BY confidence_score DESC
+            """)
+            
+            for row in cursor.fetchall():
+                routes.append({
+                    "route_id": row[0],
+                    "description": row[1],
+                    "confidence": row[2],
+                    "source": "sqlite"
+                })
+        
+        return routes
+    
+    def clear_navigation_memory(self):
+        """Clear navigation memory for fresh testing"""
+        if self.neo4j_memory:
+            try:
+                self.neo4j_memory.clear_navigation_memory()
+                print("✅ Neo4j navigation memory cleared")
+            except Exception as e:
+                print(f"⚠️ Neo4j memory clearing failed: {e}")
+        
+        # Clear SQLite navigation knowledge
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("DELETE FROM learned_knowledge WHERE knowledge_type = 'navigation'")
+            conn.commit()
+            print("✅ SQLite navigation knowledge cleared")
+    
     def close(self):
         """Close all connections"""
         if self.neo4j_memory:
