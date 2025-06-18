@@ -130,3 +130,25 @@ Both versions provide several configuration options:
 - **Audio feedback loop issue** - Gemini may interrupt itself when it detects its own voice output through your microphone. This occurs because the application processes all incoming audio, including Gemini's responses. To prevent this feedback loop, either:
   1. Disable the "Allow Interruptions" option in settings
   2. Use headphones/earphones to prevent your microphone from picking up Gemini's audio output
+
+    // ,
+    // "jupyter": {
+    //   "command": "docker",
+    //   "args": [
+    //     "run",
+    //     "-i",
+    //     "--rm",
+    //     "-e",
+    //     "SERVER_URL=http://host.docker.internal:8888",
+    //     "-e",
+    //     "TOKEN=MY_TOKEN",
+    //     "-e",
+    //     "NOTEBOOK_PATH=test.ipynb",
+    //     "datalayer/jupyter-mcp-server:latest"
+    //   ],
+    //   "env": {
+    //     "SERVER_URL": "http://host.docker.internal:8888",
+    //     "TOKEN": "MY_TOKEN",
+    //     "NOTEBOOK_PATH": "notebook.ipynb"
+    //   }
+    // }

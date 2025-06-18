@@ -57,7 +57,7 @@
 
 4.  **ACT:**
     * Execute the minimal button sequence for the plan.
-    * Update state.
+    * Update state variavles
     * Use the `pokemon_controller` function.
 
 **SPECIFIC RULES:**

@@ -200,10 +200,10 @@ def make_ascii_map(base64_image, img_path):
     output += "B - Building (not walkable)\n"
     output += "# - Wall (not walkable)\n"
     
-    # Add walkability explanation
-    output += "\nWalkability Guide:\n"
-    output += "The player can walk on grass (.) and paths (-)\n"
-    output += "The player cannot walk through trees (T), fences (F), water (~), buildings (B), or walls (#)\n"
+    # # Add walkability explanation
+    # output += "\nWalkability Guide:\n"
+    # output += "The player can walk on grass (.) and paths (-)\n"
+    # output += "The player cannot walk through trees (T), fences (F), water (~), buildings (B), or walls (#)\n"
     
     # Add debug info
     debug_file.write("\n\nTile Classification Summary:\n")
@@ -220,7 +220,7 @@ def make_ascii_map(base64_image, img_path):
     
     return output
 
-def get_screenshot_jpeg_base64_resized():
+def get_map_text():
     """
     Capture a screenshot and convert to ASCII map
     """
@@ -229,7 +229,7 @@ def get_screenshot_jpeg_base64_resized():
         resized_screen_rgb = screen.convert('RGB')
         file_path = "/tmp/emulator_screen_resized.jpg"
         resized_screen_rgb.save(file_path, 'JPEG', quality=85)
-        print(f"Resized screenshot saved as JPEG to: {file_path}")
+        # print(f"Resized screenshot saved as JPEG to: {file_path}")
         
         jpeg_buffer = BytesIO()
         resized_screen_rgb.save(jpeg_buffer, format='JPEG', quality=85)
@@ -244,5 +244,5 @@ def get_screenshot_jpeg_base64_resized():
         return None
 
 if __name__ == "__main__":
-    s = get_screenshot_jpeg_base64_resized()
+    s = get_map_text()
     print(s)

@@ -12,6 +12,7 @@ load_dotenv()
 from gamememory import Neo4jMemory
 from skyemu_client import SkyEmuClient
 from skyemu_controller import SkyemuController, read_image_to_base64
+from screen_preprocess import get_map_text
 
 def init_game():
     """Initialize the game components."""
@@ -187,15 +188,6 @@ def update_game_progress_file(model, memory):
         return None
 
 
-def store_prompt_in_neo4j(memory, prompt_text, prompt_type="default"):
-    """Store the prompt used for the AI in Neo4j for future reference"""
-    try:
-        prompt_id = memory.add_prompt(prompt_text, prompt_type)
-        return prompt_id
-    except Exception as e:
-        print(f"Error storing prompt in Neo4j: {str(e)}")
-        return None
-
 
 # Game loop configuration
 running = True
@@ -261,20 +253,17 @@ try:
         messages = init_message.copy() 
         memory_summary = game_memory.generate_summary()
         print(f"Memory Summary:\n{memory_summary}")
-        
-        # Store the memory summary as a prompt in Neo4j
-        memory_prompt_id = store_prompt_in_neo4j(game_memory, memory_summary, "memory_summary")
-        
+        ascii_map = get_map_text()
+        print(ascii_map)
         # Prepare the AI prompt with memory and goal
         ai_prompt = f"""
         {memory_summary}
         Your current goal is: {GAME_GOAL}
-        What do you observe in the current screen? What action will you take next?
+        ascii map is ONLY USEFUL in the overworld: but use it to decide to for example give x,y commands to naviate to
+        {ascii_map}
+        Based on the user goal, the map and the scenario around you - What will you do next?
         """
-        
-        # Store the AI prompt in Neo4j
-        ai_prompt_id = store_prompt_in_neo4j(game_memory, ai_prompt, "ai_prompt")
-        
+                
         # Prepare messages for Gemini with memory and goal
         messages.append({"role": "user", "content": ai_prompt})
         
@@ -325,11 +314,6 @@ try:
                         prev_spoken = part.text
                         print(f"gemini-text: {part.text}")
                         
-                        # Store the Gemini response in Neo4j and link it to the prompt
-                        response_id = store_prompt_in_neo4j(game_memory, part.text, "gemini_response")
-                        if response_id and ai_prompt_id:
-                            game_memory.link_prompt_to_response(ai_prompt_id, response_id)
-                            
                     elif part.function_call:
                         assistant_content_list.append({"type": "tool_use", "tool_use": part})
                         tool_use = part
@@ -352,10 +336,6 @@ try:
                                 # Add turn summary with button presses to Neo4j memory
                                 turn_id = game_memory.add_turn_summary(turn, button_presses, prev_spoken, screenshot_path=pre_action_screenshot)
                                 
-                                # Link the turn to the prompt and response
-                                if turn_id and ai_prompt_id and response_id:
-                                    game_memory.link_turn_to_prompt_response(turn_id, ai_prompt_id, response_id)
-                    
                             else:
                                 result_msg = "No button presses found in the tool input."
                                 game_memory.add_turn_summary(turn, [], prev_spoken)
