@@ -1,7 +1,9 @@
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-You MUST use SERENA tools while working on this project!
+
+IMPORTANT DIRECTIVE FROM BOSS:
+You MUST use SERENA tooling for reading and writing code while working on this project! FIRST PRIORITY IS SERENA TOOLS ALWAYS REMEMBER! if you dont know it, read serena.md
 
 ## Repository Overview
 
@@ -11,13 +13,15 @@ This is a comprehensive AI-powered Pokemon gaming project that uses Google Gemin
 
 ### Core Components
 - **Root Pokemon Controller**: Basic Gemini-powered Pokemon gameplay (`run_step_gemini.py`)
+- **Eevee v1**: Advanced AI task execution system with natural language interface (`eevee/`)
 - **VideoGameBench Integration**: Comprehensive VLM evaluation framework for game benchmarking
 - **SkyEmu MCP Server**: Model Context Protocol server for advanced Game Boy Advance emulation
 - **Gemini Multimodal Playground**: Experimental AI features with RL integration
 
 ### Key Entry Points
-- `run_step_gemini.py`: Main Pokemon controller using mGBA emulator
-- `videogamebench/main.py`: Advanced game evaluation framework
+- `run_step_gemini.py`: legacy Pokemon controller using mGBA emulator
+- `eevee/run_eevee.py`: Eevee v1 AI task execution system - OUR VERSINO
+- `videogamebench/main.py`: legacy game evaluation framework
 - `skyemu-mcp/run_server.py`: MCP server for SkyEmu integration
 - `test_setup.py`: Environment validation and setup verification
 
@@ -48,6 +52,10 @@ playwright install
 # Basic Pokemon controller (requires mGBA running)
 python run_step_gemini.py
 
+# Eevee v1 AI task execution system (requires SkyEmu running on port 8080)
+python eevee/run_eevee.py "check and report all your pokemon party and their levels and moves and what PP left in each move"
+python eevee/run_eevee.py "navigate to Pokemon Center" --verbose --save-report
+
 # VideoGameBench with various models
 python videogamebench/main.py --game pokemon_red --model gpt-4o
 python videogamebench/main.py --game pokemon_crystal --model gemini/gemini-2.0-flash --enable-ui
@@ -59,10 +67,12 @@ python videogamebench/main.py --game pokemon_crystal --model gemini/gemini-2.0-f
 
 ### Multi-Layer Architecture
 The project uses a layered approach:
-1. **AI Decision Layer**: Gemini API for strategic reasoning
-2. **Control Layer**: Platform-specific input simulation (PyAutoGUI + macOS Quartz)
-3. **Emulation Layer**: Multiple emulators (mGBA, SkyEmu, PyBoy)
-4. **Integration Layer**: REST APIs and MCP protocols for advanced control
+1. **AI Decision Layer**: Gemini API for strategic reasoning and task decomposition
+2. **Task Execution Layer**: Eevee v1 system for natural language task execution
+3. **Control Layer**: Platform-specific input simulation (PyAutoGUI + macOS Quartz, SkyEmu HTTP API)
+4. **Emulation Layer**: Multiple emulators (mGBA, SkyEmu, PyBoy)
+5. **Integration Layer**: REST APIs and MCP protocols for advanced control
+6. **Memory Layer**: Persistent context and session management (SQLite)
 
 ### Key Design Patterns
 - **Controller Pattern**: Separate emulator controllers with unified interfaces
@@ -171,3 +181,52 @@ echo "GEMINI_API_KEY=your_key" > .env
 
 ### No Automated Linting
 The project does not use automated linting or formatting tools. Code quality is maintained through manual review, comprehensive testing, and adherence to documented conventions.
+
+## Eevee v1 - AI Task Execution System
+
+Eevee v1 is the primary interface for AI-powered Pokemon task execution. It provides sophisticated natural language processing capabilities with persistent memory and multi-step task decomposition.
+
+### Key Features
+- **Natural Language Interface**: Execute complex Pokemon tasks via simple commands
+- **SkyEmu Integration**: Native integration with SkyEmu emulator via HTTP API
+- **Persistent Memory**: SQLite-based session management with context retrieval
+- **Multi-step Execution**: Automatic task decomposition with error recovery
+- **Prompt Experimentation**: A/B testing framework for prompt optimization
+- **Comprehensive Reporting**: Detailed analysis and execution reports
+
+### Usage Examples
+```bash
+# Party management
+python eevee/run_eevee.py "check and report all your pokemon party and their levels and moves and what PP left in each move"
+
+# Navigation tasks
+python eevee/run_eevee.py "navigate to Pokemon Center" --verbose
+
+# Battle analysis
+python eevee/run_eevee.py "analyze current battle situation and recommend next move"
+
+# Inventory management
+python eevee/run_eevee.py "check what healing items I have in my bag" --save-report
+```
+
+### Architecture Components
+- **EeveeAgent**: Main orchestration class with SkyEmu integration
+- **MemorySystem**: SQLite-based persistent memory with session isolation
+- **TaskExecutor**: Multi-step task decomposition engine
+- **PromptManager**: Template-based prompt system with A/B testing
+- **NavigationHelper**: Smart menu navigation with state tracking
+- **PokemonParser**: Extract structured data from AI analysis
+
+### Memory Sessions
+Eevee v1 supports persistent memory sessions for maintaining context across runs:
+```bash
+# Use specific session
+python eevee/run_eevee.py "task" --memory-session gym-challenge
+
+# Clear session memory
+python eevee/run_eevee.py "task" --clear-memory
+```
+
+### Development Status
+✅ **v1 Complete**: Fully implemented and tested with SkyEmu integration
+🚧 **v2 Planning**: VLLM training data collection and RL scoring system
