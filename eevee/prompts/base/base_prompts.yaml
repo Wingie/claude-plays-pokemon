@@ -1,0 +1,205 @@
+task_analysis:
+  name: "Task Analysis Base"
+  description: "Analyzes Pokemon game tasks and creates execution plans"
+  template: |
+    Analyze this Pokemon game task and create a detailed execution plan:
+
+    TASK: {task}
+
+    Current Context:
+    {context_summary}
+
+    Memory Context:
+    {memory_context}
+
+    Please provide:
+    1. **Current Game State Analysis**: What's visible on screen
+    2. **Task Breakdown**: Break the task into specific steps
+    3. **Execution Strategy**: How to accomplish each step
+    4. **Navigation Requirements**: What menus/areas need to be accessed
+    5. **Expected Challenges**: Potential obstacles or edge cases
+    6. **Success Criteria**: How to know the task is complete
+
+    Be specific and actionable in your response.
+  variables: ["task", "context_summary", "memory_context"]
+  version: "1.0"
+
+pokemon_party_analysis:
+  name: "Pokemon Party Analysis Base"
+  description: "Analyzes Pokemon party status, levels, moves, and condition"
+  template: |
+    Analyze this Pokemon party screen and provide comprehensive information:
+
+    Current Task Context: {task}
+
+    Please examine the screen and provide detailed information about:
+
+    1. **Pokemon Party Overview**:
+       - How many Pokemon are in the party
+       - Which Pokemon is currently selected/highlighted
+       - Overall party health status
+
+    2. **Individual Pokemon Details** (for each visible Pokemon):
+       - Pokemon name and level
+       - Current HP vs Maximum HP
+       - Status conditions (poison, sleep, paralysis, etc.)
+       - Type(s) if visible
+
+    3. **Moves and PP Analysis** (if move details are visible):
+       - List all moves for each Pokemon
+       - PP remaining for each move
+       - Move types and power if shown
+
+    4. **Strategic Assessment**:
+       - Which Pokemon are ready for battle
+       - Which Pokemon need healing
+       - Recommended actions based on current state
+
+    5. **Navigation Context**:
+       - What menu/screen are we currently viewing
+       - How to access more detailed information if needed
+
+    Format your response with clear sections and be specific about numbers and details.
+  variables: ["task"]
+  version: "1.0"
+
+location_analysis:
+  name: "Location and Environment Analysis Base"
+  description: "Analyzes current location, map, and environmental features"
+  template: |
+    Analyze this Pokemon game location and environment:
+
+    Task Context: {task}
+
+    Provide detailed analysis of:
+
+    1. **Location Identification**:
+       - Current area/route/town name (if visible)
+       - Indoor vs outdoor environment
+       - Specific building or area type
+
+    2. **Player Character**:
+       - Character position on screen
+       - Direction character is facing
+       - Current movement state
+
+    3. **Environmental Features**:
+       - Terrain types (grass, water, paths, buildings)
+       - Significant landmarks or structures
+       - Available exits and entrances
+       - Weather or time-of-day indicators
+
+    4. **Interactive Elements**:
+       - NPCs and their positions/activities
+       - Items on the ground or available for interaction
+       - Signs, doors, or other interactive objects
+       - Battle opportunities (trainers, wild Pokemon areas)
+
+    5. **Navigation Opportunities**:
+       - Immediate movement options
+       - Areas that can be explored
+       - Buildings or locations that can be entered
+
+    6. **Strategic Considerations**:
+       - Pokemon Center or healing opportunities
+       - Shop or service locations
+       - Training opportunities
+       - Progress-blocking obstacles
+
+    Be specific about positions, directions, and interactive elements.
+  variables: ["task"]
+  version: "1.0"
+
+inventory_analysis:
+  name: "Inventory and Items Analysis Base"
+  description: "Analyzes Pokemon inventory, items, and bag contents"
+  template: |
+    Analyze this Pokemon inventory/bag screen:
+
+    Task Context: {task}
+
+    Please examine and report on:
+
+    1. **Bag Organization**:
+       - Which bag section is currently selected
+       - Available bag categories (Items, Poke Balls, Key Items, etc.)
+       - Navigation state within the inventory
+
+    2. **Item Inventory**:
+       - List all visible items with quantities
+       - Item categories and organization
+       - Special or rare items present
+
+    3. **Item Functionality**:
+       - Healing items and their effects
+       - Battle items (X Attack, X Defense, etc.)
+       - Utility items (Repel, Escape Rope, etc.)
+       - Key items and their purposes
+
+    4. **Quantity Analysis**:
+       - Items that are running low
+       - Items that are well-stocked
+       - Missing essential items
+
+    5. **Strategic Assessment**:
+       - Preparedness for upcoming challenges
+       - Items that should be purchased
+       - Items that can be used immediately
+       - Inventory management recommendations
+
+    6. **Usage Context**:
+       - Items relevant to current task
+       - Items that could solve immediate problems
+       - Items that should be saved for later
+
+    Be thorough in listing items and their quantities.
+  variables: ["task"]
+  version: "1.0"
+
+battle_analysis:
+  name: "Battle Situation Analysis Base"
+  description: "Analyzes Pokemon battles and combat situations"
+  template: |
+    Analyze this Pokemon battle situation:
+
+    Task Context: {task}
+
+    Provide comprehensive battle analysis:
+
+    1. **Battle State**:
+       - Current turn phase (selection, animation, etc.)
+       - Battle type (wild Pokemon, trainer, gym leader)
+       - Battle progress and turn count
+
+    2. **Your Pokemon**:
+       - Active Pokemon name, level, and type(s)
+       - Current HP and status condition
+       - Available moves with PP remaining
+       - Type advantages/disadvantages
+
+    3. **Opponent Pokemon**:
+       - Opponent Pokemon name, level, and type(s)
+       - Visible HP status
+       - Observed moves and abilities
+       - Threat assessment
+
+    4. **Strategic Analysis**:
+       - Recommended next move
+       - Type effectiveness considerations
+       - Status effect strategies
+       - Switching recommendations
+
+    5. **Battle Options**:
+       - Available battle menu options
+       - Items that could be used
+       - Pokemon switch options
+       - Escape possibility and consequences
+
+    6. **Victory Conditions**:
+       - Path to winning the battle
+       - Risks and backup strategies
+       - Post-battle considerations
+
+    Be specific about moves, types, and strategic recommendations.
+  variables: ["task"]
+  version: "1.0"
