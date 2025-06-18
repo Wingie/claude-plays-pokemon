@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import json
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
@@ -45,7 +46,8 @@ class EeveeAgent:
         model: str = "gemini-flash-2.0-exp",
         memory_session: str = "default",
         verbose: bool = False,
-        debug: bool = False
+        debug: bool = False,
+        enable_neo4j: bool = False
     ):
         """Initialize the enhanced Eevee agent"""
         self.window_title = window_title
@@ -53,6 +55,7 @@ class EeveeAgent:
         self.memory_session = memory_session
         self.verbose = verbose
         self.debug = debug
+        self.enable_neo4j = enable_neo4j
         
         # Initialize core components
         self._init_ai_components()
@@ -81,7 +84,7 @@ class EeveeAgent:
         # Initialize memory system when available
         try:
             from memory_system import MemorySystem
-            self.memory = MemorySystem(self.memory_session)
+            self.memory = MemorySystem(self.memory_session, enable_neo4j=self.enable_neo4j)
         except ImportError:
             self.memory = None
             if self.debug:
@@ -195,6 +198,165 @@ class EeveeAgent:
                 error_result["traceback"] = traceback.format_exc()
             
             return error_result
+    
+    def execute_task_interruptible(self, task_description: str, max_steps: int = 50, session_state: Dict = None) -> Dict[str, Any]:
+        """
+        Execute a task with interruption support for interactive mode
+        
+        Args:
+            task_description: Natural language description of the task
+            max_steps: Maximum number of execution steps
+            session_state: Interactive session state for pause/resume control
+            
+        Returns:
+            Dict containing execution results, analysis, and metadata
+        """
+        start_time = time.time()
+        self.current_task = task_description
+        
+        if self.verbose:
+            print(f"🎯 Starting interruptible task: {task_description}")
+        
+        try:
+            # Step 1: Analyze the task and create execution plan
+            execution_plan = self._analyze_task(task_description)
+            
+            if self.verbose:
+                print(f"📋 Execution plan created with {len(execution_plan.get('steps', []))} steps")
+            
+            # Step 2: Execute the plan with interruption support
+            if self.task_executor:
+                result = self.task_executor.execute_plan_interruptible(execution_plan, max_steps, session_state)
+            else:
+                # Fallback to basic interruptible execution
+                result = self._execute_basic_task_interruptible(task_description, session_state)
+            
+            # Step 3: Post-process and format results
+            result.update({
+                "task": task_description,
+                "execution_time": time.time() - start_time,
+                "timestamp": datetime.now().isoformat(),
+                "interrupted": session_state.get("paused", False) if session_state else False
+            })
+            
+            # Step 4: Update memory with results
+            if not session_state or not session_state.get("paused", False):
+                self._update_memory(task_description, result)
+            
+            return result
+            
+        except Exception as e:
+            error_result = {
+                "task": task_description,
+                "status": "error",
+                "error": str(e),
+                "execution_time": time.time() - start_time,
+                "timestamp": datetime.now().isoformat(),
+                "interrupted": session_state.get("paused", False) if session_state else False
+            }
+            
+            if self.debug:
+                import traceback
+                error_result["traceback"] = traceback.format_exc()
+            
+            return error_result
+    
+    def _execute_basic_task_interruptible(self, task_description: str, session_state: Dict = None) -> Dict[str, Any]:
+        """
+        Basic interruptible task execution with pause/resume support
+        
+        Args:
+            task_description: Task to execute
+            session_state: Session state for pause/resume control
+            
+        Returns:
+            Execution result with interruption awareness
+        """
+        steps_executed = 0
+        max_steps = 10  # Default for basic execution
+        results = []
+        
+        while steps_executed < max_steps:
+            # Check for pause/interruption
+            if session_state and session_state.get("paused", False):
+                print("⏸️  Task execution paused.")
+                break
+            
+            step_num = steps_executed + 1
+            print(f"🔮 Eevee: Executing step {step_num}/{max_steps}...")
+            
+            # Capture current screen for this step
+            game_context = self._capture_current_context()
+            
+            # Check again after potentially long screenshot operation
+            if session_state and session_state.get("paused", False):
+                print("⏸️  Task execution paused during step.")
+                break
+            
+            # Create step-specific prompt
+            step_prompt = self._build_basic_task_prompt(f"Step {step_num}: {task_description}")
+            
+            try:
+                response = self.gemini.messages.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "user", "content": step_prompt},
+                        {
+                            "role": "user",
+                            "content": [{
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": "image/jpeg",
+                                    "data": game_context["screenshot_data"]
+                                }
+                            }]
+                        }
+                    ],
+                    max_tokens=800
+                )
+                
+                step_analysis = response.content[0].text if response.content else "No analysis generated"
+                
+                results.append({
+                    "step": step_num,
+                    "analysis": step_analysis,
+                    "timestamp": datetime.now().isoformat(),
+                    "screenshot_path": game_context.get("screenshot_path")
+                })
+                
+                steps_executed += 1
+                
+                # Brief pause between steps to allow for interruption
+                time.sleep(0.5)
+                
+            except Exception as e:
+                error_msg = f"Error in step {step_num}: {str(e)}"
+                results.append({
+                    "step": step_num,
+                    "analysis": error_msg,
+                    "timestamp": datetime.now().isoformat(),
+                    "error": True
+                })
+                break
+        
+        # Determine final status
+        was_paused = session_state and session_state.get("paused", False)
+        status = "paused" if was_paused else ("completed" if steps_executed > 0 else "failed")
+        
+        # Combine all step analyses
+        combined_analysis = "\n\n".join([
+            f"Step {r['step']}: {r['analysis']}" for r in results if not r.get('error', False)
+        ])
+        
+        return {
+            "status": status,
+            "analysis": combined_analysis,
+            "steps_executed": steps_executed,
+            "method": "basic_interruptible",
+            "step_details": results,
+            "interrupted": was_paused
+        }
     
     def _analyze_task(self, task_description: str) -> Dict[str, Any]:
         """

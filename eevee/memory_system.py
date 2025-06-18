@@ -1,6 +1,7 @@
 """
 MemorySystem - Persistent Context Management for Eevee
 Handles long-term memory, context retention, and knowledge persistence across sessions
+Enhanced with Neo4j visual memory integration
 """
 
 import json
@@ -12,15 +13,24 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 import uuid
 
+# Import Neo4j visual memory with fallback
+try:
+    from neo4j_memory import Neo4jVisualMemory
+    NEO4J_MEMORY_AVAILABLE = True
+except ImportError:
+    NEO4J_MEMORY_AVAILABLE = False
+    print("⚠️  Neo4j visual memory not available")
+
 class MemorySystem:
     """Persistent memory system for Eevee agent context and knowledge"""
     
-    def __init__(self, session_name: str = "default"):
+    def __init__(self, session_name: str = "default", enable_neo4j: bool = False):
         """
         Initialize memory system with session-based storage
         
         Args:
             session_name: Name of the memory session for context isolation
+            enable_neo4j: Enable Neo4j visual memory integration
         """
         self.session_name = session_name
         self.memory_dir = Path(__file__).parent / "memory"
@@ -29,6 +39,15 @@ class MemorySystem:
         # Database setup
         self.db_path = self.memory_dir / f"eevee_memory_{session_name}.db"
         self._init_database()
+        
+        # Neo4j visual memory integration
+        self.neo4j_memory = None
+        if enable_neo4j and NEO4J_MEMORY_AVAILABLE:
+            try:
+                self.neo4j_memory = Neo4jVisualMemory(session_name)
+                print(f"✅ Neo4j visual memory enabled for session: {session_name}")
+            except Exception as e:
+                print(f"⚠️  Neo4j visual memory initialization failed: {e}")
         
         # Cache for frequently accessed data
         self._context_cache = {}
@@ -217,6 +236,137 @@ class MemorySystem:
             ))
         
         return knowledge_id
+    
+    def store_visual_context(self, screenshot_data: str, game_context: Dict[str, Any], task_description: str = None) -> str:
+        """
+        Store visual context with screenshot embedding (if Neo4j is available)
+        
+        Args:
+            screenshot_data: Base64 encoded screenshot
+            game_context: Current game context information
+            task_description: Optional task being performed
+            
+        Returns:
+            Visual memory ID
+        """
+        if self.neo4j_memory:
+            try:
+                return self.neo4j_memory.store_visual_memory(screenshot_data, game_context, task_description)
+            except Exception as e:
+                print(f"⚠️  Visual memory storage failed: {e}")
+        
+        # Fallback: store in SQLite as game state
+        return self.store_game_state(
+            location=game_context.get("location"),
+            screenshot_hash=hashlib.md5(screenshot_data.encode()).hexdigest() if screenshot_data else None,
+            raw_data={
+                "screenshot_available": bool(screenshot_data),
+                "task_description": task_description,
+                "context": game_context
+            }
+        )
+    
+    def get_similar_visual_memories(self, screenshot_data: str, game_context: Dict[str, Any], limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Get visually similar memories based on screenshot
+        
+        Args:
+            screenshot_data: Base64 encoded screenshot to compare
+            game_context: Current game context
+            limit: Maximum number of similar memories to return
+            
+        Returns:
+            List of similar visual memories
+        """
+        if self.neo4j_memory:
+            try:
+                return self.neo4j_memory.find_similar_visual_memories(screenshot_data, game_context, limit)
+            except Exception as e:
+                print(f"⚠️  Visual similarity search failed: {e}")
+        
+        # Fallback: return recent game states with similar context
+        return self._get_similar_contexts_fallback(game_context, limit)
+    
+    def get_contextual_strategies(self, game_context: Dict[str, Any], task_type: str = None) -> List[Dict[str, Any]]:
+        """
+        Get relevant strategies based on current context
+        
+        Args:
+            game_context: Current game context
+            task_type: Type of task being performed
+            
+        Returns:
+            List of relevant strategies from past experiences
+        """
+        if self.neo4j_memory:
+            try:
+                return self.neo4j_memory.get_contextual_strategies(game_context, task_type)
+            except Exception as e:
+                print(f"⚠️  Strategy retrieval failed: {e}")
+        
+        # Fallback: return strategies from SQLite knowledge base
+        return self._get_strategies_fallback(game_context, task_type)
+    
+    def _get_similar_contexts_fallback(self, game_context: Dict[str, Any], limit: int = 5) -> List[Dict[str, Any]]:
+        """Fallback method for finding similar contexts without Neo4j"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                SELECT id, timestamp, location, raw_data 
+                FROM game_states 
+                WHERE raw_data IS NOT NULL 
+                ORDER BY timestamp DESC 
+                LIMIT ?
+            """, (limit * 2,))  # Get more to filter
+            
+            similar_contexts = []
+            current_location = game_context.get("location", "")
+            
+            for row in cursor.fetchall():
+                try:
+                    raw_data = json.loads(row[3]) if row[3] else {}
+                    stored_context = raw_data.get("context", {})
+                    
+                    # Simple similarity based on location matching
+                    if stored_context.get("location") == current_location:
+                        similar_contexts.append({
+                            "memory_id": row[0],
+                            "similarity": 0.8,  # High similarity for same location
+                            "context": stored_context,
+                            "task_description": raw_data.get("task_description"),
+                            "timestamp": row[1],
+                            "screenshot_path": None
+                        })
+                    
+                    if len(similar_contexts) >= limit:
+                        break
+                        
+                except Exception:
+                    continue
+            
+            return similar_contexts
+    
+    def _get_strategies_fallback(self, game_context: Dict[str, Any], task_type: str = None) -> List[Dict[str, Any]]:
+        """Fallback method for getting strategies without Neo4j"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                SELECT subject, content, confidence_score 
+                FROM learned_knowledge 
+                WHERE knowledge_type = 'strategy' 
+                ORDER BY confidence_score DESC 
+                LIMIT 5
+            """)
+            
+            strategies = []
+            for row in cursor.fetchall():
+                strategies.append({
+                    "strategy": row[1],
+                    "context": row[0],
+                    "success_rate": row[2],
+                    "usage_count": 1,
+                    "task_type": task_type
+                })
+            
+            return strategies
     
     def get_relevant_context(self, task_description: str, limit: int = 10) -> Dict[str, Any]:
         """
@@ -517,5 +667,20 @@ class MemorySystem:
             
             # Database size
             stats["db_size_mb"] = self.db_path.stat().st_size / (1024 * 1024)
+            
+            # Neo4j visual memory stats
+            if self.neo4j_memory:
+                try:
+                    neo4j_stats = self.neo4j_memory.get_memory_stats()
+                    stats["neo4j_visual_memory"] = neo4j_stats
+                except Exception as e:
+                    stats["neo4j_visual_memory"] = {"error": str(e)}
+            else:
+                stats["neo4j_visual_memory"] = {"enabled": False}
         
         return stats
+    
+    def close(self):
+        """Close all connections"""
+        if self.neo4j_memory:
+            self.neo4j_memory.close()

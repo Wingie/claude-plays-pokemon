@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 IMPORTANT DIRECTIVE FROM BOSS:
-You MUST use SERENA tooling for reading and writing code while working on this project! FIRST PRIORITY IS SERENA TOOLS ALWAYS REMEMBER! if you dont know it, read serena.md
+You MUST use SERENA tooling for reading and but not WRITING code while working on this project! FIRST PRIORITY IS SERENA TOOLS ALWAYS REMEMBER! if you dont know it, read serena.md
 
 ## Repository Overview
 
