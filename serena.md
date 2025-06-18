@@ -1,34 +1,37 @@
 # Pokemon Fire Red VideoGameBench Enhancement
 ## Product Requirements Document
 
-**Project**: Pokemon Fire Red AI Task Execution with Eevee v1 & VLLM Training Pipeline  
+**Project**: Pokemon Fire Red AI Task Execution with Eevee v1 & Interactive Gaming System  
 **Location**: `/Users/wingston/code/claude-plays-pokemon`  
-**Status**: Phase 1 Complete - Eevee v1 Operational  
-**Current Goal**: Implement VLLM training data collection and RL scoring system (Eevee v2)
+**Status**: Phase 4 In Progress - Core Game Loop Implementation  
+**Current Goal**: Complete continuous gameplay with screenshot → AI → action → memory loop
 
 ---
 
 ## Executive Summary
 
-**Phase 1 Complete**: Successfully implemented Eevee v1, an advanced AI task execution system that provides natural language interface for Pokemon game automation. The system integrates with SkyEmu emulator and features persistent memory, multi-step task decomposition, and comprehensive reporting capabilities.
+**Phase 1-3 Complete**: Successfully implemented Eevee v1 with advanced interactive capabilities including Claude Code-like interface, visual memory system, navigation intelligence, and human-in-the-loop guidance. The system integrates with SkyEmu emulator and features persistent memory, multi-step task decomposition, and comprehensive reporting capabilities.
 
-**Phase 2 Objective**: Enhance Eevee v1 with VLLM training data collection, step-limited execution, and RL scoring system to generate high-quality training datasets for Pokemon-specific AI model fine-tuning.
+**Phase 4 Objective**: Complete the core game loop implementation to enable continuous autonomous Pokemon gameplay with screenshot → Gemini analysis → button press → memory update cycles, integrated with the existing interactive system.
 
 ## Current State & Next Phase
 
-**Phase 1 Achievements** ✅:
+**Phase 1-3 Achievements** ✅:
 - **Eevee v1 Operational**: Full natural language task execution system
 - **SkyEmu Integration**: HTTP API control for Pokemon Fire Red
-- **Persistent Memory**: SQLite-based session management
+- **Interactive Mode**: Claude Code-like chat interface with pause/resume
+- **Persistent Memory**: SQLite + Neo4j visual memory with navigation intelligence
 - **Multi-step Execution**: Automatic task decomposition with error recovery
-- **Prompt Experimentation**: A/B testing framework for optimization
+- **Session Continuity**: State persistence and automatic resumption
+- **OKR Tracking**: Real-time progress monitoring and objective updates
+- **Navigation Intelligence**: Route learning and location memory retention
 
-**Phase 2 Requirements** 🚧:
-- **VLLM Training Data**: Automated collection of gameplay sessions for fine-tuning
-- **Step-Limited Execution**: `--steps` parameter for controlled run length
-- **RL Scoring System**: 1-10 goal achievement evaluation interface
-- **Training Data Format**: Mistral/VLLM compatible instruction tuning format
-- **Runs Management**: Organized storage of training sessions
+**Phase 4 Requirements** 🚧:
+- **Core Game Loop**: Continuous screenshot → AI analysis → button press → memory cycle
+- **Real-time Logging**: Live monitoring with `tail -f` support in runs/ folder
+- **Enhanced EeveeAgent**: Interruptible execution methods with pause/resume
+- **Auto-resume Functionality**: `--continue` flag for seamless gameplay resumption
+- **Integration**: Merge continuous play with existing interactive command system
 
 ## Requirements
 
@@ -328,4 +331,61 @@ class HybridPokemonAgent(VLMAgent):
 
 ---
 
-This PRD provides a comprehensive roadmap for enhancing videogamebench to support Pokemon Fire Red with advanced RL+LLM hybrid agents and VLLM fine-tuning capabilities.
+## Development Journey & Current Status
+
+### Completed Phases
+
+#### Phase 1: Foundation & Basic Task Execution ✅
+- Eevee v1 AI task execution system with SkyEmu integration
+- Natural language interface for Pokemon tasks
+- SQLite-based memory system with session isolation
+- Basic prompt management and task decomposition
+- Environment setup and Gemini API integration
+
+#### Phase 2: Interactive Interface & Human-in-the-Loop ✅
+- Claude Code-like interactive chat interface
+- Real-time Pokemon guidance with interruption capabilities
+- Multi-threaded execution with pause/resume functionality
+- Comprehensive command system (/pause, /resume, /status, etc.)
+- OKR.md auto-generation for progress tracking
+- Session continuity with automatic state restoration
+
+#### Phase 3: Visual Memory & Navigation Intelligence ✅
+- Neo4j visual memory system with screenshot embeddings
+- CLIP-based visual similarity matching
+- Navigation route learning and memory retention
+- Location discovery and pathfinding capabilities
+- Navigation-specific commands and testing framework
+
+### Current Phase
+
+#### Phase 4: Core Game Loop Implementation 🚧
+**Status**: In Progress  
+**Goal**: Enable continuous autonomous Pokemon gameplay
+
+**Missing Components**:
+- Continuous screenshot → AI analysis → button press → memory update loop
+- Real-time logging system for `tail -f` monitoring
+- Integration of `run_step_gemini.py` game loop pattern into interactive system
+- Enhanced EeveeAgent methods for interruptible execution
+- Auto-resume functionality with `--continue` flag
+
+**Implementation Plan**:
+1. Add `continuous_game_loop()` function to `run_eevee.py`
+2. Create real-time logging infrastructure in `runs/` folder
+3. Enhance `EeveeAgent.execute_task_interruptible()` method
+4. Add `/play` command for autonomous gameplay
+5. Implement `--continue` flag for auto-resume
+
+### Next Phase
+
+#### Phase 5: Navigation Intelligence Testing 📋
+**Goal**: Test Claude's navigation abilities and memory retention
+- Autonomous navigation to Viridian Forest
+- Route memory and recall validation
+- Navigation intelligence benchmarking
+- Performance optimization and learning metrics
+
+---
+
+This PRD provides a comprehensive roadmap for Pokemon Fire Red AI gaming with advanced interactive capabilities and continuous gameplay automation.

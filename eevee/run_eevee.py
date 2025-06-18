@@ -8,8 +8,16 @@ Usage examples:
     python run_eevee.py "navigate to the nearest Pokemon Center and heal all Pokemon"
     python run_eevee.py "find and catch a wild Pokemon in the current area"
     
+    # Interactive mode:
+    python run_eevee.py --interactive
+    python run_eevee.py --interactive --enable-okr --neo4j-memory
+    
+    # Continuous autonomous gameplay:
+    python run_eevee.py --continuous --goal "find and win pokemon battles"
+    python run_eevee.py --continuous --goal "navigate to gym and challenge leader" --steps 50
+    
     # With options:
-    python run_eevee.py "analyze current location" --memory-session mysession --model gemini-flash-2.0-exp
+    python run_eevee.py "analyze current location" --memory-session mysession --model gemini-1.5-flash
     python run_eevee.py "check inventory" --output-format json --save-report
 """
 
@@ -355,8 +363,16 @@ def parse_arguments():
 Examples:
   %(prog)s "check my pokemon party levels and moves"
   %(prog)s "navigate to Pokemon Center" --memory-session gym-run
-  %(prog)s "analyze current battle situation" --model gemini-flash-2.0-exp
+  %(prog)s "analyze current battle situation" --model gemini-1.5-pro
   %(prog)s "find items in current area" --output-format json
+  
+  Interactive Mode:
+  %(prog)s --interactive
+  %(prog)s --interactive --enable-okr --neo4j-memory
+  
+  Continuous Gameplay:
+  %(prog)s --continuous --goal "find and win pokemon battles"
+  %(prog)s --continuous --goal "navigate to gym and challenge leader" --steps 50
         """
     )
     
@@ -372,9 +388,9 @@ Examples:
     parser.add_argument(
         "--model",
         type=str,
-        default="gemini-flash-2.0-exp",
-        choices=["gemini-flash-2.0-exp", "gemini-1.5-flash", "gemini-1.5-pro"],
-        help="AI model to use for task execution (default: gemini-flash-2.0-exp)"
+        default="gemini-1.5-flash",
+        choices=["gemini-pro", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"],
+        help="AI model to use for task execution (default: gemini-1.5-flash)"
     )
     
     # Memory and Session Management
@@ -483,6 +499,26 @@ Examples:
         "--training-session",
         type=str,
         help="Custom identifier for training session (auto-generated if not provided)"
+    )
+    
+    parser.add_argument(
+        "--continue",
+        action="store_true",
+        dest="continue_session",
+        help="Auto-resume continuous gameplay from last session"
+    )
+    
+    # Continuous Gameplay Mode
+    parser.add_argument(
+        "--continuous",
+        action="store_true",
+        help="Enable continuous autonomous Pokemon gameplay loop"
+    )
+    
+    parser.add_argument(
+        "--goal",
+        type=str,
+        help="Set the goal for continuous gameplay (e.g. 'find and win pokemon battles')"
     )
     
     return parser.parse_args()
@@ -759,6 +795,31 @@ def handle_interactive_command(command, session_state, eevee, args):
     elif cmd == "/goal":
         show_goal_and_suggestions(session_state, args)
     
+    elif cmd == "/play":
+        # Start continuous autonomous gameplay
+        if session_state["current_task"]:
+            print("⚠️ A task is already running. Use /clear to stop it first.")
+            return
+        
+        print("🎮 Starting continuous autonomous Pokemon gameplay...")
+        print("💡 Type /pause to pause, /status to check progress")
+        print("📊 Monitor with: tail -f runs/latest/session.log")
+        
+        # Start continuous gameplay in separate thread
+        session_state["current_task"] = "Continuous Pokemon gameplay"
+        session_state["paused"] = False
+        
+        session_state["task_thread"] = threading.Thread(
+            target=start_continuous_gameplay,
+            args=(session_state, eevee, args),
+            daemon=True
+        )
+        session_state["task_thread"].start()
+        
+        # Update OKR if enabled
+        if args.enable_okr:
+            update_okr_file("Started continuous autonomous gameplay", "continuous_play_start")
+    
     elif cmd == "/quit":
         # Save session state before quitting
         save_current_session_state(session_state, eevee)
@@ -825,7 +886,7 @@ def execute_interactive_task(task, session_state, eevee, args):
         if not session_state["paused"]:
             print(f"✅ Eevee: Task completed!")
             if result.get("analysis"):
-                print(f"📝 Result: {result['analysis'][:200]}...")
+                print(f"📝 Result: {result['analysis']}...")
             
             # Update OKR if enabled
             if args.enable_okr:
@@ -1140,10 +1201,400 @@ def show_goal_and_suggestions(session_state, args):
             print(f"  {i}. {suggestion}")
         
         print(f"\n📝 Just type any of these tasks or describe what you want Claude to do!")
-        print("=" * 50)
         
     except Exception as e:
         print(f"❌ Error showing goal: {e}")
+
+
+def setup_real_time_logging(session_id: str = None) -> Dict[str, Any]:
+    """Setup real-time logging system for tail -f monitoring"""
+    if session_id is None:
+        session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    project_root = Path(__file__).parent.parent
+    runs_dir = project_root / "runs"
+    runs_dir.mkdir(exist_ok=True)
+    
+    # Create session-specific directory
+    session_dir = runs_dir / f"{session_id}_pokemon_session"
+    session_dir.mkdir(exist_ok=True)
+    
+    # Create subdirectories
+    screenshots_dir = session_dir / "screenshots"
+    screenshots_dir.mkdir(exist_ok=True)
+    
+    # Setup log files
+    log_files = {
+        "session_log": session_dir / f"{session_id}_session.log",
+        "memory_log": session_dir / f"{session_id}_memory.log", 
+        "analysis_log": session_dir / f"{session_id}_analysis.log",
+        "screenshots_dir": screenshots_dir,
+        "session_dir": session_dir
+    }
+    
+    # Initialize log files with headers
+    with open(log_files["session_log"], 'w') as f:
+        f.write(f"# Pokemon Fire Red AI Session Log\n")
+        f.write(f"# Session ID: {session_id}\n")
+        f.write(f"# Started: {datetime.now().isoformat()}\n")
+        f.write(f"# Monitor with: tail -f {log_files['session_log']}\n")
+        f.write("# " + "="*60 + "\n\n")
+    
+    with open(log_files["memory_log"], 'w') as f:
+        f.write(f"# Memory Updates Log - Session {session_id}\n")
+        f.write(f"# Started: {datetime.now().isoformat()}\n\n")
+    
+    with open(log_files["analysis_log"], 'w') as f:
+        f.write(f"# AI Analysis Log - Session {session_id}\n")
+        f.write(f"# Started: {datetime.now().isoformat()}\n\n")
+    
+    print(f"📁 Real-time logging setup complete:")
+    print(f"   Session: {session_dir}")
+    print(f"   Monitor: tail -f {log_files['session_log']}")
+    print(f"   Screenshots: {screenshots_dir}")
+    
+    return log_files
+
+
+def log_real_time(log_files: Dict[str, Any], log_type: str, message: str, step_number: int = None):
+    """Write real-time log entry for monitoring"""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    
+    if log_type == "session":
+        log_file = log_files["session_log"]
+        prefix = f"[{timestamp}]"
+        if step_number is not None:
+            prefix = f"[{timestamp}] Step {step_number}:"
+    elif log_type == "memory":
+        log_file = log_files["memory_log"]
+        prefix = f"[{timestamp}] MEMORY:"
+    elif log_type == "analysis":
+        log_file = log_files["analysis_log"]
+        prefix = f"[{timestamp}] AI:"
+    else:
+        log_file = log_files["session_log"]
+        prefix = f"[{timestamp}] {log_type.upper()}:"
+    
+    try:
+        with open(log_file, 'a') as f:
+            f.write(f"{prefix} {message}\n")
+            f.flush()  # Ensure immediate write for tail -f
+    except Exception as e:
+        print(f"⚠️ Logging error: {e}")
+
+
+def start_continuous_gameplay(session_state, eevee, args):
+    """
+    Start continuous gameplay using the EeveeAgent's new continuous gameplay method
+    This function bridges the interactive system with the EeveeAgent implementation
+    """
+    try:
+        # Get user goal for the gameplay session
+        user_goal = session_state.get("user_goal", get_user_goal())
+        
+        # Configure gameplay parameters
+        max_turns = args.steps if args.steps else 100  # Default to 100 turns
+        turn_delay = 1.5  # Delay between turns
+        
+        print(f"🎮 Starting continuous gameplay with goal: {user_goal}")
+        print(f"📊 Max turns: {max_turns}, Turn delay: {turn_delay}s")
+        
+        # Use the EeveeAgent's continuous gameplay method
+        if hasattr(eevee, 'start_continuous_gameplay'):
+            result = eevee.start_continuous_gameplay(
+                goal=user_goal,
+                max_turns=max_turns,
+                turn_delay=turn_delay,
+                session_state=session_state
+            )
+        else:
+            # Fallback to the existing continuous_game_loop function
+            log_files = setup_real_time_logging()
+            result = continuous_game_loop(eevee, session_state, args, log_files)
+        
+        # Update session state when gameplay ends
+        session_state["current_task"] = None
+        session_state["task_thread"] = None
+        
+        # Update OKR with final result
+        if args.enable_okr:
+            status = "✅" if result.get("status") == "completed" else "⏸️"
+            turns_executed = result.get("total_turns", 0)
+            update_okr_file(f"Continuous gameplay ended: {turns_executed} turns", "gameplay_complete")
+        
+        print(f"🏁 Continuous gameplay session finished")
+        print(f"📊 Result: {result.get('status', 'unknown')} after {result.get('total_turns', 0)} turns")
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error in continuous gameplay: {e}")
+        if args.debug:
+            import traceback
+            traceback.print_exc()
+        
+        # Clean up session state
+        session_state["current_task"] = None
+        session_state["task_thread"] = None
+        
+        return {
+            "status": "error",
+            "error": str(e),
+            "total_turns": 0
+        }
+
+
+def continuous_game_loop(eevee, session_state: Dict[str, Any], args, log_files: Dict[str, Any] = None):
+    """
+    Core continuous game loop: screenshot → Gemini analysis → button press → memory update
+    Based on run_step_gemini.py pattern but integrated with interactive system
+    """
+    try:
+        # Initialize logging if not provided
+        if log_files is None:
+            log_files = setup_real_time_logging()
+        
+        log_real_time(log_files, "session", "🎮 Starting continuous Pokemon gameplay loop")
+        
+        # Pokemon controller tool definition (from run_step_gemini.py)
+        pokemon_tool = {
+            "name": "pokemon_controller",
+            "description": "Control the Pokémon game using button presses.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["up", "down", "left", "right", "a", "b", "start", "select"],
+                        "description": "The button to press on the GameBoy."
+                    }
+                },
+                "required": ["action"]
+            }
+        }
+        
+        # Initialize AI conversation messages
+        user_goal = session_state.get("user_goal", get_user_goal())
+        messages = [
+            {"role": "user", "content": f"""You are playing Pokémon Fire Red on Game Boy Advance. You are an expert Pokémon player and will be given screenshots of the game. Your task is to decide which button to press to progress in the game intelligently toward the goal: {user_goal}
+
+Available buttons:
+- Up, Down, Left, Right: Move around the game world
+- A: Interact with NPCs or objects, select menu options, confirm choices
+- B: Cancel, exit menus, speed up text
+- Start: Open the main menu
+- Select: Used rarely for specific functions
+
+Your goal is to explore the game, battle trainers, capture Pokémon, and work toward: {user_goal}
+
+Game knowledge you should use:
+1. The player character is always in the center of the screen when walking around.
+2. Doors to buildings are visible and you need to walk to them to enter.
+3. In battles, choose effective moves based on Pokémon type advantages.
+4. Talk to NPCs for important information and quests.
+5. Navigate efficiently between locations - learn routes and remember them.
+6. Use Pokemon Centers to heal when needed.
+7. Explore areas systematically to build location knowledge.
+
+Battle Tips:
+- Select effective moves based on type matchups
+- Consider status moves for catching Pokémon
+- Heal your Pokémon when they're low on health
+
+Navigation Tips:
+- Remember key locations (Pokémon Centers, PokéMarts, Gyms)
+- Learn routes between locations for efficiency
+- Pay attention to landmarks and visual cues
+
+Analyze each screenshot carefully to:
+1. Identify the current game state (overworld, battle, menu, dialogue)
+2. Understand what's happening and what your objective should be
+3. Make a strategic decision about the next button to press
+
+Explain your thought process briefly, then use the pokemon_controller tool to execute your chosen action."""}
+        ]
+        
+        # Game loop configuration
+        step_count = 0
+        max_steps = args.steps if args.steps else 100  # Default to 100 steps
+        step_delay = 1.5  # Delay between steps in seconds
+        
+        log_real_time(log_files, "session", f"Configuration: max_steps={max_steps}, delay={step_delay}s")
+        
+        while step_count < max_steps and session_state.get("running", True) and not session_state.get("paused", False):
+            step_count += 1
+            
+            log_real_time(log_files, "session", f"🎯 Starting step {step_count}/{max_steps}", step_count)
+            
+            # Check for pause/interruption
+            if session_state.get("paused", False):
+                log_real_time(log_files, "session", "⏸️ Game loop paused by user")
+                print("⏸️ Game loop paused. Type /resume to continue.")
+                break
+            
+            try:
+                # Step 1: Capture screenshot
+                log_real_time(log_files, "session", "📸 Capturing game screenshot...")
+                screenshot_file = eevee.controller.capture_screen()
+                
+                # Save screenshot for monitoring
+                screenshot_save_path = log_files["screenshots_dir"] / f"step_{step_count:03d}.jpg"
+                import shutil
+                shutil.copy(screenshot_file, screenshot_save_path)
+                
+                # Read screenshot data for Gemini
+                from pokemon_controller import read_image_to_base64
+                game_state_image = read_image_to_base64(screenshot_file)
+                
+                # Step 2: Prepare message for Gemini
+                image_message = {
+                    "role": "user",
+                    "content": [{
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/jpeg",
+                            "data": game_state_image,
+                        },
+                    }]
+                }
+                
+                messages.append({"role": "user", "content": f"What button would you like to press next? Analyze the current game state and make your decision. (Step {step_count}/{max_steps})"})
+                messages.append(image_message)
+                
+                # Step 3: Get Gemini's analysis and decision
+                log_real_time(log_files, "session", "🧠 Sending to Gemini for analysis...")
+                
+                response = eevee.gemini.messages.create(
+                    model=eevee.model,
+                    messages=messages,
+                    max_tokens=1000,
+                    tools=[pokemon_tool]
+                )
+                
+                # Log Gemini's thinking
+                ai_analysis = ""
+                for content in response.content:
+                    if content.type == "text":
+                        ai_analysis = content.text
+                        log_real_time(log_files, "analysis", f"Gemini: {ai_analysis}")
+                        print(f"🧠 Gemini: {ai_analysis}")
+                
+                # Add Gemini's response to conversation
+                messages.append({"role": "assistant", "content": response.content})
+                
+                # Step 4: Execute button press
+                action_taken = False
+                for content in response.content:
+                    if content.type == "tool_use":
+                        tool_use = content
+                        tool_name = tool_use.name
+                        tool_input = tool_use.input
+                        
+                        if tool_name == "pokemon_controller":
+                            action = tool_input["action"]
+                            log_real_time(log_files, "session", f"🎮 Pressing button: {action}")
+                            print(f"🎮 Executing: {action}")
+                            
+                            # Execute the button press
+                            success = eevee.controller.press_button(action)
+                            
+                            if success:
+                                action_taken = True
+                                result_msg = f"Button {action} pressed successfully."
+                                log_real_time(log_files, "session", f"✅ {result_msg}")
+                            else:
+                                result_msg = f"Failed to press button {action}."
+                                log_real_time(log_files, "session", f"❌ {result_msg}")
+                            
+                            # Add the result back to Gemini
+                            tool_response = {
+                                "role": "user",
+                                "content": [{
+                                    "type": "tool_result",
+                                    "tool_use_id": tool_use.id,
+                                    "content": result_msg
+                                }]
+                            }
+                            messages.append(tool_response)
+                
+                # Fallback action if no valid action received
+                if not action_taken:
+                    log_real_time(log_files, "session", "⚠️ No valid action from Gemini, pressing 'a' as default")
+                    print("⚠️ No valid action received, pressing 'a' as default")
+                    eevee.controller.press_button('a')
+                
+                # Step 5: Update memory with current context
+                if hasattr(eevee, 'memory') and eevee.memory:
+                    try:
+                        game_context = {
+                            "step": step_count,
+                            "ai_analysis": ai_analysis,
+                            "action_taken": action if action_taken else "a",
+                            "timestamp": datetime.now().isoformat()
+                        }
+                        
+                        memory_id = eevee.memory.store_visual_context(
+                            screenshot_data=game_state_image,
+                            game_context=game_context,
+                            task_description=f"Continuous gameplay step {step_count}"
+                        )
+                        
+                        log_real_time(log_files, "memory", f"Stored visual context: {memory_id}")
+                        
+                    except Exception as e:
+                        log_real_time(log_files, "memory", f"Error storing context: {e}")
+                
+                # Step 6: Update OKR progress
+                if args.enable_okr:
+                    try:
+                        progress_msg = f"Step {step_count}: {ai_analysis[:100]}..."
+                        update_okr_file(progress_msg, "gameplay_step")
+                    except Exception as e:
+                        log_real_time(log_files, "session", f"⚠️ OKR update error: {e}")
+                
+                # Step 7: Wait before next iteration
+                log_real_time(log_files, "session", f"⏱️ Waiting {step_delay}s before next step...")
+                print(f"⏱️ Waiting {step_delay}s before step {step_count + 1}...")
+                time.sleep(step_delay)
+                
+            except Exception as e:
+                log_real_time(log_files, "session", f"❌ Error in step {step_count}: {e}")
+                print(f"❌ Error in step {step_count}: {e}")
+                # Continue with next step even if there was an error
+                time.sleep(step_delay)
+        
+        # Game loop ended
+        if step_count >= max_steps:
+            end_reason = f"Completed maximum steps ({max_steps})"
+        elif session_state.get("paused", False):
+            end_reason = "Paused by user"
+        else:
+            end_reason = "Stopped by user"
+        
+        log_real_time(log_files, "session", f"🏁 Game loop ended: {end_reason}")
+        print(f"🏁 Continuous gameplay ended: {end_reason}")
+        
+        # Update session state
+        session_state["active_runs"] = session_state.get("active_runs", 0) + 1
+        session_state["current_task"] = None
+        
+        return {
+            "status": "completed",
+            "steps_executed": step_count,
+            "end_reason": end_reason,
+            "log_files": log_files
+        }
+        
+    except Exception as e:
+        log_real_time(log_files, "session", f"💥 Critical error in game loop: {e}")
+        print(f"💥 Critical error in continuous game loop: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "steps_executed": step_count,
+            "log_files": log_files
+        }
 
 
 def save_current_session_state(session_state, eevee):
@@ -1263,6 +1714,59 @@ def main():
             # Interactive mode - enter chat interface
             interactive_mode(eevee, args)
             return
+        
+        # Check if continuous gameplay mode is requested
+        if args.continuous:
+            # Continuous gameplay mode - autonomous Pokemon playing
+            goal = args.goal if args.goal else get_user_goal()
+            max_turns = args.steps if args.steps else args.max_steps
+            
+            print(f"\n🎮 Starting continuous autonomous Pokemon gameplay")
+            print(f"🎯 Goal: {goal}")
+            print(f"📊 Max turns: {max_turns}")
+            print("Press Ctrl+C to stop at any time")
+            print("-" * 60)
+            
+            # Set up session state for autonomous gameplay
+            session_state = {
+                "paused": False,
+                "current_task": "Continuous autonomous gameplay",
+                "running": True,
+                "user_goal": goal
+            }
+            
+            try:
+                # Start continuous gameplay using EeveeAgent method
+                if hasattr(eevee, 'start_continuous_gameplay'):
+                    result = eevee.start_continuous_gameplay(
+                        goal=goal,
+                        max_turns=max_turns,
+                        turn_delay=1.5,
+                        session_state=session_state
+                    )
+                else:
+                    # Fallback to basic continuous loop
+                    log_files = setup_real_time_logging()
+                    result = continuous_game_loop(eevee, session_state, args, log_files)
+                
+                # Print final results
+                print(f"\n✅ Continuous gameplay completed!")
+                print(f"📊 Status: {result.get('status', 'unknown')}")
+                print(f"🔄 Turns executed: {result.get('total_turns', 0)}/{max_turns}")
+                if result.get('run_directory'):
+                    print(f"📁 Session data: {result['run_directory']}")
+                
+                sys.exit(0)
+                
+            except KeyboardInterrupt:
+                print("\n🛑 Continuous gameplay interrupted by user")
+                sys.exit(0)
+            except Exception as e:
+                print(f"\n❌ Error in continuous gameplay: {e}")
+                if args.debug:
+                    import traceback
+                    traceback.print_exc()
+                sys.exit(1)
         
         # Validate that a task is provided for non-interactive mode
         if not args.task:

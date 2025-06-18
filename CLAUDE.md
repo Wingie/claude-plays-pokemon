@@ -56,6 +56,10 @@ python run_step_gemini.py
 python eevee/run_eevee.py "check and report all your pokemon party and their levels and moves and what PP left in each move"
 python eevee/run_eevee.py "navigate to Pokemon Center" --verbose --save-report
 
+# Interactive Mode - Claude Code-like interface for real-time Pokemon guidance
+python eevee/run_eevee.py --interactive --enable-okr --neo4j-memory
+python eevee/run_eevee.py --interactive --enable-okr --continue  # Auto-resume gameplay
+
 # VideoGameBench with various models
 python videogamebench/main.py --game pokemon_red --model gpt-4o
 python videogamebench/main.py --game pokemon_crystal --model gemini/gemini-2.0-flash --enable-ui
@@ -188,11 +192,15 @@ Eevee v1 is the primary interface for AI-powered Pokemon task execution. It prov
 
 ### Key Features
 - **Natural Language Interface**: Execute complex Pokemon tasks via simple commands
+- **Interactive Mode**: Claude Code-like chat interface for real-time guidance and interruption
 - **SkyEmu Integration**: Native integration with SkyEmu emulator via HTTP API
-- **Persistent Memory**: SQLite-based session management with context retrieval
-- **Multi-step Execution**: Automatic task decomposition with error recovery
-- **Prompt Experimentation**: A/B testing framework for prompt optimization
-- **Comprehensive Reporting**: Detailed analysis and execution reports
+- **Continuous Game Loop**: Screenshot → Gemini analysis → button press → memory update cycles
+- **Persistent Memory**: SQLite-based session management with Neo4j visual memory
+- **Multi-step Execution**: Automatic task decomposition with error recovery and pause/resume
+- **Real-time Logging**: Live monitoring with `tail -f` support in runs/ folder
+- **Navigation Intelligence**: Route learning, location memory, and pathfinding
+- **OKR Progress Tracking**: Automatic objectives and key results updates
+- **Session Continuity**: Resume gameplay from previous sessions
 
 ### Usage Examples
 ```bash
@@ -202,10 +210,16 @@ python eevee/run_eevee.py "check and report all your pokemon party and their lev
 # Navigation tasks
 python eevee/run_eevee.py "navigate to Pokemon Center" --verbose
 
+# Interactive mode with full features
+python eevee/run_eevee.py --interactive --enable-okr --neo4j-memory
+
+# Auto-resume continuous gameplay
+python eevee/run_eevee.py --interactive --enable-okr --continue
+
 # Battle analysis
 python eevee/run_eevee.py "analyze current battle situation and recommend next move"
 
-# Inventory management
+# Inventory management with real-time monitoring
 python eevee/run_eevee.py "check what healing items I have in my bag" --save-report
 ```
 
@@ -227,6 +241,39 @@ python eevee/run_eevee.py "task" --memory-session gym-challenge
 python eevee/run_eevee.py "task" --clear-memory
 ```
 
+### Interactive Commands
+```bash
+# Available in interactive mode:
+/pause          # Pause current gameplay
+/resume         # Resume gameplay  
+/status         # Show game connection and task status
+/memory         # Display memory system status
+/okr            # Show objectives and progress
+/reset-memory   # Clear navigation memory for fresh test
+/show-route     # Display known routes
+/location-stats # Show location recognition confidence
+/play           # Start continuous autonomous gameplay
+/goal           # Show current USER_GOAL and suggest task
+/help           # Show all commands
+/quit           # Exit interactive mode
+```
+
+### Real-time Monitoring
+```bash
+# Monitor game progress in real-time
+tail -f runs/TIMESTAMP_session.log
+
+# Watch screenshot analysis
+ls -la runs/TIMESTAMP_screenshots/
+
+# Check memory updates
+tail -f runs/TIMESTAMP_memory.log
+```
+
 ### Development Status
-✅ **v1 Complete**: Fully implemented and tested with SkyEmu integration
+✅ **v1 Complete**: Interactive mode with continuous game loop implementation
+✅ **Phase 1**: Basic task execution system with SkyEmu integration
+✅ **Phase 2**: Interactive Claude Code-like interface with pause/resume
+✅ **Phase 3**: Navigation testing framework with memory retention
+🚧 **Phase 4**: Core game loop implementation (screenshot → AI → action → memory)
 🚧 **v2 Planning**: VLLM training data collection and RL scoring system

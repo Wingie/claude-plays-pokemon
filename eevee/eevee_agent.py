@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import json
+import base64
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -28,7 +29,8 @@ try:
         CONTROLLER_TYPE = "pokemon"
         print("🔄 Using standard Pokemon controller")
     
-    from gemini_api import GeminiAPI
+    import google.generativeai as genai
+    from google.generativeai.types import FunctionDeclaration, Tool
     from dotenv import load_dotenv
 except ImportError as e:
     print(f"Error importing required modules: {e}")
@@ -43,7 +45,7 @@ class EeveeAgent:
     def __init__(
         self, 
         window_title: str = "mGBA - 0.10.5",
-        model: str = "gemini-flash-2.0-exp",
+        model: str = "gemini-1.5-flash",
         memory_session: str = "default",
         verbose: bool = False,
         debug: bool = False,
@@ -79,7 +81,30 @@ class EeveeAgent:
         if not api_key:
             raise ValueError("GEMINI_API_KEY not found in environment variables")
         
-        self.gemini = GeminiAPI(api_key)
+        # Initialize native Gemini API
+        genai.configure(api_key=api_key)
+        self.gemini = genai.GenerativeModel(model_name=self.model)
+        
+        # Define Pokemon controller tool using Google's format
+        self.pokemon_function_declaration = FunctionDeclaration(
+            name="pokemon_controller",
+            description="Control the Pokémon game using a list of button presses.",
+            parameters={
+                "type": "OBJECT",
+                "properties": {
+                    "button_presses": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": ["up", "down", "left", "right", "a", "b", "start", "select"]
+                        },
+                        "description": "A list of button presses for the GameBoy."
+                    }
+                },
+                "required": ["button_presses"]
+            }
+        )
+        self.pokemon_tool = Tool(function_declarations=[self.pokemon_function_declaration])
         
         # Initialize memory system when available
         try:
@@ -108,15 +133,83 @@ class EeveeAgent:
             if self.debug:
                 print("⚠️  TaskExecutor not available, using basic execution")
     
+    def _call_gemini_api(self, prompt: str, image_data: str = None, use_tools: bool = False, max_tokens: int = 1000) -> Dict[str, Any]:
+        """
+        Unified Gemini API calling method
+        
+        Args:
+            prompt: Text prompt to send
+            image_data: Base64 encoded image data (optional)
+            use_tools: Whether to include Pokemon controller tools
+            max_tokens: Maximum tokens for response
+            
+        Returns:
+            Dict with 'text', 'button_presses', and 'error' keys
+        """
+        try:
+            # Prepare prompt parts
+            prompt_parts = [prompt]
+            
+            # Add image if provided
+            if image_data:
+                prompt_parts.append({
+                    "mime_type": "image/jpeg",
+                    "data": base64.b64decode(image_data)
+                })
+            
+            # Call Gemini API
+            if use_tools:
+                response = self.gemini.generate_content(
+                    prompt_parts,
+                    generation_config={"max_output_tokens": max_tokens},
+                    tools=[self.pokemon_tool]
+                )
+            else:
+                response = self.gemini.generate_content(
+                    prompt_parts,
+                    generation_config={"max_output_tokens": max_tokens}
+                )
+            
+            # Process response
+            result = {
+                "text": "",
+                "button_presses": [],
+                "error": None
+            }
+            
+            if use_tools and response.candidates and response.candidates[0].content.parts:
+                # Handle tool-enabled response
+                for part in response.candidates[0].content.parts:
+                    if part.text:
+                        result["text"] = part.text
+                    elif part.function_call and part.function_call.name == "pokemon_controller":
+                        # Extract button presses
+                        for item, button_list in part.function_call.args.items():
+                            for button in button_list:
+                                result["button_presses"].append(button.lower())
+            else:
+                # Handle text-only response
+                result["text"] = response.text if response.text else ""
+            
+            return result
+            
+        except Exception as e:
+            return {
+                "text": "",
+                "button_presses": [],
+                "error": str(e)
+            }
+    
     def _init_directories(self):
         """Initialize directory structure"""
         self.eevee_dir = Path(__file__).parent
         self.analysis_dir = self.eevee_dir / "analysis"
         self.memory_dir = self.eevee_dir / "memory"
         self.reports_dir = self.eevee_dir / "reports"
+        self.runs_dir = self.eevee_dir / "runs"
         
         # Create directories if they don't exist
-        for directory in [self.analysis_dir, self.memory_dir, self.reports_dir]:
+        for directory in [self.analysis_dir, self.memory_dir, self.reports_dir, self.runs_dir]:
             directory.mkdir(exist_ok=True)
     
     def _init_game_controller(self):
@@ -297,26 +390,18 @@ class EeveeAgent:
             step_prompt = self._build_basic_task_prompt(f"Step {step_num}: {task_description}")
             
             try:
-                response = self.gemini.messages.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "user", "content": step_prompt},
-                        {
-                            "role": "user",
-                            "content": [{
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": "image/jpeg",
-                                    "data": game_context["screenshot_data"]
-                                }
-                            }]
-                        }
-                    ],
+                # Use unified API method
+                api_result = self._call_gemini_api(
+                    prompt=step_prompt,
+                    image_data=game_context["screenshot_data"],
+                    use_tools=False,
                     max_tokens=800
                 )
                 
-                step_analysis = response.content[0].text if response.content else "No analysis generated"
+                if api_result["error"]:
+                    step_analysis = f"Error: {api_result['error']}"
+                else:
+                    step_analysis = api_result["text"] or "No analysis generated"
                 
                 results.append({
                     "step": step_num,
@@ -382,26 +467,18 @@ class EeveeAgent:
         )
         
         try:
-            response = self.gemini.messages.create(
-                model=self.model,
-                messages=[
-                    {"role": "user", "content": analysis_prompt},
-                    {
-                        "role": "user",
-                        "content": [{
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/jpeg",
-                                "data": game_context["screenshot_data"]
-                            }
-                        }]
-                    }
-                ],
+            # Use unified API method
+            api_result = self._call_gemini_api(
+                prompt=analysis_prompt,
+                image_data=game_context["screenshot_data"],
+                use_tools=False,
                 max_tokens=1500
             )
             
-            analysis_text = response.content[0].text if response.content else ""
+            if api_result["error"]:
+                raise Exception(api_result["error"])
+            
+            analysis_text = api_result["text"] or ""
             
             # Parse the analysis into structured execution plan
             execution_plan = self._parse_execution_plan(analysis_text)
@@ -439,26 +516,23 @@ class EeveeAgent:
         task_prompt = self._build_basic_task_prompt(task_description)
         
         try:
-            response = self.gemini.messages.create(
-                model=self.model,
-                messages=[
-                    {"role": "user", "content": task_prompt},
-                    {
-                        "role": "user",
-                        "content": [{
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/jpeg",
-                                "data": game_context["screenshot_data"]
-                            }
-                        }]
-                    }
-                ],
+            # Use unified API method
+            api_result = self._call_gemini_api(
+                prompt=task_prompt,
+                image_data=game_context["screenshot_data"],
+                use_tools=False,
                 max_tokens=1000
             )
             
-            analysis = response.content[0].text if response.content else "No analysis generated"
+            if api_result["error"]:
+                return {
+                    "status": "failed",
+                    "error": api_result["error"],
+                    "steps_executed": 0,
+                    "method": "basic_analysis"
+                }
+            
+            analysis = api_result["text"] or "No analysis generated"
             
             return {
                 "status": "completed",
@@ -651,3 +725,249 @@ Format your response with clear sections addressing the task requirements."""
         
         if self.verbose:
             print(f"🧹 Cleared session: {self.memory_session}")
+    
+    def start_continuous_gameplay(self, goal: str, max_turns: int = 100, turn_delay: float = 1.0, session_state: Dict = None) -> Dict[str, Any]:
+        """
+        Start continuous autonomous Pokemon gameplay loop
+        
+        Args:
+            goal: The game goal to pursue (e.g. "find and win pokemon battles")
+            max_turns: Maximum number of turns to execute
+            turn_delay: Delay between turns in seconds
+            session_state: Interactive session state for pause/resume control
+            
+        Returns:
+            Dict containing gameplay session results
+        """
+        if self.verbose:
+            print(f"🎮 Starting continuous gameplay with goal: {goal}")
+            print(f"📊 Max turns: {max_turns}, Turn delay: {turn_delay}s")
+        
+        # Initialize game loop state
+        running = True
+        turn = 0
+        gameplay_history = []
+        
+        # Create run directory for this session
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        run_dir = self.runs_dir / f"{timestamp}_continuous"
+        run_dir.mkdir(exist_ok=True)
+        
+        # Initialize progress tracking
+        progress_file = run_dir / "progress_summary.md"
+        
+        try:
+            while running and turn < max_turns:
+                # Check for pause/resume controls if in interactive mode
+                if session_state:
+                    if session_state.get("paused", False):
+                        time.sleep(0.5)  # Check pause state every 500ms
+                        continue
+                    if not session_state.get("running", True):
+                        print("🛑 Stopping continuous gameplay - session ended")
+                        break
+                
+                turn_start_time = time.time()
+                print(f"\n🎯 Turn {turn + 1}/{max_turns}")
+                
+                # Step 1: Capture current game state
+                game_context = self._capture_current_context()
+                if not game_context.get("screenshot_data"):
+                    print("⚠️ Failed to capture screenshot, skipping turn")
+                    time.sleep(turn_delay)
+                    continue
+                
+                # Step 2: Get memory summary for context
+                memory_summary = ""
+                if self.memory:
+                    try:
+                        memory_context = self.memory.generate_summary()
+                        memory_summary = memory_context.get("summary", "")
+                    except Exception as e:
+                        if self.debug:
+                            print(f"⚠️ Memory summary failed: {e}")
+                        memory_summary = "No memory context available"
+                
+                # Step 3: Create AI prompt with goal, memory, and current state
+                ai_prompt = f"""Your current goal is: {goal}
+
+{memory_summary}
+
+Based on your goal and current situation, analyze the screenshot and decide what action to take next. 
+Be strategic and focused on making progress toward your goal.
+
+What do you observe in the current screen? What action will you take next to progress toward your goal?"""
+                
+                # Step 4: Get AI analysis and action decision using unified API
+                try:
+                    api_result = self._call_gemini_api(
+                        prompt=ai_prompt,
+                        image_data=game_context["screenshot_data"], 
+                        use_tools=True,
+                        max_tokens=1000
+                    )
+                    
+                    if api_result["error"]:
+                        print(f"❌ API Error: {api_result['error']}")
+                        continue
+                    
+                    ai_analysis = api_result["text"]
+                    button_presses = api_result["button_presses"]
+                    
+                    if ai_analysis:
+                        print(f"🤖 AI: {ai_analysis}")
+                    
+                    # Step 6: Execute button presses if provided
+                    action_result = "No action taken"
+                    if button_presses:
+                        print(f"🎮 Executing buttons: {button_presses}")
+                        if CONTROLLER_TYPE == "skyemu":
+                            action_result = self.controller.press_sequence(button_presses, delay_between=2)
+                        else:
+                            # Execute buttons one by one for standard controller
+                            for button in button_presses:
+                                success = self.controller.press_button(button)
+                                if not success:
+                                    action_result = f"Failed to press {button}"
+                                    break
+                            else:
+                                action_result = f"Successfully pressed: {', '.join(button_presses)}"
+                        
+                        print(f"🎯 Result: {action_result}")
+                    else:
+                        print("ℹ️ No button presses requested by AI")
+                    
+                    # Step 7: Store turn results in memory
+                    turn_data = {
+                        "turn": turn + 1,
+                        "timestamp": datetime.now().isoformat(),
+                        "goal": goal,
+                        "ai_analysis": ai_analysis,
+                        "button_presses": button_presses,
+                        "action_result": action_result,
+                        "screenshot_path": game_context.get("screenshot_path"),
+                        "execution_time": time.time() - turn_start_time
+                    }
+                    
+                    gameplay_history.append(turn_data)
+                    
+                    # Store in persistent memory if available
+                    if self.memory:
+                        try:
+                            self.memory.store_gameplay_turn(turn_data)
+                        except Exception as e:
+                            if self.debug:
+                                print(f"⚠️ Failed to store turn in memory: {e}")
+                    
+                    # Step 8: Update progress file every 5 turns
+                    if turn % 5 == 0:
+                        self._update_progress_file(progress_file, goal, gameplay_history[-5:])
+                    
+                except Exception as e:
+                    print(f"❌ Error during turn {turn + 1}: {str(e)}")
+                    if self.debug:
+                        import traceback
+                        traceback.print_exc()
+                
+                # Increment turn and apply delay
+                turn += 1
+                
+                if turn < max_turns:
+                    print(f"⏱️ Waiting {turn_delay}s before next turn...")
+                    time.sleep(turn_delay)
+        
+        except KeyboardInterrupt:
+            print("\n🛑 Continuous gameplay interrupted by user")
+            running = False
+        except Exception as e:
+            print(f"\n❌ Unexpected error in gameplay loop: {str(e)}")
+            if self.debug:
+                import traceback
+                traceback.print_exc()
+            running = False
+        
+        finally:
+            # Create final progress summary
+            self._update_progress_file(progress_file, goal, gameplay_history)
+            
+            # Save complete session data
+            session_file = run_dir / "session_data.json"
+            with open(session_file, 'w') as f:
+                json.dump({
+                    "goal": goal,
+                    "total_turns": turn,
+                    "max_turns": max_turns,
+                    "session_duration": sum(h.get("execution_time", 0) for h in gameplay_history),
+                    "gameplay_history": gameplay_history,
+                    "final_status": "completed" if turn >= max_turns else "interrupted"
+                }, f, indent=2)
+            
+            print(f"\n✅ Continuous gameplay session completed after {turn} turns")
+            print(f"📁 Session data saved to: {run_dir}")
+            
+            return {
+                "status": "completed" if turn >= max_turns else "interrupted",
+                "total_turns": turn,
+                "max_turns": max_turns,
+                "goal": goal,
+                "run_directory": str(run_dir),
+                "gameplay_history": gameplay_history
+            }
+    
+    def _update_progress_file(self, progress_file: Path, goal: str, recent_turns: List[Dict]):
+        """Update the progress summary file with recent gameplay"""
+        try:
+            if not recent_turns:
+                return
+            
+            # Format recent turns for AI analysis
+            turns_text = ""
+            for turn_data in recent_turns:
+                turns_text += f"Turn {turn_data['turn']}: {turn_data['ai_analysis']}\n"
+                if turn_data['button_presses']:
+                    turns_text += f"Actions: {', '.join(turn_data['button_presses'])}\n"
+                turns_text += f"Result: {turn_data['action_result']}\n\n"
+            
+            # Ask AI to create progress summary
+            prompt = f"""Create a concise progress report for our Pokemon gameplay session.
+
+Current Goal: {goal}
+
+Recent Gameplay Activity:
+{turns_text}
+
+Please provide:
+1. Current status and achievements
+2. Progress toward the goal
+3. Key challenges encountered
+4. Next steps and strategy
+
+Keep it concise but informative."""
+
+            # Use unified API method (no image needed for progress summary)
+            api_result = self._call_gemini_api(
+                prompt=prompt,
+                image_data=None,
+                use_tools=False,
+                max_tokens=800
+            )
+            
+            if api_result["error"]:
+                summary = f"Error generating summary: {api_result['error']}"
+            else:
+                summary = api_result["text"] or "No summary generated"
+            
+            # Write to progress file
+            with open(progress_file, 'w') as f:
+                f.write(f"# Pokemon Gameplay Progress Report\n\n")
+                f.write(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                f.write(f"**Goal:** {goal}\n\n")
+                f.write(f"**Total Turns:** {len(recent_turns)}\n\n")
+                f.write(summary)
+            
+            if self.verbose:
+                print(f"📝 Updated progress file: {progress_file}")
+                
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ Failed to update progress file: {e}")
