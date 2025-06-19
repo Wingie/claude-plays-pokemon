@@ -2,9 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-IMPORTANT DIRECTIVE FROM BOSS:
-You MUST use SERENA tooling for reading and but not WRITING code while working on this project! FIRST PRIORITY IS SERENA TOOLS ALWAYS REMEMBER! if you dont know it, read serena.md
-
 ## Repository Overview
 
 This is a comprehensive AI-powered Pokemon gaming project that uses Google Gemini AI to automatically play Pokemon games through multiple emulator interfaces. The project combines multimodal AI reasoning, real-time game control, and advanced emulation technology to create intelligent Pokemon-playing agents.
@@ -13,10 +10,10 @@ This is a comprehensive AI-powered Pokemon gaming project that uses Google Gemin
 
 ### Core Components
 - **Root Pokemon Controller**: Basic Gemini-powered Pokemon gameplay (`run_step_gemini.py`)
-- **Eevee v1**: Advanced AI task execution system with natural language interface (`eevee/`)
+- **Eevee v1**: Advanced AI task execution system with natural language interface (`eevee/`) (workinf Project)
 - **VideoGameBench Integration**: Comprehensive VLM evaluation framework for game benchmarking
-- **SkyEmu MCP Server**: Model Context Protocol server for advanced Game Boy Advance emulation
-- **Gemini Multimodal Playground**: Experimental AI features with RL integration
+- **SkyEmu MCP Server**: Model Context Protocol server for advanced Game Boy Advance emulation (not used)
+- **Gemini Multimodal Playground**: samplre old code (only refee)
 
 ### Key Entry Points
 - `run_step_gemini.py`: legacy Pokemon controller using mGBA emulator
@@ -279,71 +276,76 @@ tail -f runs/TIMESTAMP_memory.log
 ✅ **Phase 3**: Navigation testing framework with memory retention
 ✅ **Phase 4**: Core game loop implementation (screenshot → AI → action → memory)
 
-### Recent Breakthroughs (June 18, 2025)
+### Recent Breakthroughs (June 19, 2025)
 
-**🎯 Major API Integration Success**
-- **Fixed Critical Issue**: Replaced non-existent Claude-style API wrapper with native Google Gemini API
-- **Unified Architecture**: Created single `_call_gemini_api()` method eliminating code complexity
-- **Proper Tool Calling**: Implemented correct Google Gemini FunctionDeclaration format
-- **Valid Model Names**: Updated to use `gemini-1.5-flash` with multimodal support
+**🎮 Evening Session: Simplified Logging & Step-by-Step AI (CURRENT)**
+- **Revolutionary Logging**: Replaced complex bordered logs with clean one-line format: `🎮 TURN X: Pressed [buttons] - reasoning...`
+- **Button Press Validation**: Enforced 1-3 button maximum with automatic warnings when AI exceeds limits
+- **Recent Actions Memory**: Turn-by-turn recording with observation → action → result chains included in prompt context
+- **Step-by-step Enforcement**: All prompt templates now specify "Maximum 1-2 button presses (never more than 3)"
+- **Enhanced Context Detection**: Improved battle vs navigation vs party vs inventory prompt selection
+- **⚠️ Critical Issue**: AI stuck in infinite UP loop at Viridian City edge - needs investigation next session
 
-**🎮 Continuous Gameplay Achievement**
-- **Action Loop Working**: Screenshot → AI analysis → button press → memory update cycles operational
-- **Battle Decision Making**: AI successfully analyzes Pokemon battles and makes strategic decisions
-- **Memory Integration**: Turn data stored in SQLite with session persistence
-- **Real-time Logging**: Complete audit trail in runs/ directory with `tail -f` monitoring
+**🎯 Previous: Enhanced Prompt System & Logging Revolution**
+- **Simplified PromptManager**: Removed complex A/B testing, kept core template + playbook functionality
+- **AI-Learned Playbooks**: Navigation knowledge automatically discovered and stored by AI during gameplay
+- **Intelligent Context Selection**: Dynamic prompt selection based on game state (battle/navigation/gym/services)
+- **Enhanced Observation Logging**: Clear 🎯 OBSERVATION → 🧠 ANALYSIS → ⚡ ACTION chains with template identification
 
-**⚠️ Previous Limitations Resolved**
-- **✅ Menu Navigation**: Enhanced battle prompts with explicit move navigation ([down, a] for Thundershock)
-- **✅ Context Memory**: Battle memory summaries injected into each turn's prompt
-- **✅ Button Sequence Logic**: Memory-driven learning system for move effectiveness
+**🎮 Smart Playbook System**
+- **Battle Playbook**: Static expert knowledge for move selection and type effectiveness
+- **Navigation Playbook**: AI discovers location connections ("Viridian City --north--> Viridian Forest")
+- **Gym Playbook**: AI learns gym-specific strategies and puzzle solutions
+- **Services Playbook**: AI maps Pokemon Centers, shops, and facilities
+- **Dynamic Loading**: Appropriate playbooks automatically selected based on context
 
-**🔧 Latest API Resilience Improvements (June 19, 2025)**
-- **Smart Timeout Handling**: Exponential backoff with 3-retry maximum for connection issues
-- **429 Rate Limit Detection**: Intelligent parsing of retry delays from API error responses
-- **Circuit Breaker Pattern**: Automatic API suspension after 5 consecutive failures (5-minute cooldown)
-- **Jitter & Capping**: Random jitter in delays with reasonable maximums (1 minute retry, 5 minute circuit breaker)
-- **Failure Recovery**: Automatic success tracking and circuit breaker reset after recovery
+**🔧 Advanced Logging & Debugging**
+- **Template Source Tracking**: Shows exactly which prompt template and playbooks are being used
+- **Structured Analysis Display**: Clear observation-to-action reasoning chains
+- **Real-time Knowledge Learning**: AI discoveries logged and stored for future use
+- **Verbose Mode Enhancement**: Comprehensive insight into AI decision-making process
 
-**✅ Implementation Complete: Memory-Driven Battle Intelligence & API Resilience**
+**🗺️ Intelligent Navigation System**
+- **Context-Aware Prompting**: Battle contexts use battle prompts, navigation uses location prompts
+- **Multi-Playbook Integration**: Gym battles combine battle + gym knowledge automatically
+- **Goal-Driven Selection**: User goals influence which playbooks are loaded
+- **Learning Integration**: AI automatically populates playbooks with discoveries
 
-**🗺️ Latest Overworld Navigation Intelligence (June 19, 2025)**
-- **ASCII Grid Overlay System**: 8x8 tile-based visual overlay using HSV color analysis for terrain detection
-- **Smart Obstacle Detection**: Trees (T), buildings (B), walls (#), water (~) vs walkable areas (.) and paths (-)
-- **Memory-Based Area Tracking**: Visited areas marked with (*) to show exploration history
-- **Adaptive Prompting**: Context-aware prompts that include ASCII grid and navigation intelligence when in overworld
-- **Movement Recording**: Automatic tracking of overworld movements for route learning and backtracking
-- **Integrated Intelligence**: Seamless switching between battle prompts and overworld navigation based on game state
+**✅ Implementation Complete: Enhanced Prompt System & AI Learning**
 
-**🎯 SOLUTION IMPLEMENTED: Prompting + Memory (Not State Machines)**
-Successfully implemented the `run_step_memory.py` approach using enhanced prompting and memory rather than complex code logic.
+**🎯 New Logging Format:**
+```
+================================================================================
+🎮 TURN 15 - AI DECISION PROCESS  
+================================================================================
+📖 PROMPT SOURCE: base/battle_analysis + playbook/battle
+🎯 OBSERVATION: I can see the battle menu with FIGHT, BAG, POKEMON, RUN options
+🧠 ANALYSIS: This is the start of a Pokemon battle, I should select FIGHT to access moves
+⚡ BUTTON SEQUENCE: ['a']
+================================================================================
+```
 
-**✅ Issues Resolved:**
-1. **Attack Selection Problem**: AI now properly navigates to specific moves like Thundershock
-   - **Solution**: Enhanced battle prompts with explicit move navigation: ["down", "a"] for Thundershock
-   - **Result**: AI can now select specific moves instead of just spamming 'A' button
-   
-2. **Context Loss**: AI remembers previous battle actions and outcomes
-   - **Solution**: Battle memory summaries injected into each turn's prompt context
-   - **Result**: Learning from previous battles and move effectiveness
+**🧠 AI Learning in Action:**
+- **Navigation**: `📝 Learned: Viridian City --north--> Viridian Forest`
+- **Services**: `📚 Learned about Viridian City: Has a Pokemon Center in the center of town`
+- **Battle Memory**: Enhanced move selection with type effectiveness knowledge
 
-3. **Interruption Support**: Real-time interruption during continuous gameplay
-   - **Solution**: Threaded keyboard monitoring with queue-based communication
-   - **Result**: 'p'=pause, 'r'=resume, 'q'=quit commands work during gameplay
-
-**🎮 New Features Available:**
-- **Enhanced Battle Prompts**: Include Pokemon type effectiveness and move navigation
-- **Battle Memory Learning**: Store move effectiveness and successful strategies
-- **Real-time Interruption**: Claude Code-like pause/resume/quit controls
-- **Prompt-based Intelligence**: Battle knowledge embedded directly in AI prompts
+**🎮 Enhanced Features Available:**
+- **Smart Template Selection**: AI chooses appropriate prompts based on game context
+- **Knowledge Discovery**: AI learns and documents Pokemon world geography and services
+- **Comprehensive Debugging**: Full visibility into AI reasoning and template usage
+- **Playbook System**: Organized, learnable knowledge base for different game contexts
 
 **Usage Examples:**
 ```bash
-# Standard continuous gameplay with battle improvements
-python eevee/run_eevee.py --continuous --goal "find and win pokemon battles"
+# Enhanced continuous gameplay with improved logging (no verbose flag needed)
+python eevee/run_eevee.py --goal "find viridian forest"
 
-# With real-time interruption controls
-python eevee/run_eevee.py --continuous --goal "find and win pokemon battles" --interruption
+# Interactive mode with full playbook system
+python eevee/run_eevee.py --interactive --enable-okr
+
+# Test the enhanced prompt system
+python eevee/test_enhanced_prompts.py
 ```
 
-**🎯 Expected Results**: AI will now properly navigate to "Thundershock" using DOWN → A sequence, remember battle outcomes, and allow real-time interruption during gameplay.
+**🎯 Expected Results**: AI now provides clear insight into its decision-making process, learns navigation patterns automatically, and selects appropriate knowledge based on current game context.

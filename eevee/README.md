@@ -8,15 +8,15 @@ Eevee is an advanced AI-powered Pokemon game automation system that can execute 
 - **Natural Language Task Execution**: Execute Pokemon tasks via simple commands
 - **Multi-step Task Decomposition**: Break complex tasks into manageable steps
 - **Persistent Memory System**: Remember game state and context across sessions
-- **Prompt Experimentation**: A/B test different AI prompting strategies
-- **Comprehensive Reporting**: Generate detailed analysis reports in multiple formats
+- **AI-Learned Playbooks**: Automatically discover and store navigation patterns and location knowledge
+- **Enhanced Logging**: Clear observation-to-action reasoning chains with template identification
 
 ### Advanced Features
-- **Intelligent Navigation**: Smart menu navigation with state tracking
+- **Smart Prompt Selection**: Context-aware prompt selection (battle/navigation/gym/services)
+- **Dynamic Knowledge Learning**: AI populates playbooks with discovered information during gameplay
+- **Intelligent Navigation**: Smart menu navigation with pattern learning and memory retention
 - **Pokemon Data Parsing**: Extract and structure Pokemon party information
-- **Memory Management**: Session-based context persistence with SQLite backend
-- **Performance Tracking**: Monitor task success rates and execution metrics
-- **Extensible Architecture**: Modular design for easy enhancement and customization
+- **Comprehensive Debugging**: Full visibility into AI decision-making process with structured logging
 
 ## Quick Start
 
@@ -31,29 +31,29 @@ echo "GEMINI_API_KEY=your_api_key_here" > .env
 
 ### Basic Usage
 ```bash
-# Execute a Pokemon task
-python run_eevee.py "check and report all your pokemon party and their levels and moves and what PP left in each move"
+# Continuous gameplay with enhanced logging (default)
+python run_eevee.py --goal "find viridian forest"
 
-# Save detailed report
-python run_eevee.py "analyze current location" --save-report --output-format markdown
+# Interactive mode with full playbook system
+python run_eevee.py --interactive --enable-okr
+
+# Execute single Pokemon task
+python run_eevee.py --task "check and report all your pokemon party and their levels and moves"
 
 # Use specific memory session
-python run_eevee.py "navigate to Pokemon Center" --memory-session gym-challenge
-
-# Dry run (analysis only)
-python run_eevee.py "find wild Pokemon to catch" --dry-run
+python run_eevee.py --goal "navigate to Pokemon Center" --memory-session gym-challenge
 ```
 
 ### Advanced Usage
 ```bash
-# Use experimental prompts
-python run_eevee.py "check inventory" --prompt-experiment detailed-analysis
+# Test the enhanced prompt system
+python test_enhanced_prompts.py
 
-# Verbose execution
-python run_eevee.py "heal all Pokemon" --verbose --debug
+# Continuous gameplay with auto-resume
+python run_eevee.py --continue --verbose
 
-# JSON output
-python run_eevee.py "analyze battle situation" --output-format json
+# Interactive debugging mode
+python run_eevee.py --interactive --debug --max-turns 20
 ```
 
 ## Architecture
@@ -62,31 +62,76 @@ python run_eevee.py "analyze battle situation" --output-format json
 
 ```
 eevee/
-├── run_eevee.py              # Main CLI interface
-├── eevee_agent.py            # Core AI agent
+├── run_eevee.py              # Main CLI interface with enhanced logging
+├── eevee_agent.py            # Core AI agent with learning capabilities
 ├── memory_system.py          # Persistent memory management
-├── prompt_manager.py         # Prompt experimentation system
+├── prompt_manager.py         # Simplified prompt + playbook system
 ├── task_executor.py          # Multi-step task execution
+├── test_enhanced_prompts.py  # Test suite for new features
 ├── utils/
 │   ├── navigation.py         # Game menu navigation
 │   ├── pokemon_parser.py     # Pokemon data extraction
 │   └── reporting.py          # Output formatting
 ├── prompts/
-│   ├── base/                 # Core prompt templates
-│   └── experimental/         # A/B testing prompts
+│   ├── base/                 # Core prompt templates (YAML)
+│   └── playbooks/            # AI-learned knowledge (Markdown)
+│       ├── battle.md         # Battle strategies and move knowledge
+│       ├── navigation.md     # AI-discovered location connections
+│       ├── gyms.md          # Gym-specific strategies and puzzles
+│       └── services.md       # Pokemon Centers, shops, facilities
 ├── memory/                   # Session databases
-├── reports/                  # Generated reports
+├── runs/                     # Continuous gameplay logs
 └── analysis/                 # Screenshots and analysis
 ```
 
 ### Key Classes
 
-- **EeveeAgent**: Main orchestration class that coordinates all components
+- **EeveeAgent**: Main orchestration class with AI learning capabilities (`learn_navigation_pattern`, `learn_location_knowledge`)
 - **MemorySystem**: SQLite-based persistent memory with context retrieval
-- **PromptManager**: Template management and A/B testing framework
+- **PromptManager**: Simplified template + playbook system with dynamic loading (`get_prompt`, `add_playbook_entry`)
 - **TaskExecutor**: Multi-step execution engine with error recovery
-- **NavigationHelper**: Smart menu navigation with state tracking
+- **ContinuousGameplay**: Simplified logging with turn-by-turn action recording and button press validation
 - **PokemonParser**: Extract structured data from AI analysis text
+
+## Enhanced Logging & Playbook System
+
+### Logging Format
+The simplified logging system provides clear insight into AI decisions with a clean one-line format:
+
+```
+🎮 TURN 1: Pressed ['up'] - 🎯 **OBSERVATION**: The player character is in Viridian City, standing on a patch of grass. To the no...
+🎮 TURN 2: Pressed ['up'] - 🎯 **OBSERVATION**: The player character is at the edge of Viridian City, on a patch of grass. To th...
+🎮 TURN 3: Pressed ['right'] - 🎯 **OBSERVATION**: The player character is at the edge of Viridian City, near the north exit. To th...
+```
+
+**Key Features:**
+- **Turn Number**: Clear turn tracking
+- **Button Sequence**: Exactly what buttons were pressed
+- **AI Reasoning**: First 100 characters of AI's observation and analysis
+- **Template Info**: Shows which prompt template and playbooks were used (via separate log line)
+
+### AI Learning System
+The AI automatically learns and documents discoveries:
+
+- **📝 Navigation Learning**: `Learned: Viridian City --north--> Viridian Forest`
+- **📚 Location Knowledge**: `Learned about Viridian City: Has a Pokemon Center in the center of town`
+- **🎯 Battle Memory**: Enhanced move selection with type effectiveness
+
+### Playbook System
+Knowledge is organized into specialized playbooks:
+
+- **battle.md**: Static expert knowledge for battle strategies and type effectiveness
+- **navigation.md**: AI-discovered location connections and route patterns
+- **gyms.md**: Gym-specific strategies, leader info, and puzzle solutions
+- **services.md**: Pokemon Centers, shops, and facility locations
+
+### Smart Context Selection
+The system intelligently chooses appropriate prompts and playbooks:
+
+- **Battle contexts** → `battle_analysis` + `battle` playbook
+- **Gym battles** → `battle_analysis` + `battle` + `gyms` playbooks
+- **Navigation** → `location_analysis` + `navigation` playbook
+- **Services** → `location_analysis` + `services` playbook
 
 ## Task Examples
 
@@ -183,43 +228,47 @@ python run_eevee.py "task" --memory-session my-playthrough
 python -c "from memory_system import MemorySystem; m=MemorySystem('session'); m.export_session()"
 ```
 
-## Prompt Experimentation
+## Prompt System
 
-Eevee includes a powerful prompt experimentation system for optimizing AI performance:
+Eevee uses a simplified but powerful prompt system with AI-learned playbooks:
 
-### Creating Experimental Prompts
+### Core Prompt Templates
+Base prompts are stored in YAML format with variable substitution:
+```yaml
+battle_analysis:
+  template: |
+    Analyze this Pokemon battle situation:
+    Task Context: {task}
+    # ... detailed battle analysis prompt
+```
+
+### Playbook Integration
 ```python
 from prompt_manager import PromptManager
 
 pm = PromptManager()
-pm.create_experimental_prompt(
-    experiment_name="detailed_pokemon_analysis",
-    base_prompt_type="pokemon_party_analysis", 
-    modifications={"template": "Enhanced template with more detail..."},
-    description="More detailed Pokemon analysis"
-)
-```
 
-### A/B Testing
-```python
-# Start A/B test
-pm.start_ab_test(
-    experiment_name="pokemon_analysis_test",
-    prompt_type="pokemon_party_analysis",
-    variant_a="base",
-    variant_b="detailed_pokemon_analysis",
-    traffic_split=0.5
+# Get context-appropriate prompt with playbook
+prompt = pm.get_prompt(
+    "battle_analysis", 
+    {"task": "win this gym battle"}, 
+    include_playbook="battle",
+    verbose=True
 )
 
-# Use in CLI
-python run_eevee.py "check party" --prompt-experiment detailed_pokemon_analysis
+# AI learning - automatically populate playbooks
+agent.learn_navigation_pattern("Viridian City", "north", "Viridian Forest")
+agent.learn_location_knowledge("Viridian City", "Has a Pokemon Center", "services")
 ```
 
-### Performance Tracking
+### Usage Tracking
 ```python
-# Get performance report
-report = pm.get_performance_report("pokemon_party_analysis")
-print(json.dumps(report, indent=2))
+# Get usage summary for debugging
+summary = pm.get_usage_summary()
+print(summary)
+
+# Reload templates during development
+pm.reload_templates()
 ```
 
 ## Integration
@@ -237,6 +286,39 @@ Eevee integrates seamlessly with the existing claude-plays-pokemon infrastructur
 - **SkyEmu**: Game Boy Advance support via MCP server
 - **PyBoy**: Alternative Game Boy emulation (via VideoGameBench)
 
+## Button Press Validation System
+
+Eevee v1 enforces step-by-step thinking with automatic button press validation:
+
+### Validation Features
+- **Maximum Limit**: AI cannot press more than 3 buttons in one turn
+- **Automatic Truncation**: If AI tries to exceed limit, only first 3 buttons are executed
+- **Valid Button Check**: Only Game Boy buttons accepted (up, down, left, right, a, b, start, select)
+- **Warning System**: Clear messages when AI exceeds limits or uses invalid buttons
+- **Fallback Safety**: Defaults to 'a' button if no valid actions provided
+
+### Recent Actions Memory
+- **Turn Tracking**: Last 5 turns stored with observation → action → result chains
+- **Loop Detection**: Warns when AI repeats same action 3+ times consecutively
+- **Context Integration**: Recent actions summary included in all AI prompts via `{recent_actions}` variable
+- **Pattern Recognition**: Identifies when AI is stuck and provides warnings
+
+## Troubleshooting
+
+### Common Issues
+1. **AI Stuck in Loops**: Check recent actions log for repetitive button presses
+2. **Button Validation Warnings**: AI is trying to exceed 3-button limit - prompts working correctly
+3. **Invalid Button Messages**: AI attempted non-Game Boy button - validation working correctly
+4. **Game window not found**: Ensure emulator is running with correct window title
+5. **API key errors**: Verify GEMINI_API_KEY is set correctly
+
+### Infinite Loop Investigation
+If AI gets stuck pressing the same button repeatedly:
+1. Check the recent actions warning in console output
+2. Verify the AI receives the loop warning in its context
+3. Consider if the game state requires a different approach (interaction vs movement)
+4. Next session: investigate why loop detection didn't prevent the behavior
+
 ## Development
 
 ### Adding New Task Types
@@ -252,10 +334,10 @@ Eevee integrates seamlessly with the existing claude-plays-pokemon infrastructur
 4. Add memory analytics and reporting
 
 ### Custom Prompt Strategies
-1. Create experimental prompt in `prompts/experimental/`
-2. Test with A/B testing framework
-3. Monitor performance metrics
-4. Graduate successful experiments to base prompts
+1. Update templates in `prompts/base/base_prompts.yaml`
+2. Test with real Pokemon game scenarios
+3. Monitor button press patterns and effectiveness
+4. Ensure all templates enforce 1-3 button maximum
 
 ## Troubleshooting
 

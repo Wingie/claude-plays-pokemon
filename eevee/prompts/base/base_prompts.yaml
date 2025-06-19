@@ -60,55 +60,53 @@ pokemon_party_analysis:
        - How to access more detailed information if needed
 
     Format your response with clear sections and be specific about numbers and details.
-  variables: ["task"]
-  version: "1.0"
+  variables: ["task", "recent_actions"]
+  version: "2.0"
 
 location_analysis:
-  name: "Location and Environment Analysis Base"
-  description: "Analyzes current location, map, and environmental features"
+  name: "Location Analysis - Step by Step Navigation"
+  description: "Analyzes current location with focus on immediate next movement"
   template: |
-    Analyze this Pokemon game location and environment:
+    Analyze this Pokemon location and decide the IMMEDIATE next movement:
 
     Task Context: {task}
+    Recent Actions: {recent_actions}
 
-    Provide detailed analysis of:
+    **CRITICAL INSTRUCTIONS**:
+    - Take ONE step at a time (1-2 buttons maximum)
+    - Observe immediate surroundings only
+    - Don't plan long movement sequences
+    - React to what you see RIGHT NOW
 
-    1. **Location Identification**:
-       - Current area/route/town name (if visible)
-       - Indoor vs outdoor environment
-       - Specific building or area type
+    **IMMEDIATE LOCATION ANALYSIS**:
 
-    2. **Player Character**:
-       - Character position on screen
-       - Direction character is facing
-       - Current movement state
+    🎯 **OBSERVATION** (What do you see RIGHT NOW?):
+    - Where is your character positioned?
+    - What's directly around you (trees, paths, buildings, NPCs)?
+    - Are there any obstacles blocking immediate movement?
+    - Is there a battle happening or menu open?
 
-    3. **Environmental Features**:
-       - Terrain types (grass, water, paths, buildings)
-       - Significant landmarks or structures
-       - Available exits and entrances
-       - Weather or time-of-day indicators
+    🧠 **ANALYSIS** (What's the immediate next step?):
+    - Based on your goal: {task}
+    - What direction makes sense for ONE step?
+    - Are you stuck or repeating the same action?
+    - Do you need to interact with something first?
 
-    4. **Interactive Elements**:
-       - NPCs and their positions/activities
-       - Items on the ground or available for interaction
-       - Signs, doors, or other interactive objects
-       - Battle opportunities (trainers, wild Pokemon areas)
+    ⚡ **IMMEDIATE MOVEMENT** (1 direction only):
+    - Choose ONE direction: up, down, left, or right
+    - OR press A to interact with something nearby
+    - OR press B to back out of a menu
+    - NEVER move multiple steps in one decision
 
-    5. **Navigation Opportunities**:
-       - Immediate movement options
-       - Areas that can be explored
-       - Buildings or locations that can be entered
+    **MOVEMENT GUIDELINES**:
+    - If you see a path, follow it one step at a time
+    - If blocked by obstacle, try a different direction
+    - If in a menu, press A or B as appropriate
+    - If you've been going the same direction multiple times, consider other options
 
-    6. **Strategic Considerations**:
-       - Pokemon Center or healing opportunities
-       - Shop or service locations
-       - Training opportunities
-       - Progress-blocking obstacles
-
-    Be specific about positions, directions, and interactive elements.
-  variables: ["task"]
-  version: "1.0"
+    Use pokemon_controller with just 1 button press.
+  variables: ["task", "recent_actions"]
+  version: "2.0"
 
 inventory_analysis:
   name: "Inventory and Items Analysis Base"
@@ -153,53 +151,49 @@ inventory_analysis:
        - Items that should be saved for later
 
     Be thorough in listing items and their quantities.
-  variables: ["task"]
-  version: "1.0"
+  variables: ["task", "recent_actions"]
+  version: "2.0"
 
 battle_analysis:
-  name: "Battle Situation Analysis Base"
-  description: "Analyzes Pokemon battles and combat situations"
+  name: "Battle Situation Analysis - Step by Step"
+  description: "Analyzes Pokemon battles with focus on immediate next action"
   template: |
-    Analyze this Pokemon battle situation:
+    Analyze this Pokemon battle and decide the IMMEDIATE next action:
 
     Task Context: {task}
+    Recent Actions: {recent_actions}
 
-    Provide comprehensive battle analysis:
+    **CRITICAL INSTRUCTIONS**:
+    - Focus ONLY on the immediate next step
+    - Maximum 1-2 button presses (never more than 3)
+    - Observe what's on screen RIGHT NOW
+    - Don't plan multiple moves ahead
 
-    1. **Battle State**:
-       - Current turn phase (selection, animation, etc.)
-       - Battle type (wild Pokemon, trainer, gym leader)
-       - Battle progress and turn count
+    **IMMEDIATE BATTLE ANALYSIS**:
 
-    2. **Your Pokemon**:
-       - Active Pokemon name, level, and type(s)
-       - Current HP and status condition
-       - Available moves with PP remaining
-       - Type advantages/disadvantages
+    🎯 **OBSERVATION** (What do you see RIGHT NOW?):
+    - What menu or battle screen is currently displayed?
+    - What are the exact options visible?
+    - What is your Pokemon's current state?
+    - What is the opponent's current state?
 
-    3. **Opponent Pokemon**:
-       - Opponent Pokemon name, level, and type(s)
-       - Visible HP status
-       - Observed moves and abilities
-       - Threat assessment
+    🧠 **ANALYSIS** (What should happen next?):
+    - What is the immediate problem to solve?
+    - What menu navigation is needed right now?
+    - Is this a move selection, battle menu, or other screen?
 
-    4. **Strategic Analysis**:
-       - Recommended next move
-       - Type effectiveness considerations
-       - Status effect strategies
-       - Switching recommendations
+    ⚡ **IMMEDIATE ACTION** (1-2 buttons only):
+    - If battle menu visible: Press A to select FIGHT
+    - If move selection visible: Use direction + A for specific move
+    - If text scrolling: Press A to continue
+    - NEVER plan more than 2 buttons at once
 
-    5. **Battle Options**:
-       - Available battle menu options
-       - Items that could be used
-       - Pokemon switch options
-       - Escape possibility and consequences
+    **MOVE SELECTION GUIDE**:
+    - First move (top-left): Just press A
+    - Second move (below first): Press DOWN then A  
+    - Third move (top-right): Press RIGHT then A
+    - Fourth move (bottom-right): Press DOWN, RIGHT, then A
 
-    6. **Victory Conditions**:
-       - Path to winning the battle
-       - Risks and backup strategies
-       - Post-battle considerations
-
-    Be specific about moves, types, and strategic recommendations.
-  variables: ["task"]
-  version: "1.0"
+    Use pokemon_controller with 1-2 buttons maximum.
+  variables: ["task", "recent_actions"]
+  version: "2.0"

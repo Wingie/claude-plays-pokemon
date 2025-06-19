@@ -129,6 +129,8 @@ class EeveeAgent:
         try:
             from prompt_manager import PromptManager
             self.prompt_manager = PromptManager()
+            if self.verbose:
+                print("📖 PromptManager initialized with playbook system")
         except ImportError:
             self.prompt_manager = None
             if self.debug:
@@ -1971,3 +1973,75 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
                 print(f"🔧 Coordinate debug failed: {e}")
         
         return coordinate_data
+    
+    def learn_navigation_pattern(self, current_location: str, direction: str, destination: str, success: bool = True):
+        """
+        Learn and store navigation patterns discovered during gameplay
+        
+        Args:
+            current_location: Where the AI is currently located
+            direction: Direction taken (up, down, left, right, north, south, etc.)
+            destination: Where the direction led to
+            success: Whether this was a successful navigation
+        """
+        if not self.prompt_manager:
+            return
+        
+        from datetime import datetime
+        
+        # Create a navigation entry
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        
+        if success:
+            entry = f"**{timestamp}** - Navigation Discovery:\n"
+            entry += f"- **From**: {current_location}\n"
+            entry += f"- **Direction**: {direction}\n"
+            entry += f"- **Leads to**: {destination}\n"
+            entry += f"- **Status**: ✅ Confirmed route\n"
+        else:
+            entry = f"**{timestamp}** - Navigation Note:\n"
+            entry += f"- **From**: {current_location}\n"
+            entry += f"- **Direction**: {direction}\n"
+            entry += f"- **Result**: ❌ Blocked or unsuccessful\n"
+        
+        try:
+            self.prompt_manager.add_playbook_entry("navigation", entry, append=True)
+            if self.verbose:
+                print(f"📝 Learned: {current_location} --{direction}--> {destination if success else 'blocked'}")
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ Failed to store navigation pattern: {e}")
+    
+    def learn_location_knowledge(self, location: str, knowledge: str, category: str = "general"):
+        """
+        Store discovered knowledge about a specific location
+        
+        Args:
+            location: Name of the location
+            knowledge: What was learned about this location
+            category: Type of knowledge (general, services, trainers, items, etc.)
+        """
+        if not self.prompt_manager:
+            return
+        
+        from datetime import datetime
+        
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        
+        entry = f"**{timestamp}** - {location} ({category}):\n"
+        entry += f"- {knowledge}\n"
+        
+        # Determine which playbook to use
+        playbook_name = "navigation"  # Default
+        if "gym" in location.lower():
+            playbook_name = "gyms"
+        elif "center" in knowledge.lower() or "shop" in knowledge.lower():
+            playbook_name = "services"
+        
+        try:
+            self.prompt_manager.add_playbook_entry(playbook_name, entry, append=True)
+            if self.verbose:
+                print(f"📚 Learned about {location}: {knowledge[:50]}...")
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ Failed to store location knowledge: {e}")

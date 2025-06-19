@@ -3,13 +3,10 @@ PromptManager - Advanced Prompt System for Eevee
 Handles prompt templating, A/B testing, and prompt optimization for Pokemon AI tasks
 """
 
-import json
 import yaml
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
-import hashlib
-import statistics
+from typing import Dict, List, Any, Optional
 
 class PromptManager:
     """Manages prompt templates and experimentation for Eevee AI system"""
@@ -28,19 +25,15 @@ class PromptManager:
         self.prompts_dir.mkdir(exist_ok=True)
         
         # Create subdirectories
-        (self.prompts_dir / "experimental").mkdir(exist_ok=True)
         (self.prompts_dir / "base").mkdir(exist_ok=True)
+        (self.prompts_dir / "playbooks").mkdir(exist_ok=True)
         
         # Load prompt templates
         self.base_prompts = self._load_base_prompts()
-        self.experimental_prompts = self._load_experimental_prompts()
+        self.playbooks = self._load_playbooks()
         
-        # Performance tracking
-        self.performance_log = self.prompts_dir / "performance_log.json"
-        self.prompt_metrics = self._load_performance_metrics()
-        
-        # Current experiment settings
-        self.active_experiments = {}
+        # Usage tracking for debugging
+        self.usage_log = []
     
     def _load_base_prompts(self) -> Dict[str, Any]:
         """Load base prompt templates"""
@@ -56,24 +49,24 @@ class PromptManager:
                 yaml.dump(default_prompts, f, default_flow_style=False)
             return default_prompts
     
-    def _load_experimental_prompts(self) -> Dict[str, Any]:
-        """Load experimental prompt variants"""
-        experimental_prompts = {}
+    def _load_playbooks(self) -> Dict[str, str]:
+        """Load playbook files for location-specific guidance"""
+        playbooks = {}
         
-        experimental_dir = self.prompts_dir / "experimental"
-        for prompt_file in experimental_dir.glob("*.yaml"):
-            with open(prompt_file, 'r') as f:
-                experimental_prompts[prompt_file.stem] = yaml.safe_load(f)
+        playbooks_dir = self.prompts_dir / "playbooks"
+        for playbook_file in playbooks_dir.glob("*.md"):
+            with open(playbook_file, 'r') as f:
+                playbooks[playbook_file.stem] = f.read()
         
-        return experimental_prompts
+        return playbooks
     
-    def _load_performance_metrics(self) -> Dict[str, List[Dict]]:
-        """Load prompt performance metrics"""
-        if self.performance_log.exists():
-            with open(self.performance_log, 'r') as f:
-                return json.load(f)
-        else:
-            return {}
+    def _log_usage(self, prompt_type: str, template_source: str):
+        """Log prompt usage for debugging"""
+        self.usage_log.append({
+            "timestamp": datetime.now().isoformat(),
+            "prompt_type": prompt_type,
+            "template_source": template_source
+        })
     
     def _create_default_prompts(self) -> Dict[str, Any]:
         """Create default prompt templates"""
@@ -289,15 +282,17 @@ Be specific about moves, types, and strategic recommendations.""",
         self, 
         prompt_type: str, 
         variables: Dict[str, Any] = None,
-        experiment_name: str = None
+        include_playbook: str = None,
+        verbose: bool = False
     ) -> str:
         """
-        Get a formatted prompt template
+        Get a formatted prompt template with optional playbook integration
         
         Args:
             prompt_type: Type of prompt to retrieve
             variables: Variables to substitute in template
-            experiment_name: Name of experimental variant to use
+            include_playbook: Name of playbook to include (e.g., 'battle', 'navigation')
+            verbose: Whether to log prompt usage for debugging
             
         Returns:
             Formatted prompt string
@@ -305,24 +300,23 @@ Be specific about moves, types, and strategic recommendations.""",
         if variables is None:
             variables = {}
         
-        # Get the prompt template
-        if experiment_name and experiment_name in self.experimental_prompts:
-            # Use experimental variant
-            template_data = self.experimental_prompts[experiment_name].get(prompt_type)
-            if template_data:
-                template = template_data["template"]
-                self._log_prompt_usage(prompt_type, experiment_name, "experimental")
-            else:
-                # Fallback to base prompt
-                template = self.base_prompts[prompt_type]["template"]
-                self._log_prompt_usage(prompt_type, "base", "fallback")
-        else:
-            # Use base prompt
-            if prompt_type not in self.base_prompts:
-                raise ValueError(f"Unknown prompt type: {prompt_type}")
-            
-            template = self.base_prompts[prompt_type]["template"]
-            self._log_prompt_usage(prompt_type, "base", "standard")
+        # Get the base prompt template
+        if prompt_type not in self.base_prompts:
+            raise ValueError(f"Unknown prompt type: {prompt_type}")
+        
+        template = self.base_prompts[prompt_type]["template"]
+        template_source = f"base/{prompt_type}"
+        
+        # Add playbook context if requested
+        if include_playbook and include_playbook in self.playbooks:
+            playbook_content = self.playbooks[include_playbook]
+            template = f"{playbook_content}\n\n{template}"
+            template_source += f" + playbook/{include_playbook}"
+        
+        # Log usage for debugging
+        if verbose:
+            self._log_usage(prompt_type, template_source)
+            print(f"📖 Using prompt template: {template_source}")
         
         # Format template with variables
         try:
@@ -336,7 +330,8 @@ Be specific about moves, types, and strategic recommendations.""",
         task: str, 
         game_context: Dict, 
         memory_context: Dict,
-        experiment_name: str = None
+        include_playbook: str = None,
+        verbose: bool = False
     ) -> str:
         """Get formatted task analysis prompt"""
         variables = {
@@ -345,225 +340,71 @@ Be specific about moves, types, and strategic recommendations.""",
             "memory_context": self._format_memory_context(memory_context)
         }
         
-        return self.get_prompt("task_analysis", variables, experiment_name)
+        return self.get_prompt("task_analysis", variables, include_playbook, verbose)
     
-    def get_pokemon_party_prompt(self, task: str, experiment_name: str = None) -> str:
+    def get_pokemon_party_prompt(self, task: str, verbose: bool = False) -> str:
         """Get formatted Pokemon party analysis prompt"""
         variables = {"task": task}
-        return self.get_prompt("pokemon_party_analysis", variables, experiment_name)
+        return self.get_prompt("pokemon_party_analysis", variables, verbose=verbose)
     
-    def get_location_analysis_prompt(self, task: str, experiment_name: str = None) -> str:
+    def get_location_analysis_prompt(self, task: str, include_playbook: str = None, verbose: bool = False) -> str:
         """Get formatted location analysis prompt"""
         variables = {"task": task}
-        return self.get_prompt("location_analysis", variables, experiment_name)
+        return self.get_prompt("location_analysis", variables, include_playbook, verbose)
+        
+    def get_battle_analysis_prompt(self, task: str, verbose: bool = False) -> str:
+        """Get formatted battle analysis prompt"""
+        variables = {"task": task}
+        return self.get_prompt("battle_analysis", variables, "battle", verbose)
     
-    def create_experimental_prompt(
-        self,
-        experiment_name: str,
-        base_prompt_type: str,
-        modifications: Dict[str, Any],
-        description: str = ""
-    ) -> str:
+    def add_playbook_entry(self, playbook_name: str, content: str, append: bool = True):
         """
-        Create an experimental prompt variant
+        Add or update content in a playbook file
         
         Args:
-            experiment_name: Name for the experiment
-            base_prompt_type: Base prompt to modify
-            modifications: Changes to make to the base prompt
-            description: Description of the experiment
-            
-        Returns:
-            Path to created experimental prompt file
+            playbook_name: Name of the playbook (e.g., 'navigation', 'battle')
+            content: Content to add
+            append: Whether to append to existing content or replace it
         """
-        if base_prompt_type not in self.base_prompts:
-            raise ValueError(f"Base prompt type not found: {base_prompt_type}")
+        playbook_file = self.prompts_dir / "playbooks" / f"{playbook_name}.md"
         
-        # Start with base prompt
-        base_prompt = self.base_prompts[base_prompt_type].copy()
-        
-        # Apply modifications
-        experimental_prompt = base_prompt.copy()
-        experimental_prompt.update(modifications)
-        experimental_prompt["experiment_name"] = experiment_name
-        experimental_prompt["base_prompt"] = base_prompt_type
-        experimental_prompt["description"] = description
-        experimental_prompt["created_at"] = datetime.now().isoformat()
-        
-        # Save experimental prompt
-        experiment_file = self.prompts_dir / "experimental" / f"{experiment_name}.yaml"
-        experiment_data = {base_prompt_type: experimental_prompt}
-        
-        with open(experiment_file, 'w') as f:
-            yaml.dump(experiment_data, f, default_flow_style=False)
-        
-        # Reload experimental prompts
-        self.experimental_prompts = self._load_experimental_prompts()
-        
-        return str(experiment_file)
-    
-    def start_ab_test(
-        self,
-        experiment_name: str,
-        prompt_type: str,
-        variant_a: str = "base",
-        variant_b: str = None,
-        traffic_split: float = 0.5
-    ):
-        """
-        Start an A/B test between prompt variants
-        
-        Args:
-            experiment_name: Name of the A/B test
-            prompt_type: Type of prompt to test
-            variant_a: First variant (default: base prompt)
-            variant_b: Second variant (experimental prompt name)
-            traffic_split: Percentage of traffic for variant A (0.0-1.0)
-        """
-        import random
-        
-        self.active_experiments[experiment_name] = {
-            "prompt_type": prompt_type,
-            "variant_a": variant_a,
-            "variant_b": variant_b,
-            "traffic_split": traffic_split,
-            "started_at": datetime.now().isoformat(),
-            "total_requests": 0,
-            "variant_a_requests": 0,
-            "variant_b_requests": 0
-        }
-        
-        print(f"🧪 Started A/B test: {experiment_name}")
-        print(f"   Testing: {variant_a} vs {variant_b}")
-        print(f"   Traffic split: {traffic_split*100:.1f}% / {(1-traffic_split)*100:.1f}%")
-    
-    def get_ab_test_variant(self, experiment_name: str) -> Tuple[str, str]:
-        """
-        Get variant for A/B test
-        
-        Args:
-            experiment_name: Name of active A/B test
-            
-        Returns:
-            Tuple of (variant_name, variant_type)
-        """
-        import random
-        
-        if experiment_name not in self.active_experiments:
-            return "base", "standard"
-        
-        experiment = self.active_experiments[experiment_name]
-        experiment["total_requests"] += 1
-        
-        # Determine which variant to use
-        if random.random() < experiment["traffic_split"]:
-            experiment["variant_a_requests"] += 1
-            return experiment["variant_a"], "variant_a"
+        if append and playbook_file.exists():
+            with open(playbook_file, 'a') as f:
+                f.write(f"\n\n{content}")
         else:
-            experiment["variant_b_requests"] += 1
-            return experiment["variant_b"], "variant_b"
+            with open(playbook_file, 'w') as f:
+                f.write(content)
+        
+        # Reload playbooks
+        self.playbooks = self._load_playbooks()
     
-    def log_prompt_performance(
-        self,
-        prompt_type: str,
-        variant_name: str,
-        task_description: str,
-        success: bool,
-        execution_time: float,
-        quality_score: float = None,
-        metadata: Dict = None
-    ):
+    def get_usage_summary(self) -> str:
         """
-        Log performance metrics for a prompt
+        Get a summary of prompt usage for debugging
         
-        Args:
-            prompt_type: Type of prompt used
-            variant_name: Name of prompt variant
-            task_description: Description of task executed
-            success: Whether task was successful
-            execution_time: Time taken to execute task
-            quality_score: Quality score for the result (0.0-1.0)
-            metadata: Additional metadata
-        """
-        if prompt_type not in self.prompt_metrics:
-            self.prompt_metrics[prompt_type] = []
-        
-        performance_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "variant_name": variant_name,
-            "task_description": task_description,
-            "success": success,
-            "execution_time": execution_time,
-            "quality_score": quality_score,
-            "metadata": metadata or {}
-        }
-        
-        self.prompt_metrics[prompt_type].append(performance_entry)
-        
-        # Save metrics to file
-        with open(self.performance_log, 'w') as f:
-            json.dump(self.prompt_metrics, f, indent=2)
-    
-    def get_performance_report(self, prompt_type: str = None) -> Dict[str, Any]:
-        """
-        Get performance report for prompts
-        
-        Args:
-            prompt_type: Specific prompt type to report on (None for all)
-            
         Returns:
-            Performance report dictionary
+            Formatted usage summary
         """
-        if prompt_type:
-            metrics = {prompt_type: self.prompt_metrics.get(prompt_type, [])}
-        else:
-            metrics = self.prompt_metrics
+        if not self.usage_log:
+            return "No prompt usage recorded"
         
-        report = {
-            "generated_at": datetime.now().isoformat(),
-            "prompt_performance": {}
-        }
+        summary = ["\n📊 Prompt Usage Summary:"]
+        for entry in self.usage_log[-10:]:  # Show last 10 usages
+            time = entry["timestamp"].split("T")[1][:8]  # Extract time
+            summary.append(f"  {time} - {entry['prompt_type']} from {entry['template_source']}")
         
-        for ptype, entries in metrics.items():
-            if not entries:
-                continue
-            
-            # Calculate statistics
-            successes = [e for e in entries if e["success"]]
-            execution_times = [e["execution_time"] for e in entries if e["execution_time"]]
-            quality_scores = [e["quality_score"] for e in entries if e["quality_score"] is not None]
-            
-            # Group by variant
-            variants = {}
-            for entry in entries:
-                variant = entry["variant_name"]
-                if variant not in variants:
-                    variants[variant] = {"total": 0, "successful": 0, "avg_time": 0, "avg_quality": 0}
-                
-                variants[variant]["total"] += 1
-                if entry["success"]:
-                    variants[variant]["successful"] += 1
-                if entry["execution_time"]:
-                    variants[variant]["avg_time"] += entry["execution_time"]
-                if entry["quality_score"]:
-                    variants[variant]["avg_quality"] += entry["quality_score"]
-            
-            # Finalize averages
-            for variant_stats in variants.values():
-                if variant_stats["total"] > 0:
-                    variant_stats["success_rate"] = variant_stats["successful"] / variant_stats["total"]
-                    variant_stats["avg_time"] = variant_stats["avg_time"] / variant_stats["total"]
-                    variant_stats["avg_quality"] = variant_stats["avg_quality"] / variant_stats["total"]
-            
-            report["prompt_performance"][ptype] = {
-                "total_uses": len(entries),
-                "success_rate": len(successes) / len(entries) if entries else 0,
-                "avg_execution_time": statistics.mean(execution_times) if execution_times else 0,
-                "avg_quality_score": statistics.mean(quality_scores) if quality_scores else 0,
-                "variants": variants
-            }
-        
-        return report
+        return "\n".join(summary)
+    
+    def reload_templates(self):
+        """
+        Reload all prompt templates and playbooks from disk
+        Useful for development and testing
+        """
+        self.base_prompts = self._load_base_prompts()
+        self.playbooks = self._load_playbooks()
+        print("🔄 Reloaded all prompt templates and playbooks")
+    
+    
     
     def _format_context_summary(self, game_context: Dict) -> str:
         """Format game context for prompt inclusion"""
@@ -601,7 +442,3 @@ Be specific about moves, types, and strategic recommendations.""",
         
         return "\n".join(context_parts) if context_parts else "No relevant memory context"
     
-    def _log_prompt_usage(self, prompt_type: str, variant_name: str, usage_type: str):
-        """Log prompt usage for analytics"""
-        # This could be expanded to track detailed usage patterns
-        pass

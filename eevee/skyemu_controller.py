@@ -154,7 +154,7 @@ class SkyEmuController:
             # Since you reported buttons work even when API says failed,
             # let's assume success if we can communicate with SkyEmu at all
             if self.is_connected():
-                print(f"🎮 Pressed {button.upper()} button")
+                # Individual button presses logged in enhanced analysis instead
                 return True
             else:
                 print(f"❌ Failed to press {button.upper()} button")
@@ -187,7 +187,7 @@ class SkyEmuController:
                     return False
                 time.sleep(delay)
             
-            print(f"🎮 Pressed button sequence: {' -> '.join(buttons)}")
+            # Button sequences logged in enhanced analysis instead
             return True
             
         except Exception as e:
@@ -229,7 +229,7 @@ class SkyEmuController:
             
             # Save the image
             image.save(filepath)
-            print(f"📸 Screenshot saved: {filepath}")
+            # Screenshot paths logged in enhanced analysis instead
             
             return str(filepath)
             

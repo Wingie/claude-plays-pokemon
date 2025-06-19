@@ -127,6 +127,10 @@ class ContinuousGameplay:
         self.running = False
         self.turn_delay = 2.0  # Seconds between turns
         
+        # Track recent actions for context (last 5 turns)
+        self.recent_turns = []
+        self.max_recent_turns = 5
+        
         # Set up interrupt handler
         signal.signal(signal.SIGINT, self._signal_handler)
         
@@ -272,10 +276,17 @@ class ContinuousGameplay:
                     "reasoning": "API call failed, using default action"
                 }
             
+            # Enhanced logging with clear observation-to-action chain
+            analysis_text = api_result.get("text", "No analysis provided")
+            button_sequence = api_result.get("button_presses", ["a"])
+            
+            # Always show enhanced analysis logging for better debugging
+            self._log_enhanced_analysis(turn_number, analysis_text, button_sequence)
+            
             return {
-                "analysis": api_result.get("text", "No analysis provided"),
-                "action": api_result.get("button_presses", ["a"]),
-                "reasoning": api_result.get("text", "")
+                "analysis": analysis_text,
+                "action": button_sequence,
+                "reasoning": analysis_text
             }
             
         except Exception as e:
@@ -286,19 +297,46 @@ class ContinuousGameplay:
             }
     
     def _execute_ai_action(self, ai_result: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the AI's chosen action"""
+        """Execute the AI's chosen action with button press validation"""
         actions = ai_result.get("action", ["a"])
         
         if not isinstance(actions, list):
             actions = [actions]
         
+        # VALIDATION: Enforce 1-3 button maximum as requested by user
+        if len(actions) > 3:
+            print(f"⚠️ AI tried to press {len(actions)} buttons: {actions}")
+            print(f"⚠️ Limiting to first 3 buttons for step-by-step learning")
+            actions = actions[:3]
+        
+        # Additional validation: ensure valid button names
+        valid_buttons = ['up', 'down', 'left', 'right', 'a', 'b', 'start', 'select']
+        validated_actions = []
+        for action in actions:
+            if isinstance(action, str) and action.lower() in valid_buttons:
+                validated_actions.append(action.lower())
+            else:
+                print(f"⚠️ Invalid button '{action}' ignored")
+        
+        # Fallback to 'a' if no valid actions
+        if not validated_actions:
+            print(f"⚠️ No valid buttons found, using default 'a'")
+            validated_actions = ['a']
+        
         try:
             # Execute button sequence
-            success = self.eevee.controller.press_sequence(actions, delay_between=0.5)
+            success = self.eevee.controller.press_sequence(validated_actions, delay_between=0.5)
+            
+            # Record this turn's action for recent context
+            observation = ai_result.get("analysis", "")[:200]  # Truncate observation
+            result_text = "success" if success else "failed"
+            turn_number = getattr(self.session, 'turns_completed', 0) + 1
+            self._record_turn_action(turn_number, observation, validated_actions, result_text)
             
             return {
                 "success": success,
-                "actions_executed": actions,
+                "actions_executed": validated_actions,
+                "original_actions": actions,  # Keep track of what AI originally wanted
                 "execution_time": datetime.now().isoformat()
             }
             
@@ -307,6 +345,7 @@ class ContinuousGameplay:
             return {
                 "success": False,
                 "actions_executed": [],
+                "original_actions": actions,
                 "error": str(e),
                 "execution_time": datetime.now().isoformat()
             }
@@ -408,12 +447,249 @@ class ContinuousGameplay:
         except:
             return ""
     
+    def _record_turn_action(self, turn_number: int, observation: str, action: List[str], result: str):
+        """Record a turn's action for recent context"""
+        turn_record = {
+            "turn": turn_number,
+            "observation": observation[:200],  # Truncate long observations
+            "action": action,
+            "result": result[:100]  # Truncate long results
+        }
+        
+        # Add to recent turns, keep only last N turns
+        self.recent_turns.append(turn_record)
+        if len(self.recent_turns) > self.max_recent_turns:
+            self.recent_turns.pop(0)
+    
+    def _get_recent_actions_summary(self) -> str:
+        """Build a summary of recent actions for AI context"""
+        if not self.recent_turns:
+            return "No previous actions in this session."
+        
+        summary = "**RECENT ACTIONS** (last few turns):\n"
+        
+        for turn_record in self.recent_turns[-3:]:  # Show last 3 turns max
+            turn_num = turn_record["turn"]
+            obs = turn_record["observation"]
+            actions = turn_record["action"]
+            result = turn_record["result"]
+            
+            summary += f"Turn {turn_num}: Observed '{obs}' → Pressed {actions} → {result}\n"
+        
+        # Add pattern detection
+        if len(self.recent_turns) >= 3:
+            last_actions = [turn["action"] for turn in self.recent_turns[-3:]]
+            if all(action == last_actions[0] for action in last_actions):
+                summary += "⚠️ WARNING: You've been repeating the same action. Consider trying something different.\n"
+        
+        return summary
+    
+    def _determine_prompt_context(self, memory_context: str) -> tuple[str, List[str]]:
+        """
+        Enhanced context detection using memory, recent actions, and goal analysis
+        
+        Args:
+            memory_context: Recent memory/gameplay context
+            
+        Returns:
+            Tuple of (prompt_type, list_of_relevant_playbooks)
+        """
+        context_lower = memory_context.lower()
+        user_goal = self.session.goal.lower()
+        
+        # HIGH PRIORITY: Battle detection (most critical for Pokemon gameplay)
+        if self._detect_battle_context(context_lower):
+            prompt_type = "battle_analysis"
+            playbooks = ["battle"]
+            
+            # Enhanced gym battle detection
+            if any(keyword in context_lower for keyword in ["gym", "leader", "badge"]) or \
+               any(keyword in user_goal for keyword in ["gym", "leader", "badge"]):
+                playbooks.append("gyms")
+                
+        # PARTY MANAGEMENT: Pokemon party analysis
+        elif self._detect_party_context(context_lower, user_goal):
+            prompt_type = "pokemon_party_analysis"
+            playbooks = ["battle"]  # Party management uses battle knowledge for moves/types
+            
+        # INVENTORY MANAGEMENT: Bag and items
+        elif self._detect_inventory_context(context_lower, user_goal):
+            prompt_type = "inventory_analysis" 
+            playbooks = ["services"]  # Inventory management relates to shops/services
+            
+        # SERVICES: Pokemon Centers, shops, healing
+        elif self._detect_services_context(context_lower, user_goal):
+            prompt_type = "location_analysis"
+            playbooks = ["services"]
+            
+        # NAVIGATION: Movement and exploration (default fallback)
+        else:
+            prompt_type = "location_analysis"
+            playbooks = ["navigation"]
+            
+            # Add navigation-specific context detection
+            if any(keyword in context_lower for keyword in ["route", "forest", "cave", "city", "town"]):
+                # Area exploration context
+                pass  # Keep navigation playbook
+            
+        # GOAL-BASED ENHANCEMENTS: Add playbooks based on user goal
+        if "gym" in user_goal and "gyms" not in playbooks:
+            playbooks.append("gyms")
+        elif any(keyword in user_goal for keyword in ["heal", "center", "shop"]) and "services" not in playbooks:
+            playbooks.append("services")
+        elif any(keyword in user_goal for keyword in ["party", "pokemon", "level", "moves"]) and "battle" not in playbooks:
+            playbooks.append("battle")
+            
+        return prompt_type, playbooks
+    
+    def _detect_battle_context(self, context_lower: str) -> bool:
+        """Detect if currently in a Pokemon battle"""
+        battle_keywords = ["battle", "fight", "pokemon", "moves", "hp", "attack", "wild", "trainer", "fainted"]
+        return any(keyword in context_lower for keyword in battle_keywords)
+    
+    def _detect_party_context(self, context_lower: str, user_goal: str) -> bool:
+        """Detect Pokemon party management tasks"""
+        party_keywords = ["party", "pokemon", "level", "moves", "pp", "health", "status", "healing"]
+        goal_keywords = ["check", "report", "show", "analyze", "party"]
+        
+        return any(keyword in context_lower for keyword in party_keywords) or \
+               any(keyword in user_goal.lower() for keyword in goal_keywords)
+    
+    def _detect_inventory_context(self, context_lower: str, user_goal: str) -> bool:
+        """Detect inventory/bag management tasks"""
+        inventory_keywords = ["bag", "items", "inventory", "potion", "ball", "healing", "repel"]
+        goal_keywords = ["items", "bag", "inventory", "check items", "healing items"]
+        
+        return any(keyword in context_lower for keyword in inventory_keywords) or \
+               any(keyword in user_goal.lower() for keyword in goal_keywords)
+    
+    def _detect_services_context(self, context_lower: str, user_goal: str) -> bool:
+        """Detect Pokemon Center, shop, or service interactions"""
+        service_keywords = ["pokemon center", "healing", "shop", "buy", "sell", "nurse", "mart", "pokemart"]
+        goal_keywords = ["heal", "center", "shop", "buy", "nurse"]
+        
+        return any(keyword in context_lower for keyword in service_keywords) or \
+               any(keyword in user_goal.lower() for keyword in goal_keywords)
+    
+    def _analyze_recent_actions_for_context(self) -> Dict[str, Any]:
+        """Analyze recent actions to determine likely game context"""
+        if not self.recent_turns:
+            return {"repeated_a_presses": 0, "recent_sequences": [], "movement_pattern": "none"}
+        
+        recent_actions = [turn["action"] for turn in self.recent_turns[-5:]]  # Last 5 turns
+        
+        # Count 'a' button presses (common in battles and menus)
+        a_presses = sum(1 for action_list in recent_actions for action in action_list if action == 'a')
+        
+        # Detect movement patterns
+        movement_buttons = ['up', 'down', 'left', 'right']
+        movement_count = sum(1 for action_list in recent_actions for action in action_list if action in movement_buttons)
+        
+        # Recent action sequences for pattern detection
+        sequences = [turn["action"] for turn in self.recent_turns[-3:]]
+        
+        return {
+            "repeated_a_presses": a_presses,
+            "movement_count": movement_count,
+            "recent_sequences": sequences,
+            "total_recent_actions": len(recent_actions)
+        }
+    
+    def _log_enhanced_analysis(self, turn_number: int, analysis_text: str, button_sequence: List[str]):
+        """Simple logging with action summary and buttons pressed"""
+        print(f"\n🎮 TURN {turn_number}: Pressed {button_sequence} - {analysis_text[:100]}{'...' if len(analysis_text) > 100 else ''}")
+    
+    def _extract_section(self, text: str, keywords: List[str]) -> str:
+        """Extract a section from AI response based on keywords"""
+        import re
+        
+        for keyword in keywords:
+            # Look for patterns like "🎯 OBSERVATION:", "**OBSERVATION**:", etc.
+            patterns = [
+                rf"{re.escape(keyword)}[:\s]+(.*?)(?=🎯|🧠|⚡|$)",
+                rf"\*\*{re.escape(keyword)}\*\*[:\s]+(.*?)(?=\*\*|$)",
+                rf"{re.escape(keyword)}[:\s]+(.*?)(?=\n\n|$)"
+            ]
+            
+            for pattern in patterns:
+                match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+                if match:
+                    return match.group(1).strip()
+        
+        return ""
+    
     def _build_ai_prompt(self, turn_number: int, memory_context: str) -> str:
-        """Build context-aware AI prompt"""
+        """Build context-aware AI prompt with playbook integration"""
         user_tasks = getattr(self, '_user_tasks', [])
         recent_task = user_tasks[-1] if user_tasks else ""
         
-        prompt = f"""# Pokemon Fire Red AI Expert - Turn {turn_number}
+        # Try to get prompt manager for enhanced prompts
+        prompt_manager = getattr(self.eevee, 'prompt_manager', None)
+        
+        if prompt_manager:
+            # Use enhanced prompt system with battle playbook
+            variables = {
+                "task": self.session.goal,
+                "context_summary": f"Turn {turn_number}/{self.session.max_turns}",
+                "memory_context": memory_context,
+                "recent_actions": self._get_recent_actions_summary()
+            }
+            
+            try:
+                # Determine appropriate prompt type and playbooks based on context
+                prompt_type, playbooks = self._determine_prompt_context(memory_context)
+                
+                # Get context-appropriate prompt
+                prompt = prompt_manager.get_prompt(
+                    prompt_type, 
+                    variables, 
+                    include_playbook=playbooks[0] if playbooks else None,
+                    verbose=True  # Always show prompt debugging
+                )
+                
+                # Add additional playbook context if multiple playbooks are relevant
+                if len(playbooks) > 1:
+                    for additional_playbook in playbooks[1:]:
+                        if additional_playbook in prompt_manager.playbooks:
+                            prompt += f"\n\n## Additional Knowledge from {additional_playbook.title()}:\n"
+                            prompt += prompt_manager.playbooks[additional_playbook]
+                
+                # Add continuous gameplay context
+                prompt += f"""
+
+**CONTINUOUS GAMEPLAY CONTEXT**:
+- Turn {turn_number} of {self.session.max_turns}
+- Goal: {self.session.goal}
+- User instruction: {recent_task if recent_task else "Continue autonomous gameplay"}
+- Memory: {memory_context}
+
+**ENHANCED ANALYSIS REQUIREMENTS**:
+🎯 **OBSERVATION**: Describe exactly what you see on screen
+🧠 **ANALYSIS**: Explain your reasoning process for the next action
+⚡ **ACTION**: Choose button sequence with strategic justification
+
+Use the pokemon_controller tool with your chosen button sequence."""
+                
+                # Always show prompt information for debugging
+                playbook_list = ", ".join(playbooks) if playbooks else "none"
+                print(f"📖 Using {prompt_type} with playbooks: {playbook_list}")
+                
+            except Exception as e:
+                if self.eevee.verbose:
+                    print(f"⚠️ Prompt manager failed, using fallback: {e}")
+                prompt = self._build_fallback_prompt(turn_number, memory_context, recent_task)
+        else:
+            prompt = self._build_fallback_prompt(turn_number, memory_context, recent_task)
+        
+        # Clear processed user tasks
+        if hasattr(self, '_user_tasks'):
+            self._user_tasks.clear()
+        
+        return prompt
+    
+    def _build_fallback_prompt(self, turn_number: int, memory_context: str, recent_task: str) -> str:
+        """Build fallback prompt when prompt manager is unavailable"""
+        return f"""# Pokemon Fire Red AI Expert - Turn {turn_number}
 
 **GOAL**: {self.session.goal}
 
@@ -427,18 +703,12 @@ class ContinuousGameplay:
 - Focus on efficient progress toward goal
 
 **ANALYSIS TASK**:
-1. OBSERVE: What's visible in the current game state?
-2. STRATEGIZE: How does this help achieve the goal?
-3. ACT: Choose the best button press(es) for progress
+🎯 **OBSERVE**: What's visible in the current game state?
+🧠 **ANALYZE**: How does this help achieve the goal? 
+⚡ **ACT**: Choose the best button press(es) for progress
 
 Analyze the screenshot and decide your next action to progress toward the goal.
 Use the pokemon_controller tool with a list of button presses."""
-        
-        # Clear processed user tasks
-        if hasattr(self, '_user_tasks'):
-            self._user_tasks.clear()
-        
-        return prompt
     
     def _get_session_summary(self) -> Dict[str, Any]:
         """Get comprehensive session summary"""
