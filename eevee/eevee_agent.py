@@ -1100,71 +1100,7 @@ Analyze the grid and provide safe navigation guidance."""
                 "method": "basic_analysis"
             }
     
-    def _capture_current_context(self) -> Dict[str, Any]:
-        """Capture current game state and context"""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        try:
-            if CONTROLLER_TYPE == "skyemu":
-                # Use SkyEmu screenshot method
-                screenshot_file = self.controller.capture_screen(f"eevee_context_{timestamp}.png")
-                
-                if screenshot_file:
-                    # Get image data directly from SkyEmu
-                    image_data = self.controller.get_screenshot_base64()
-                    
-                    context = {
-                        "timestamp": timestamp,
-                        "screenshot_path": screenshot_file,
-                        "screenshot_data": image_data,
-                        "window_found": self.controller.is_connected(),
-                        "controller_type": "skyemu"
-                    }
-                    
-                    # Add overworld detection if we have screenshot data
-                    if image_data:
-                        context["overworld_analysis"] = self._detect_overworld_context(image_data)
-                    
-                    return context
-                else:
-                    raise Exception("Failed to capture SkyEmu screenshot")
-            else:
-                # Use standard controller screenshot method
-                screenshot_file = self.controller.capture_screen(f"eevee_context_{timestamp}.jpg")
-                
-                # Move to analysis directory
-                analysis_screenshot = self.analysis_dir / f"context_{timestamp}.jpg"
-                os.rename(screenshot_file, analysis_screenshot)
-                
-                # Read image data
-                image_data = read_image_to_base64(analysis_screenshot)
-                
-                context = {
-                    "timestamp": timestamp,
-                    "screenshot_path": str(analysis_screenshot),
-                    "screenshot_data": image_data,
-                    "window_found": self.controller.find_window() is not None,
-                    "controller_type": "pokemon"
-                }
-                
-                # Add overworld detection if we have screenshot data
-                if image_data:
-                    context["overworld_analysis"] = self._detect_overworld_context(image_data)
-                
-                return context
-            
-        except Exception as e:
-            if self.debug:
-                print(f"⚠️  Failed to capture context: {e}")
-            
-            return {
-                "timestamp": timestamp,
-                "screenshot_path": None,
-                "screenshot_data": None,
-                "window_found": False,
-                "controller_type": CONTROLLER_TYPE,
-                "error": str(e)
-            }
+    # Note: Enhanced _capture_current_context method is implemented below
     
     def _get_memory_context(self, task_description: str) -> Dict[str, Any]:
         """Get relevant memory context for the task"""
@@ -1386,7 +1322,44 @@ Format your response with clear sections addressing the task requirements."""
 ✅ **USE OPEN PATHS:** Move towards grass (.) and paths (-) only
 🎯 **FOLLOW GRID:** Use the ASCII grid above to see exactly where obstacles are"""
 
-                ai_prompt = f"""# Pokemon Expert Agent - Continuous Gameplay
+                # Step 3.5: Build enhanced prompt with landmark and coordinate data
+                landmark_context = ""
+                coordinate_context = ""
+                
+                # Include landmark detection results
+                landmarks = game_context.get("landmarks", {})
+                if landmarks.get("detected"):
+                    landmark_details = landmarks.get("landmark_details", {})
+                    navigation_advice = landmarks.get("navigation_advice", "")
+                    
+                    landmark_context = f"""
+**🏛️ VISUAL LANDMARKS DETECTED:**
+- **Landmarks found:** {', '.join(landmarks['detected'])}
+- **Game state:** {landmarks.get('likely_overworld', False) and 'Overworld' or landmarks.get('likely_battle', False) and 'Battle' or landmarks.get('likely_menu', False) and 'Menu' or 'Unknown'}
+- **Detection confidence:** {landmarks.get('confidence_score', 0.5):.1f}/1.0
+{chr(10).join([f'- **{landmark}:** {detail}' for landmark, detail in landmark_details.items()])}
+{f'- **AI Navigation advice:** {navigation_advice}' if navigation_advice else ''}
+
+**🗺️ LANDMARK NAVIGATION STRATEGY:**
+✅ **If Pokemon Center detected:** Consider healing if Pokemon health is low
+✅ **If Viridian Forest detected:** Good for training and catching Pokemon  
+✅ **If Route signs detected:** Use for navigation between areas
+⚠️ **Follow landmark guidance** for efficient navigation between key locations"""
+                
+                # Include coordinate debug data when available
+                coord_data = game_context.get("coordinate_debug", {})
+                if coord_data.get("valid"):
+                    coordinate_context = f"""
+**🎯 COORDINATE DEBUG DATA:**
+- **Position:** ({coord_data.get('x')}, {coord_data.get('y')})
+- **Method:** {coord_data.get('method', 'unknown')}
+- **Status:** ✅ Valid coordinate reading
+- **Debug note:** Use for position validation, not primary navigation"""
+                elif coord_data.get("error"):
+                    coordinate_context = f"""
+**🔧 COORDINATE DEBUG:** ❌ {coord_data.get('error')} (Visual navigation only)"""
+
+                ai_prompt = f"""# Enhanced Pokemon Expert Agent - Continuous Gameplay
 
 **CURRENT GOAL:** {goal}
 
@@ -1395,6 +1368,8 @@ Format your response with clear sections addressing the task requirements."""
 
 **BATTLE EXPERIENCE:**
 {battle_memory}
+{landmark_context}
+{coordinate_context}
 {overworld_context}
 
 **CRITICAL BATTLE NAVIGATION RULES:**
@@ -1694,8 +1669,6 @@ Keep it concise but informative."""
                 opponent = battle_context["opponent"]
                 outcome = battle_context.get("battle_outcome", "ongoing")
                 
-                effectiveness_note = f"Used {move} vs {opponent}. Buttons: {button_presses}. Outcome: {outcome}"
-                
                 # Determine effectiveness based on context
                 effectiveness = "unknown"
                 if "super effective" in ai_analysis.lower():
@@ -1726,3 +1699,275 @@ Keep it concise but informative."""
         except Exception as e:
             if self.debug:
                 print(f"⚠️ Failed to store battle learning: {e}")
+    
+    # Enhanced Navigation Methods with Coordinate Debugging
+    
+    def _capture_current_context(self) -> Dict[str, Any]:
+        """
+        Enhanced context capture with visual landmark detection and optional coordinate debugging
+        
+        Returns:
+            Dict containing screenshot data, visual analysis, and optional coordinate information
+        """
+        try:
+            # Step 1: Capture screenshot (existing functionality)
+            screenshot_path = self.controller.capture_screen()
+            if not screenshot_path:
+                return {
+                    "error": "Failed to capture screenshot",
+                    "window_found": False,
+                    "timestamp": datetime.now().isoformat()
+                }
+            
+            # Step 2: Read screenshot data for AI analysis
+            screenshot_data = read_image_to_base64(screenshot_path)
+            if not screenshot_data:
+                return {
+                    "error": "Failed to read screenshot data", 
+                    "window_found": True,
+                    "timestamp": datetime.now().isoformat()
+                }
+            
+            # Step 3: Enhanced visual landmark detection
+            landmarks = self._detect_visual_landmarks(screenshot_data)
+            
+            # Step 4: Enhanced overworld analysis if applicable
+            overworld_analysis = None
+            if landmarks.get("likely_overworld", False):
+                try:
+                    overworld_analysis = self._detect_overworld_context(screenshot_data)
+                except Exception as e:
+                    if self.debug:
+                        print(f"⚠️ Overworld analysis failed: {e}")
+                    overworld_analysis = {"error": str(e), "is_overworld": False}
+            
+            # Step 5: Optional coordinate debugging (if SkyEmu available)
+            coordinate_data = self._try_read_coordinates()
+            
+            # Step 6: Build comprehensive context
+            game_context = {
+                "screenshot_path": str(screenshot_path),
+                "screenshot_data": screenshot_data, 
+                "window_found": True,
+                "timestamp": datetime.now().isoformat(),
+                "landmarks": landmarks,
+                "overworld_analysis": overworld_analysis,
+                "coordinate_debug": coordinate_data,
+                "visual_confidence": landmarks.get("confidence_score", 0.5)
+            }
+            
+            if self.verbose:
+                print(f"📸 Context captured: {len(landmarks.get('detected', []))} landmarks, coords: {'✅' if coordinate_data.get('valid') else '❌'}")
+            
+            return game_context
+            
+        except Exception as e:
+            if self.debug:
+                print(f"❌ Context capture failed: {e}")
+            return {
+                "error": str(e),
+                "window_found": False,
+                "timestamp": datetime.now().isoformat()
+            }
+    
+    def _detect_visual_landmarks(self, screenshot_data: str) -> Dict[str, Any]:
+        """
+        Enhanced visual landmark detection for Pokemon navigation
+        
+        Args:
+            screenshot_data: Base64 encoded screenshot
+            
+        Returns:
+            Dict with detected landmarks and confidence scores
+        """
+        landmarks = {
+            "detected": [],
+            "confidence_score": 0.5,
+            "likely_overworld": False,
+            "likely_battle": False,
+            "likely_menu": False
+        }
+        
+        try:
+            # Use Gemini API to detect specific landmarks
+            landmark_prompt = """# Pokemon Visual Landmark Detection Expert
+
+Analyze this Pokemon screenshot to identify key landmarks and game state.
+
+**LANDMARK DETECTION TASKS:**
+1. **Pokemon Center** - Look for red roof buildings, "POKEMON CENTER" signs, or distinctive healing building architecture
+2. **Viridian Forest** - Look for dense forest areas, tree patterns, or "VIRIDIAN FOREST" text
+3. **Route Signs** - Look for numbered route signs (Route 1, Route 2, etc.)
+4. **Town Entrances** - Look for building clusters, town name signs
+5. **Battle Screens** - Look for Pokemon battle interface, HP bars, move selections
+6. **Menu Screens** - Look for game menus, item lists, Pokemon party screens
+
+**GAME STATE DETECTION:**
+- **Overworld**: Walking around the game world, seeing grass/trees/buildings
+- **Battle**: Pokemon battle in progress with HP bars and moves
+- **Menu**: Game menus, inventory, Pokemon status screens
+- **Indoor**: Inside buildings like Pokemon Centers
+
+**RESPONSE FORMAT:**
+```json
+{
+    "detected_landmarks": ["pokemon_center", "route_sign", "viridian_forest"],
+    "game_state": "overworld/battle/menu/indoor",
+    "confidence": 0.8,
+    "landmark_details": {
+        "pokemon_center": "Red roof building visible in upper area",
+        "route_sign": "Route 1 sign visible on right side"
+    },
+    "navigation_advice": "Brief guidance based on landmarks detected"
+}
+```
+
+Focus on identifying specific, actionable landmarks that can help with navigation."""
+
+            # Call Gemini API for landmark detection
+            result = self._call_gemini_api(
+                prompt=landmark_prompt,
+                image_data=screenshot_data,
+                use_tools=False,
+                max_tokens=400
+            )
+            
+            if result.get("error"):
+                landmarks["error"] = result["error"]
+                return landmarks
+            
+            # Parse landmark response
+            text_response = result.get("text", "")
+            
+            # Try to extract JSON response
+            json_match = re.search(r'```json\s*(\{.*?\})\s*```', text_response, re.DOTALL)
+            if json_match:
+                try:
+                    landmark_data = json.loads(json_match.group(1))
+                    landmarks["detected"] = landmark_data.get("detected_landmarks", [])
+                    landmarks["confidence_score"] = landmark_data.get("confidence", 0.5)
+                    landmarks["landmark_details"] = landmark_data.get("landmark_details", {})
+                    landmarks["navigation_advice"] = landmark_data.get("navigation_advice", "")
+                    
+                    # Set game state flags
+                    game_state = landmark_data.get("game_state", "unknown")
+                    landmarks["likely_overworld"] = game_state == "overworld"
+                    landmarks["likely_battle"] = game_state == "battle"
+                    landmarks["likely_menu"] = game_state == "menu"
+                    
+                except json.JSONDecodeError:
+                    # Fallback to text parsing
+                    landmarks = self._parse_landmark_text(text_response)
+            else:
+                # Fallback to text parsing
+                landmarks = self._parse_landmark_text(text_response)
+            
+            return landmarks
+            
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ Landmark detection failed: {e}")
+            landmarks["error"] = str(e)
+            return landmarks
+    
+    def _parse_landmark_text(self, text: str) -> Dict[str, Any]:
+        """Parse landmark information from text when JSON parsing fails"""
+        landmarks = {
+            "detected": [],
+            "confidence_score": 0.3,  # Lower confidence for text parsing
+            "likely_overworld": False,
+            "likely_battle": False,
+            "likely_menu": False,
+            "landmark_details": {}
+        }
+        
+        text_lower = text.lower()
+        
+        # Detect common landmarks
+        landmark_keywords = {
+            "pokemon_center": ["pokemon center", "healing", "red roof", "nurse joy"],
+            "viridian_forest": ["viridian forest", "forest", "dense trees"],
+            "route_sign": ["route", "sign", "path"],
+            "town": ["town", "city", "pallet", "viridian"],
+            "battle": ["battle", "hp", "moves", "pokemon vs"],
+            "menu": ["menu", "bag", "pokemon", "save"]
+        }
+        
+        for landmark, keywords in landmark_keywords.items():
+            if any(keyword in text_lower for keyword in keywords):
+                landmarks["detected"].append(landmark)
+                landmarks["landmark_details"][landmark] = f"Detected via text analysis"
+        
+        # Determine game state
+        if any(keyword in text_lower for keyword in ["grass", "tree", "overworld", "walking"]):
+            landmarks["likely_overworld"] = True
+        elif any(keyword in text_lower for keyword in ["battle", "hp", "attack"]):
+            landmarks["likely_battle"] = True  
+        elif any(keyword in text_lower for keyword in ["menu", "bag", "items"]):
+            landmarks["likely_menu"] = True
+        
+        return landmarks
+    
+    def _try_read_coordinates(self) -> Dict[str, Any]:
+        """
+        Optional coordinate reading for debugging using existing SkyEmu infrastructure
+        Never rely on this alone - always fallback gracefully
+        
+        Returns:
+            Dict with coordinate information or error details
+        """
+        coordinate_data = {
+            "valid": False,
+            "x": None,
+            "y": None,
+            "method": "none",
+            "error": None
+        }
+        
+        # Only attempt if we have SkyEmu controller
+        if CONTROLLER_TYPE != "skyemu" or not hasattr(self.controller, 'skyemu'):
+            coordinate_data["error"] = "SkyEmu controller not available"
+            return coordinate_data
+        
+        try:
+            # Import the coordinate reader from our existing infrastructure
+            import sys
+            from pathlib import Path
+            sys.path.append(str(Path(__file__).parent.parent / "gemini-multimodal-playground" / "standalone"))
+            from analyse_skyemu_ram import SkyEmuClient
+            
+            # Try to read Fire Red coordinates using the existing method
+            client = SkyEmuClient(debug=self.debug)
+            
+            # Read coordinates via Fire Red SaveBlock8 pointer
+            x_data = client.read_bytes_via_pointer(0x3005008, offset=0x0000, length=2)
+            y_data = client.read_bytes_via_pointer(0x3005008, offset=0x0002, length=2)
+            
+            if x_data and y_data and len(x_data) == 2 and len(y_data) == 2:
+                # Convert little-endian bytes to coordinates
+                x_coord = int.from_bytes(x_data, byteorder='little')
+                y_coord = int.from_bytes(y_data, byteorder='little')
+                
+                # Basic validation - coordinates should be reasonable
+                if 0 <= x_coord <= 65535 and 0 <= y_coord <= 65535:
+                    coordinate_data.update({
+                        "valid": True,
+                        "x": x_coord,
+                        "y": y_coord,
+                        "method": "fire_red_saveblock8",
+                        "debug_info": f"Read from SaveBlock8 pointer at 0x3005008"
+                    })
+                    
+                    if self.debug:
+                        print(f"🎯 Coordinates: ({x_coord}, {y_coord})")
+                else:
+                    coordinate_data["error"] = f"Invalid coordinates: ({x_coord}, {y_coord})"
+            else:
+                coordinate_data["error"] = "Failed to read coordinate bytes via pointer"
+        
+        except Exception as e:
+            coordinate_data["error"] = f"Coordinate reading failed: {str(e)}"
+            if self.debug:
+                print(f"🔧 Coordinate debug failed: {e}")
+        
+        return coordinate_data
