@@ -1,3 +1,0 @@
-[project]
-name = "skyemu-mcp"
-description = "MCP server for controlling SkyEmu through Model Context Protocol"
