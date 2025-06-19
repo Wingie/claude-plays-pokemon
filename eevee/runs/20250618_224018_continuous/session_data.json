@@ -1,8 +1,0 @@
-{
-  "goal": "find and win pokemon battles",
-  "total_turns": 0,
-  "max_turns": 50,
-  "session_duration": 0,
-  "gameplay_history": [],
-  "final_status": "interrupted"
-}
