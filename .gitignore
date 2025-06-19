@@ -1,6 +1,7 @@
 .env
 .sav
 .gba
+.serena/
 .zip
 screenshots/
 __pycache__/
