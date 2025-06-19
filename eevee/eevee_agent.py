@@ -9,6 +9,9 @@ import time
 import json
 import base64
 import threading
+import numpy as np
+import cv2
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
@@ -327,6 +330,426 @@ class EeveeAgent:
             if self.verbose:
                 print(f"🔴 Circuit breaker opened after {self.api_failure_count} failures")
                 print(f"   API calls suspended for {self.circuit_breaker_reset_time//60} minutes")
+    
+    def _detect_overworld_context(self, image_data: str) -> Dict[str, Any]:
+        """
+        Use Gemini API to detect overworld context and navigation opportunities
+        
+        Args:
+            image_data: Base64 encoded screenshot
+            
+        Returns:
+            Dict with overworld analysis including obstacles, exits, and navigation advice
+        """
+        # First, create an ASCII grid overlay to help Gemini understand the layout
+        try:
+            ascii_overlay = self._create_ascii_grid_overlay(image_data)
+        except Exception as e:
+            if self.verbose:
+                print(f"⚠️ ASCII overlay creation failed: {e}")
+            ascii_overlay = "ASCII overlay not available"
+
+        overworld_prompt = f"""# Pokemon Overworld Navigation Expert
+
+You are analyzing a Pokemon overworld screenshot with an ASCII grid overlay to help with navigation.
+
+**ASCII GRID OVERLAY (8x8 map of current screen):**
+```
+{ascii_overlay}
+```
+
+**GRID LEGEND:**
+- P = Player position (where you are now)
+- . = Grass/walkable area 
+- - = Path/road (walkable)
+- T = Tree (BLOCKED - cannot walk through)
+- B = Building (BLOCKED)
+- # = Wall (BLOCKED)
+- ~ = Water (BLOCKED)
+
+**NAVIGATION TASK:**
+Based on the ASCII grid above, determine the safest movement direction to avoid obstacles.
+
+**RESPONSE FORMAT:**
+```json
+{{
+    "is_overworld": true/false,
+    "player_position": "center/top/bottom/left/right",
+    "ascii_analysis": "Brief description of what you see in the grid",
+    "blocked_directions": ["up", "down", "left", "right"],
+    "clear_directions": ["up", "down", "left", "right"],
+    "recommended_movement": "up/down/left/right",
+    "obstacle_warning": "What specific obstacles to avoid",
+    "navigation_notes": "Smart movement advice based on the grid"
+}}
+```
+
+**CRITICAL:** Look at the ASCII grid to see where trees (T) and obstacles are positioned relative to the player (P). Recommend movement towards open areas (.) or paths (-), NOT towards trees (T) or walls (#).
+
+Analyze the grid and provide safe navigation guidance."""
+
+        try:
+            # Use Gemini API for overworld detection
+            result = self._call_gemini_api(
+                prompt=overworld_prompt,
+                image_data=image_data,
+                use_tools=False,
+                max_tokens=500
+            )
+            
+            if result.get("error"):
+                return {"error": result["error"], "is_overworld": False}
+            
+            # Try to parse JSON response
+            text_response = result.get("text", "")
+            
+            # Extract JSON from response
+            json_match = re.search(r'```json\s*(\{.*?\})\s*```', text_response, re.DOTALL)
+            if json_match:
+                try:
+                    overworld_data = json.loads(json_match.group(1))
+                    overworld_data["raw_analysis"] = text_response
+                    return overworld_data
+                except json.JSONDecodeError:
+                    pass
+            
+            # Fallback: Parse key information from text
+            return self._parse_overworld_text_response(text_response)
+            
+        except Exception as e:
+            if self.verbose:
+                print(f"⚠️ Overworld detection failed: {e}")
+            return {"error": str(e), "is_overworld": False}
+    
+    def _parse_overworld_text_response(self, text: str) -> Dict[str, Any]:
+        """
+        Parse overworld analysis from text response when JSON parsing fails
+        
+        Args:
+            text: AI response text
+            
+        Returns:
+            Parsed overworld analysis
+        """
+        analysis = {
+            "is_overworld": True,
+            "player_position": "unknown",
+            "obstacles_nearby": [],
+            "clear_directions": [],
+            "blocked_directions": [],
+            "recommended_movement": "stay",
+            "exit_points": [],
+            "navigation_notes": text,
+            "raw_analysis": text
+        }
+        
+        text_lower = text.lower()
+        
+        # Detect if this looks like overworld
+        overworld_keywords = ["grass", "tree", "overworld", "route", "path", "road"]
+        if any(keyword in text_lower for keyword in overworld_keywords):
+            analysis["is_overworld"] = True
+        
+        # Extract direction information
+        directions = ["up", "down", "left", "right", "north", "south", "east", "west"]
+        for direction in directions:
+            if f"blocked {direction}" in text_lower or f"{direction} blocked" in text_lower:
+                analysis["blocked_directions"].append(direction)
+            elif f"clear {direction}" in text_lower or f"{direction} clear" in text_lower:
+                analysis["clear_directions"].append(direction)
+        
+        # Extract obstacles
+        obstacles = ["tree", "building", "wall", "rock", "water"]
+        for obstacle in obstacles:
+            if obstacle in text_lower:
+                analysis["obstacles_nearby"].append(obstacle)
+        
+        # Extract recommended movement
+        movement_patterns = [
+            r"move\s+(up|down|left|right|north|south|east|west)",
+            r"go\s+(up|down|left|right|north|south|east|west)",
+            r"recommended?\s+(up|down|left|right|north|south|east|west)"
+        ]
+        
+        for pattern in movement_patterns:
+            match = re.search(pattern, text_lower)
+            if match:
+                analysis["recommended_movement"] = match.group(1)
+                break
+        
+        return analysis
+    
+    def _create_ascii_grid_overlay(self, image_data: str) -> str:
+        """
+        Create an 8x8 ASCII grid overlay from the screenshot to help with navigation
+        
+        Args:
+            image_data: Base64 encoded screenshot
+            
+        Returns:
+            ASCII grid string with walkability and obstacle information
+        """
+        try:
+            from PIL import Image
+            from io import BytesIO
+            
+            # Decode base64 image
+            image_bytes = base64.b64decode(image_data)
+            img = Image.open(BytesIO(image_bytes))
+            img = img.convert('RGB')
+            
+            # Define grid size (8x8 for Pokemon's tile-based system)
+            GRID_SIZE = 8
+            
+            # Calculate tile dimensions
+            width, height = img.size
+            tile_width = width // GRID_SIZE
+            tile_height = height // GRID_SIZE
+            
+            # Initialize ASCII map
+            ascii_map = []
+            
+            # Process each tile in the grid
+            for y in range(GRID_SIZE):
+                row = ""
+                
+                for x in range(GRID_SIZE):
+                    # Get tile region
+                    start_x = x * tile_width
+                    start_y = y * tile_height
+                    end_x = start_x + tile_width
+                    end_y = start_y + tile_height
+                    
+                    tile = img.crop((start_x, start_y, end_x, end_y))
+                    tile_array = np.array(tile)
+                    
+                    # Classify the tile using HSV analysis
+                    char = self._classify_tile_for_navigation(tile_array, (y, x))
+                    
+                    # Mark player position at center
+                    if x == GRID_SIZE // 2 and y == GRID_SIZE // 2:
+                        char = "P"
+                    
+                    # Check if this area has been visited before
+                    elif self._is_area_visited(x, y):
+                        if char == ".":  # Only mark walkable areas as visited
+                            char = "*"  # Visited walkable area
+                    
+                    row += char
+                
+                ascii_map.append(row)
+            
+            # Format the output with coordinates
+            output = "  " + "".join([f"{i}" for i in range(GRID_SIZE)]) + "\n"
+            
+            for y, row in enumerate(ascii_map):
+                output += f"{y} {row}\n"
+            
+            return output
+            
+        except Exception as e:
+            if self.verbose:
+                print(f"⚠️ ASCII grid overlay creation failed: {e}")
+            return "ASCII grid creation failed"
+    
+    def _classify_tile_for_navigation(self, tile_array: np.ndarray, position: tuple) -> str:
+        """
+        Classify a tile for navigation purposes using HSV color analysis
+        
+        Args:
+            tile_array: Numpy array of the tile image
+            position: Tuple of (y, x) coordinates for the tile
+            
+        Returns:
+            Single character representing the tile type
+        """
+        if tile_array.size == 0:
+            return "."  # Default for empty tile
+        
+        y, x = position
+        
+        # Convert RGB to BGR (OpenCV format) then to HSV
+        tile_bgr = cv2.cvtColor(tile_array, cv2.COLOR_RGB2BGR)
+        tile_hsv = cv2.cvtColor(tile_bgr, cv2.COLOR_BGR2HSV)
+        
+        # Calculate average HSV color
+        avg_hsv = np.mean(tile_hsv, axis=(0, 1))
+        h, s, v = avg_hsv.astype(int)
+        
+        # Trees (dark green) - BLOCKED
+        if 44 <= h <= 48 and s > 175 and 125 <= v <= 160:
+            return "T"
+            
+        # Paths (light yellow/tan) - WALKABLE
+        elif 30 <= h <= 32 and 125 <= s <= 145 and v > 200:
+            return "-"
+            
+        # Water (blue) - BLOCKED
+        elif 90 < h < 130 and s > 50:
+            return "~"
+            
+        # Walls/buildings (dark gray/black) - BLOCKED
+        elif s < 40 and v < 100:
+            return "#"
+            
+        # Buildings/structures (usually gray/red) - BLOCKED
+        elif (0 <= h < 20 or 160 < h <= 179) and s > 50 and v > 80:
+            return "B"
+        
+        # Grass (various greens) - WALKABLE (with some exceptions)
+        elif 40 <= h <= 52 and v > 150:
+            # Most grass is walkable, but some edge cases
+            if 3 <= y <= 4:  # Middle rows are almost always walkable
+                return "."
+            elif s < 160:  # Lower saturation generally means walkable
+                return "."
+            else:
+                # Handle special cases for dense foliage
+                return "."  # Default to walkable for most grass
+        
+        # Default - assume walkable grass
+        else:
+            return "."
+    
+    def _is_area_visited(self, x: int, y: int) -> bool:
+        """
+        Check if a grid area has been visited before using memory system
+        
+        Args:
+            x, y: Grid coordinates to check
+            
+        Returns:
+            True if area has been visited before
+        """
+        if not self.memory:
+            return False
+            
+        try:
+            # Create a location key for this grid position
+            location_key = f"grid_{x}_{y}"
+            
+            # Query memory for this location
+            memory_result = self.memory.get_relevant_context(f"visited {location_key}")
+            
+            # Check if we have any memory of visiting this location
+            return len(memory_result.get("relevant_memories", [])) > 0
+            
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ Error checking visited area: {e}")
+            return False
+    
+    def _record_area_visit(self, x: int, y: int, context: str = ""):
+        """
+        Record that we've visited a specific grid area
+        
+        Args:
+            x, y: Grid coordinates
+            context: Additional context about the visit
+        """
+        if not self.memory:
+            return
+            
+        try:
+            location_key = f"grid_{x}_{y}"
+            visit_memory = f"Visited location {location_key} - {context}"
+            
+            # Store the visit in memory
+            self.memory.store_observation(
+                observation=visit_memory,
+                importance=0.3,  # Low importance for basic movement
+                context={"type": "navigation", "grid_x": x, "grid_y": y}
+            )
+            
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ Error recording area visit: {e}")
+    
+    def _record_overworld_movement(self, button_presses: List[str], game_context: Dict[str, Any], ai_analysis: str, turn: int):
+        """
+        Record area visits when AI moves in the overworld
+        
+        Args:
+            button_presses: List of button presses executed by AI
+            game_context: Current game context including overworld analysis
+            ai_analysis: AI's analysis of the current situation
+            turn: Current turn number
+        """
+        if not button_presses or not self.memory:
+            return
+        
+        try:
+            # Check if this is overworld movement
+            overworld_analysis = game_context.get("overworld_analysis", {})
+            is_overworld = overworld_analysis.get("is_overworld", False)
+            
+            # Define movement buttons
+            movement_buttons = ["up", "down", "left", "right"]
+            
+            # Check if any movement buttons were pressed
+            movement_detected = any(button in movement_buttons for button in button_presses)
+            
+            if not movement_detected or not is_overworld:
+                return
+            
+            # Extract movement direction(s)
+            movements_made = [button for button in button_presses if button in movement_buttons]
+            
+            if self.verbose:
+                print(f"🗺️  Overworld movement detected: {movements_made}")
+            
+            # Record area visit for the player's current position
+            # Use center of 8x8 grid as baseline (player position)
+            center_x, center_y = 4, 4  # Center of 8x8 grid
+            
+            # Calculate approximate new position based on movement
+            for movement in movements_made:
+                new_x, new_y = center_x, center_y
+                
+                if movement == "up":
+                    new_y = max(0, center_y - 1)
+                elif movement == "down":
+                    new_y = min(7, center_y + 1)
+                elif movement == "left":
+                    new_x = max(0, center_x - 1)
+                elif movement == "right":
+                    new_x = min(7, center_x + 1)
+                
+                # Create context string with relevant information
+                movement_context = f"Turn {turn}: moved {movement}"
+                
+                # Add AI analysis context if it mentions overworld features
+                analysis_lower = ai_analysis.lower() if ai_analysis else ""
+                if any(keyword in analysis_lower for keyword in ["grass", "tree", "path", "route", "overworld"]):
+                    movement_context += f" - {ai_analysis[:50]}..."
+                
+                # Add overworld analysis context
+                if overworld_analysis.get("navigation_notes"):
+                    movement_context += f" - {overworld_analysis['navigation_notes'][:30]}..."
+                
+                # Record the area visit
+                self._record_area_visit(new_x, new_y, movement_context)
+                
+                # Also record the general overworld exploration
+                if self.memory:
+                    exploration_note = f"Explored overworld in direction {movement} during turn {turn}"
+                    self.memory.store_observation(
+                        observation=exploration_note,
+                        importance=0.4,  # Medium importance for exploration
+                        context={
+                            "type": "exploration", 
+                            "direction": movement,
+                            "turn": turn,
+                            "is_overworld": True
+                        }
+                    )
+                
+                if self.verbose:
+                    print(f"📍 Recorded visit to grid position ({new_x}, {new_y})")
+        
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ Error recording overworld movement: {e}")
     
     def _init_directories(self):
         """Initialize directory structure"""
@@ -690,13 +1113,19 @@ class EeveeAgent:
                     # Get image data directly from SkyEmu
                     image_data = self.controller.get_screenshot_base64()
                     
-                    return {
+                    context = {
                         "timestamp": timestamp,
                         "screenshot_path": screenshot_file,
                         "screenshot_data": image_data,
                         "window_found": self.controller.is_connected(),
                         "controller_type": "skyemu"
                     }
+                    
+                    # Add overworld detection if we have screenshot data
+                    if image_data:
+                        context["overworld_analysis"] = self._detect_overworld_context(image_data)
+                    
+                    return context
                 else:
                     raise Exception("Failed to capture SkyEmu screenshot")
             else:
@@ -710,13 +1139,19 @@ class EeveeAgent:
                 # Read image data
                 image_data = read_image_to_base64(analysis_screenshot)
                 
-                return {
+                context = {
                     "timestamp": timestamp,
                     "screenshot_path": str(analysis_screenshot),
                     "screenshot_data": image_data,
                     "window_found": self.controller.find_window() is not None,
                     "controller_type": "pokemon"
                 }
+                
+                # Add overworld detection if we have screenshot data
+                if image_data:
+                    context["overworld_analysis"] = self._detect_overworld_context(image_data)
+                
+                return context
             
         except Exception as e:
             if self.debug:
@@ -925,7 +1360,33 @@ Format your response with clear sections addressing the task requirements."""
                         if self.debug:
                             print(f"⚠️ Battle memory failed: {e}")
                 
-                ai_prompt = f"""# Pokemon Battle Expert Agent - Continuous Gameplay
+                # Get overworld navigation context if available
+                overworld_context = ""
+                if game_context.get("overworld_analysis"):
+                    overworld_data = game_context["overworld_analysis"]
+                    if overworld_data.get("is_overworld") and not overworld_data.get("error"):
+                        ascii_grid = overworld_data.get("raw_analysis", "").split("```")[1] if "```" in overworld_data.get("raw_analysis", "") else ""
+                        overworld_context = f"""
+**🗺️ OVERWORLD NAVIGATION DETECTED:**
+
+**ASCII GRID MAP (8x8 current view):**
+```
+{ascii_grid}
+```
+
+**NAVIGATION INTELLIGENCE:**
+- **Clear paths:** {', '.join(overworld_data.get('clear_directions', []))}
+- **Blocked areas:** {', '.join(overworld_data.get('blocked_directions', []))} 
+- **Obstacles nearby:** {', '.join(overworld_data.get('obstacles_nearby', []))}
+- **AI Recommendation:** {overworld_data.get('recommended_movement', 'stay')}
+- **Navigation notes:** {overworld_data.get('navigation_notes', 'No specific guidance')}
+
+**OVERWORLD MOVEMENT RULES:**
+⚠️ **AVOID TREES AND OBSTACLES:** Do NOT walk into trees (T), buildings (B), or walls (#)
+✅ **USE OPEN PATHS:** Move towards grass (.) and paths (-) only
+🎯 **FOLLOW GRID:** Use the ASCII grid above to see exactly where obstacles are"""
+
+                ai_prompt = f"""# Pokemon Expert Agent - Continuous Gameplay
 
 **CURRENT GOAL:** {goal}
 
@@ -934,6 +1395,7 @@ Format your response with clear sections addressing the task requirements."""
 
 **BATTLE EXPERIENCE:**
 {battle_memory}
+{overworld_context}
 
 **CRITICAL BATTLE NAVIGATION RULES:**
 
@@ -960,7 +1422,7 @@ Format your response with clear sections addressing the task requirements."""
 
 **ANALYSIS TASK:**
 1. **OBSERVE:** What screen elements are visible? Are there move names displayed?
-2. **ANALYZE:** Is this a battle? What Pokemon are involved? What moves are available?
+2. **ANALYZE:** Is this a battle or overworld? What Pokemon/obstacles are involved?
 3. **STRATEGIZE:** What's the best action to progress toward your goal?
 4. **ACT:** Provide specific button sequence for your chosen action
 
@@ -1004,6 +1466,14 @@ What do you observe in the current screen? What action will you take next to pro
                         print(f"🎯 Result: {action_result}")
                     else:
                         print("ℹ️ No button presses requested by AI")
+                    
+                    # Step 6.5: Record area visits for overworld movement
+                    self._record_overworld_movement(
+                        button_presses=button_presses,
+                        game_context=game_context,
+                        ai_analysis=ai_analysis,
+                        turn=turn + 1
+                    )
                     
                     # Step 7: Detect and store battle outcomes for learning
                     battle_context = self._extract_battle_context(ai_analysis, button_presses)
