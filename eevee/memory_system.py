@@ -649,6 +649,106 @@ class MemorySystem:
         
         return export_path
     
+    def generate_summary(self) -> Dict[str, str]:
+        """Generate a summary of current memory context for AI prompts"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                # Get recent game states
+                recent_states = conn.execute("""
+                    SELECT location, timestamp FROM game_states 
+                    ORDER BY timestamp DESC LIMIT 3
+                """).fetchall()
+                
+                # Get recent successful tasks
+                recent_tasks = conn.execute("""
+                    SELECT task_description, success FROM task_history 
+                    ORDER BY timestamp DESC LIMIT 5
+                """).fetchall()
+                
+                # Get recent learned knowledge
+                recent_knowledge = conn.execute("""
+                    SELECT subject, content FROM learned_knowledge 
+                    ORDER BY timestamp DESC LIMIT 3
+                """).fetchall()
+                
+                # Build summary
+                summary_parts = []
+                
+                if recent_states:
+                    locations = [state[0] for state in recent_states if state[0]]
+                    if locations:
+                        summary_parts.append(f"Recent locations: {', '.join(locations[:3])}")
+                
+                if recent_tasks:
+                    successful_tasks = [task[0] for task in recent_tasks if task[1]]
+                    if successful_tasks:
+                        summary_parts.append(f"Recent successful tasks: {'; '.join(successful_tasks[:2])}")
+                
+                if recent_knowledge:
+                    knowledge_items = [f"{item[0]}: {item[1][:50]}..." for item in recent_knowledge]
+                    summary_parts.append(f"Recent learning: {'; '.join(knowledge_items[:2])}")
+                
+                # Add battle memory
+                battle_summary = self.generate_battle_summary()
+                if battle_summary:
+                    summary_parts.append(f"Battle experience: {battle_summary}")
+                
+                summary = "\n".join(summary_parts) if summary_parts else "No recent memory context available."
+                
+                return {"summary": summary}
+                
+        except Exception as e:
+            return {"summary": f"Memory summary error: {str(e)}"}
+    
+    def store_gameplay_turn(self, turn_data: Dict[str, Any]) -> str:
+        """Store gameplay turn data for continuous play sessions"""
+        turn_id = str(uuid.uuid4())
+        
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                # Store as a specialized task entry
+                conn.execute("""
+                    INSERT INTO task_history 
+                    (id, timestamp, task_description, execution_result, success, steps_taken, execution_time)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    turn_id,
+                    turn_data.get("timestamp", datetime.now().isoformat()),
+                    f"Gameplay Turn {turn_data.get('turn', 'Unknown')}: {turn_data.get('goal', 'Continuous play')}",
+                    json.dumps({
+                        "ai_analysis": turn_data.get("ai_analysis", ""),
+                        "button_presses": turn_data.get("button_presses", []),
+                        "action_result": turn_data.get("action_result", ""),
+                        "screenshot_path": turn_data.get("screenshot_path")
+                    }),
+                    len(turn_data.get("button_presses", [])) > 0,  # Success if buttons were pressed
+                    len(turn_data.get("button_presses", [])),
+                    turn_data.get("execution_time", 0.0)
+                ))
+                conn.commit()
+                
+            return turn_id
+            
+        except Exception as e:
+            # Fallback storage in context_memories table
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    conn.execute("""
+                        INSERT INTO context_memories (id, timestamp, content, source_context)
+                        VALUES (?, ?, ?, ?)
+                    """, (
+                        turn_id,
+                        turn_data.get("timestamp", datetime.now().isoformat()),
+                        json.dumps(turn_data),
+                        "gameplay_turn"
+                    ))
+                    conn.commit()
+                    
+                return turn_id
+            except Exception as e2:
+                print(f"Failed to store gameplay turn: {e2}")
+                return turn_id
+    
     def get_memory_stats(self) -> Dict[str, Any]:
         """Get statistics about current memory usage"""
         with sqlite3.connect(self.db_path) as conn:
@@ -769,6 +869,171 @@ class MemorySystem:
             conn.execute("DELETE FROM learned_knowledge WHERE knowledge_type = 'navigation'")
             conn.commit()
             print("✅ SQLite navigation knowledge cleared")
+    
+    def generate_battle_summary(self) -> str:
+        """Generate a summary of recent battle experiences for AI prompts"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                # Get recent battle-related tasks
+                battle_tasks = conn.execute("""
+                    SELECT task_description, execution_result, success, timestamp
+                    FROM task_history 
+                    WHERE task_description LIKE '%battle%' 
+                       OR task_description LIKE '%fight%'
+                       OR task_description LIKE '%attack%'
+                       OR task_description LIKE '%move%'
+                    ORDER BY timestamp DESC LIMIT 5
+                """).fetchall()
+                
+                # Get battle-related knowledge
+                battle_knowledge = conn.execute("""
+                    SELECT subject, content, confidence_score
+                    FROM learned_knowledge 
+                    WHERE knowledge_type = 'battle_strategy' 
+                       OR knowledge_type = 'move_effectiveness'
+                       OR subject LIKE '%battle%'
+                    ORDER BY confidence_score DESC, timestamp DESC LIMIT 3
+                """).fetchall()
+                
+                summary_parts = []
+                
+                if battle_tasks:
+                    successful_battles = [task for task in battle_tasks if task[2]]  # success = True
+                    if successful_battles:
+                        latest_battle = successful_battles[0]
+                        try:
+                            result_data = json.loads(latest_battle[1]) if latest_battle[1] else {}
+                            ai_analysis = result_data.get("ai_analysis", "")
+                            button_presses = result_data.get("button_presses", [])
+                            
+                            if ai_analysis and button_presses:
+                                summary_parts.append(f"Last successful battle: Used {button_presses} - {ai_analysis[:100]}...")
+                        except:
+                            summary_parts.append(f"Recent battle activity: {latest_battle[0][:100]}...")
+                
+                if battle_knowledge:
+                    knowledge_items = []
+                    for knowledge in battle_knowledge:
+                        subject, content, confidence = knowledge
+                        knowledge_items.append(f"{subject}: {content[:80]}... (confidence: {confidence:.1f})")
+                    if knowledge_items:
+                        summary_parts.append(f"Battle knowledge: {'; '.join(knowledge_items[:2])}")
+                
+                return "; ".join(summary_parts) if summary_parts else ""
+                
+        except Exception as e:
+            return f"Battle memory error: {str(e)}"
+    
+    def store_battle_outcome(
+        self, 
+        opponent: str,
+        my_pokemon: str,
+        moves_used: List[str],
+        button_sequences: List[List[str]],
+        outcome: str,
+        effectiveness_notes: str = ""
+    ) -> str:
+        """Store battle outcome and move effectiveness for learning"""
+        
+        battle_data = {
+            "opponent": opponent,
+            "my_pokemon": my_pokemon,
+            "moves_used": moves_used,
+            "button_sequences": button_sequences,
+            "outcome": outcome,
+            "effectiveness_notes": effectiveness_notes,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Store as specialized knowledge
+        knowledge_id = self.store_learned_knowledge(
+            knowledge_type="battle_strategy",
+            subject=f"{my_pokemon}_vs_{opponent}",
+            content=f"Moves: {', '.join(moves_used)}. Outcome: {outcome}. Notes: {effectiveness_notes}",
+            confidence_score=0.9 if outcome == "victory" else 0.6
+        )
+        
+        # Also store detailed battle data
+        battle_id = str(uuid.uuid4())
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    INSERT INTO context_memories (id, timestamp, memory_type, content, relevance_score)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (
+                    battle_id,
+                    datetime.now().isoformat(),
+                    "battle_detail",
+                    json.dumps(battle_data),
+                    0.8
+                ))
+                conn.commit()
+        except Exception as e:
+            print(f"Error storing detailed battle data: {e}")
+        
+        return knowledge_id
+    
+    def store_move_effectiveness(
+        self,
+        move_name: str,
+        move_type: str,
+        target_type: str,
+        effectiveness: str,
+        button_sequence: List[str]
+    ) -> str:
+        """Store move effectiveness data for future reference"""
+        
+        return self.store_learned_knowledge(
+            knowledge_type="move_effectiveness",
+            subject=f"{move_name}_{move_type}_vs_{target_type}",
+            content=f"Move: {move_name} ({move_type}) vs {target_type} = {effectiveness}. Buttons: {button_sequence}",
+            confidence_score=0.8
+        )
+    
+    def get_battle_advice(self, opponent_type: str = None, available_moves: List[str] = None) -> str:
+        """Get battle advice based on stored knowledge"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                advice_parts = []
+                
+                # Get general battle strategies
+                strategies = conn.execute("""
+                    SELECT content, confidence_score
+                    FROM learned_knowledge 
+                    WHERE knowledge_type = 'battle_strategy'
+                    ORDER BY confidence_score DESC LIMIT 3
+                """).fetchall()
+                
+                # Get move effectiveness if we have opponent type
+                if opponent_type:
+                    effectiveness = conn.execute("""
+                        SELECT content, confidence_score
+                        FROM learned_knowledge 
+                        WHERE knowledge_type = 'move_effectiveness'
+                        AND subject LIKE ?
+                        ORDER BY confidence_score DESC LIMIT 2
+                    """, (f"%_vs_{opponent_type}%",)).fetchall()
+                    
+                    if effectiveness:
+                        advice_parts.append("Effective moves: " + "; ".join([e[0][:60] for e in effectiveness]))
+                
+                # Get successful button patterns
+                if available_moves:
+                    for move in available_moves:
+                        move_data = conn.execute("""
+                            SELECT content
+                            FROM learned_knowledge 
+                            WHERE content LIKE ?
+                            ORDER BY confidence_score DESC LIMIT 1
+                        """, (f"%{move}%",)).fetchone()
+                        
+                        if move_data:
+                            advice_parts.append(f"{move}: {move_data[0][:50]}...")
+                
+                return "; ".join(advice_parts) if advice_parts else "No specific battle advice available"
+                
+        except Exception as e:
+            return f"Battle advice error: {str(e)}"
     
     def close(self):
         """Close all connections"""

@@ -15,6 +15,7 @@ Usage examples:
     # Continuous autonomous gameplay:
     python run_eevee.py --continuous --goal "find and win pokemon battles"
     python run_eevee.py --continuous --goal "navigate to gym and challenge leader" --steps 50
+    python run_eevee.py --continuous --goal "find and win pokemon battles" --interruption
     
     # With options:
     python run_eevee.py "analyze current location" --memory-session mysession --model gemini-1.5-flash
@@ -519,6 +520,12 @@ Examples:
         "--goal",
         type=str,
         help="Set the goal for continuous gameplay (e.g. 'find and win pokemon battles')"
+    )
+    
+    parser.add_argument(
+        "--interruption",
+        action="store_true",
+        help="Enable real-time interruption controls during continuous gameplay (p=pause, r=resume, q=quit)"
     )
     
     return parser.parse_args()
@@ -1724,7 +1731,12 @@ def main():
             print(f"\n🎮 Starting continuous autonomous Pokemon gameplay")
             print(f"🎯 Goal: {goal}")
             print(f"📊 Max turns: {max_turns}")
-            print("Press Ctrl+C to stop at any time")
+            
+            if args.interruption:
+                print("🎮 Real-time controls enabled:")
+                print("   'p' = pause, 'r' = resume, 'q' = quit, 's' = status, 'h' = help")
+            else:
+                print("Press Ctrl+C to stop at any time")
             print("-" * 60)
             
             # Set up session state for autonomous gameplay
@@ -1736,18 +1748,111 @@ def main():
             }
             
             try:
-                # Start continuous gameplay using EeveeAgent method
-                if hasattr(eevee, 'start_continuous_gameplay'):
-                    result = eevee.start_continuous_gameplay(
-                        goal=goal,
-                        max_turns=max_turns,
-                        turn_delay=1.5,
-                        session_state=session_state
-                    )
+                # Use interruption system if requested
+                if args.interruption:
+                    from utils.interruption import GameplayController
+                    
+                    def turn_callback(turn_num: int, current_goal: str) -> bool:
+                        """Callback function executed each turn"""
+                        try:
+                            # Capture game context
+                            game_context = eevee._capture_current_context()
+                            if not game_context.get("screenshot_data"):
+                                print("⚠️ Failed to capture screenshot, skipping turn")
+                                return True
+                            
+                            # Get memory context
+                            memory_summary = ""
+                            battle_memory = ""
+                            if eevee.memory:
+                                try:
+                                    memory_context = eevee.memory.generate_summary()
+                                    memory_summary = memory_context.get("summary", "")
+                                    battle_memory = eevee.memory.generate_battle_summary()
+                                except Exception as e:
+                                    if args.debug:
+                                        print(f"⚠️ Memory error: {e}")
+                            
+                            # Enhanced prompt with battle knowledge
+                            ai_prompt = f"""# Pokemon Battle Expert Agent - Turn {turn_num}
+
+**CURRENT GOAL:** {current_goal}
+
+**RECENT MEMORY:** {memory_summary}
+**BATTLE EXPERIENCE:** {battle_memory}
+
+**BATTLE NAVIGATION RULES:**
+- When you see move names (THUNDERSHOCK, GROWL, etc.), use DOWN arrow to navigate, then A to select
+- DON'T just spam A button in battles
+- Example: Want Thundershock in position 2: ["down", "a"]
+
+**ANALYSIS TASK:**
+1. OBSERVE: What's visible? Battle menu? Move names?
+2. ANALYZE: What Pokemon/moves are involved?
+3. ACT: Provide specific button sequence
+
+What do you see and what action will you take next?"""
+                            
+                            # Get AI decision
+                            api_result = eevee._call_gemini_api(
+                                prompt=ai_prompt,
+                                image_data=game_context["screenshot_data"],
+                                use_tools=True,
+                                max_tokens=1000
+                            )
+                            
+                            if api_result["error"]:
+                                print(f"❌ API Error: {api_result['error']}")
+                                return True
+                            
+                            ai_analysis = api_result["text"]
+                            button_presses = api_result["button_presses"]
+                            
+                            if ai_analysis:
+                                print(f"🤖 AI: {ai_analysis}")
+                            
+                            # Execute buttons
+                            if button_presses:
+                                print(f"🎮 Executing buttons: {button_presses}")
+                                action_result = eevee.controller.press_sequence(button_presses, delay_between=2)
+                                print(f"🎯 Result: {action_result}")
+                                
+                                # Store battle learning
+                                battle_context = eevee._extract_battle_context(ai_analysis, button_presses)
+                                if battle_context.get("is_battle_action") and eevee.memory:
+                                    eevee._store_battle_learning(battle_context, ai_analysis, button_presses)
+                            else:
+                                print("ℹ️ No button presses requested by AI")
+                            
+                            return True  # Continue gameplay
+                            
+                        except Exception as e:
+                            print(f"⚠️ Turn error: {e}")
+                            return True  # Continue despite errors
+                    
+                    # Use interruption-enabled gameplay controller
+                    controller = GameplayController(turn_delay=1.5)
+                    controller.start_continuous_gameplay(goal, max_turns, turn_callback)
+                    
+                    result = {
+                        "status": "completed",
+                        "total_turns": controller.get_current_turn(),
+                        "method": "interruption_system"
+                    }
+                    
                 else:
-                    # Fallback to basic continuous loop
-                    log_files = setup_real_time_logging()
-                    result = continuous_game_loop(eevee, session_state, args, log_files)
+                    # Standard continuous gameplay using EeveeAgent method
+                    if hasattr(eevee, 'start_continuous_gameplay'):
+                        result = eevee.start_continuous_gameplay(
+                            goal=goal,
+                            max_turns=max_turns,
+                            turn_delay=1.5,
+                            session_state=session_state
+                        )
+                    else:
+                        # Fallback to basic continuous loop
+                        log_files = setup_real_time_logging()
+                        result = continuous_game_loop(eevee, session_state, args, log_files)
                 
                 # Print final results
                 print(f"\n✅ Continuous gameplay completed!")

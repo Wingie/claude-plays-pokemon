@@ -69,6 +69,13 @@ class EeveeAgent:
         self.execution_history = []
         self.context_memory = {}
         
+        # Circuit breaker state for API resilience
+        self.api_failure_count = 0
+        self.api_failure_threshold = 5
+        self.circuit_breaker_reset_time = 300  # 5 minutes
+        self.last_failure_time = 0
+        self.circuit_breaker_open = False
+        
         if self.verbose:
             print(f"🔮 EeveeAgent initialized")
             print(f"   Model: {self.model}")
@@ -135,7 +142,7 @@ class EeveeAgent:
     
     def _call_gemini_api(self, prompt: str, image_data: str = None, use_tools: bool = False, max_tokens: int = 1000) -> Dict[str, Any]:
         """
-        Unified Gemini API calling method
+        Unified Gemini API calling method with smart timeout and rate limiting
         
         Args:
             prompt: Text prompt to send
@@ -146,59 +153,180 @@ class EeveeAgent:
         Returns:
             Dict with 'text', 'button_presses', and 'error' keys
         """
-        try:
-            # Prepare prompt parts
-            prompt_parts = [prompt]
-            
-            # Add image if provided
-            if image_data:
-                prompt_parts.append({
-                    "mime_type": "image/jpeg",
-                    "data": base64.b64decode(image_data)
-                })
-            
-            # Call Gemini API
-            if use_tools:
-                response = self.gemini.generate_content(
-                    prompt_parts,
-                    generation_config={"max_output_tokens": max_tokens},
-                    tools=[self.pokemon_tool]
-                )
-            else:
-                response = self.gemini.generate_content(
-                    prompt_parts,
-                    generation_config={"max_output_tokens": max_tokens}
-                )
-            
-            # Process response
-            result = {
-                "text": "",
-                "button_presses": [],
-                "error": None
-            }
-            
-            if use_tools and response.candidates and response.candidates[0].content.parts:
-                # Handle tool-enabled response
-                for part in response.candidates[0].content.parts:
-                    if part.text:
-                        result["text"] = part.text
-                    elif part.function_call and part.function_call.name == "pokemon_controller":
-                        # Extract button presses
-                        for item, button_list in part.function_call.args.items():
-                            for button in button_list:
-                                result["button_presses"].append(button.lower())
-            else:
-                # Handle text-only response
-                result["text"] = response.text if response.text else ""
-            
-            return result
-            
-        except Exception as e:
+        # Check circuit breaker status
+        if self._check_circuit_breaker():
             return {
                 "text": "",
                 "button_presses": [],
-                "error": str(e)
+                "error": "API circuit breaker is open - too many recent failures"
             }
+        
+        max_retries = 3
+        base_delay = 1.0
+        
+        for attempt in range(max_retries):
+            try:
+                # Prepare prompt parts
+                prompt_parts = [prompt]
+                
+                # Add image if provided
+                if image_data:
+                    prompt_parts.append({
+                        "mime_type": "image/jpeg",
+                        "data": base64.b64decode(image_data)
+                    })
+                
+                # Call Gemini API with timeout handling
+                if use_tools:
+                    response = self.gemini.generate_content(
+                        prompt_parts,
+                        generation_config={"max_output_tokens": max_tokens},
+                        tools=[self.pokemon_tool]
+                    )
+                else:
+                    response = self.gemini.generate_content(
+                        prompt_parts,
+                        generation_config={"max_output_tokens": max_tokens}
+                    )
+                
+                # Process response
+                result = {
+                    "text": "",
+                    "button_presses": [],
+                    "error": None
+                }
+                
+                if use_tools and response.candidates and response.candidates[0].content.parts:
+                    # Handle tool-enabled response
+                    for part in response.candidates[0].content.parts:
+                        if part.text:
+                            result["text"] = part.text
+                        elif part.function_call and part.function_call.name == "pokemon_controller":
+                            # Extract button presses
+                            for item, button_list in part.function_call.args.items():
+                                for button in button_list:
+                                    result["button_presses"].append(button.lower())
+                else:
+                    # Handle text-only response
+                    result["text"] = response.text if response.text else ""
+                
+                # Record successful API call
+                self._record_api_success()
+                return result
+                
+            except Exception as e:
+                error_msg = str(e).lower()
+                
+                # Handle 429 rate limit errors with smart backoff
+                if "429" in error_msg or "rate limit" in error_msg or "quota" in error_msg:
+                    retry_delay = self._parse_retry_delay(str(e), base_delay * (2 ** attempt))
+                    if self.verbose:
+                        print(f"⚠️ Rate limit hit (attempt {attempt + 1}/{max_retries}). Waiting {retry_delay:.1f}s...")
+                    time.sleep(retry_delay)
+                    continue
+                
+                # Handle timeout and connection errors  
+                elif any(keyword in error_msg for keyword in ["timeout", "connection", "network", "temporarily unavailable"]):
+                    if attempt < max_retries - 1:
+                        retry_delay = base_delay * (2 ** attempt)
+                        if self.verbose:
+                            print(f"⚠️ Connection error (attempt {attempt + 1}/{max_retries}). Retrying in {retry_delay:.1f}s...")
+                        time.sleep(retry_delay)
+                        continue
+                
+                # For other errors or final attempt, return error result
+                if self.verbose and attempt == max_retries - 1:
+                    print(f"❌ API call failed after {max_retries} attempts: {e}")
+                
+                # Record API failure for circuit breaker
+                self._record_api_failure()
+                
+                return {
+                    "text": "",
+                    "button_presses": [],
+                    "error": str(e)
+                }
+        
+        # This should never be reached, but included for completeness
+        self._record_api_failure()
+        return {
+            "text": "",
+            "button_presses": [],
+            "error": "Max retries exceeded"
+        }
+    
+    def _parse_retry_delay(self, error_message: str, default_delay: float) -> float:
+        """
+        Parse retry delay from 429 error response headers
+        
+        Args:
+            error_message: The error message string
+            default_delay: Default delay if no specific delay found
+            
+        Returns:
+            Delay in seconds to wait before retry
+        """
+        import re
+        
+        # Look for retry-after patterns in error message
+        # Common patterns: "retry after 60 seconds", "try again in 30s", etc.
+        patterns = [
+            r'retry[\s\-_]*after[\s\-_]*(\d+)[\s\-_]*seconds?',
+            r'try[\s\-_]*again[\s\-_]*in[\s\-_]*(\d+)[\s\-_]*s',
+            r'wait[\s\-_]*(\d+)[\s\-_]*seconds?',
+            r'(\d+)[\s\-_]*seconds?[\s\-_]*retry'
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, error_message.lower())
+            if match:
+                try:
+                    parsed_delay = float(match.group(1))
+                    # Cap delay at reasonable maximum (5 minutes)
+                    return min(parsed_delay, 300.0)
+                except (ValueError, IndexError):
+                    continue
+        
+        # If no specific delay found, use exponential backoff with jitter
+        import random
+        jitter = random.uniform(0.8, 1.2)
+        return min(default_delay * jitter, 60.0)  # Cap at 1 minute
+    
+    def _check_circuit_breaker(self) -> bool:
+        """
+        Check if circuit breaker should prevent API calls
+        
+        Returns:
+            True if circuit breaker is open (should prevent calls)
+        """
+        current_time = time.time()
+        
+        # Reset circuit breaker if enough time has passed
+        if self.circuit_breaker_open and (current_time - self.last_failure_time) > self.circuit_breaker_reset_time:
+            self.circuit_breaker_open = False
+            self.api_failure_count = 0
+            if self.verbose:
+                print("🔄 Circuit breaker reset - API calls resumed")
+        
+        return self.circuit_breaker_open
+    
+    def _record_api_success(self):
+        """Record successful API call and reset failure count"""
+        if self.api_failure_count > 0:
+            self.api_failure_count = 0
+            if self.verbose:
+                print("✅ API success - failure count reset")
+    
+    def _record_api_failure(self):
+        """Record API failure and update circuit breaker state"""
+        self.api_failure_count += 1
+        self.last_failure_time = time.time()
+        
+        if self.api_failure_count >= self.api_failure_threshold and not self.circuit_breaker_open:
+            self.circuit_breaker_open = True
+            if self.verbose:
+                print(f"🔴 Circuit breaker opened after {self.api_failure_count} failures")
+                print(f"   API calls suspended for {self.circuit_breaker_reset_time//60} minutes")
     
     def _init_directories(self):
         """Initialize directory structure"""
@@ -788,13 +916,53 @@ Format your response with clear sections addressing the task requirements."""
                             print(f"⚠️ Memory summary failed: {e}")
                         memory_summary = "No memory context available"
                 
-                # Step 3: Create AI prompt with goal, memory, and current state
-                ai_prompt = f"""Your current goal is: {goal}
+                # Step 3: Enhanced prompt with battle memory and expert knowledge
+                battle_memory = ""
+                if self.memory:
+                    try:
+                        battle_memory = self.memory.generate_battle_summary()
+                    except Exception as e:
+                        if self.debug:
+                            print(f"⚠️ Battle memory failed: {e}")
+                
+                ai_prompt = f"""# Pokemon Battle Expert Agent - Continuous Gameplay
 
+**CURRENT GOAL:** {goal}
+
+**RECENT MEMORY CONTEXT:**
 {memory_summary}
 
-Based on your goal and current situation, analyze the screenshot and decide what action to take next. 
-Be strategic and focused on making progress toward your goal.
+**BATTLE EXPERIENCE:**
+{battle_memory}
+
+**CRITICAL BATTLE NAVIGATION RULES:**
+
+🎯 **MOVE SELECTION PROCESS:**
+1. **When you see battle menu** ("FIGHT", "BAG", "POKEMON", "RUN"):
+   - Press **["a"]** to select "FIGHT" (usually first option)
+
+2. **When you see move options** (like "GROWL", "THUNDERSHOCK", "TAIL WHIP"):
+   - **DO NOT just press A repeatedly**
+   - **READ each move name carefully** 
+   - **Use DOWN arrow** to navigate to desired move
+   - **Then press A** to select it
+
+**Move Navigation Examples:**
+- Want move #1 (top): ["a"]
+- Want move #2 (second): ["down", "a"] 
+- Want THUNDERSHOCK in position 2: ["down", "a"]
+- Want move #3 in 2x2 grid: ["right", "a"]
+
+**Type Effectiveness Quick Reference:**
+- **THUNDERSHOCK** (Electric) → Super effective vs Flying/Water (like Pidgey, Magikarp)
+- **TACKLE/SCRATCH** (Normal) → Reliable neutral damage vs most Pokemon
+- **Status moves** (Growl, Tail Whip) → Don't deal damage, avoid in wild battles
+
+**ANALYSIS TASK:**
+1. **OBSERVE:** What screen elements are visible? Are there move names displayed?
+2. **ANALYZE:** Is this a battle? What Pokemon are involved? What moves are available?
+3. **STRATEGIZE:** What's the best action to progress toward your goal?
+4. **ACT:** Provide specific button sequence for your chosen action
 
 What do you observe in the current screen? What action will you take next to progress toward your goal?"""
                 
@@ -837,7 +1005,9 @@ What do you observe in the current screen? What action will you take next to pro
                     else:
                         print("ℹ️ No button presses requested by AI")
                     
-                    # Step 7: Store turn results in memory
+                    # Step 7: Detect and store battle outcomes for learning
+                    battle_context = self._extract_battle_context(ai_analysis, button_presses)
+                    
                     turn_data = {
                         "turn": turn + 1,
                         "timestamp": datetime.now().isoformat(),
@@ -846,15 +1016,21 @@ What do you observe in the current screen? What action will you take next to pro
                         "button_presses": button_presses,
                         "action_result": action_result,
                         "screenshot_path": game_context.get("screenshot_path"),
-                        "execution_time": time.time() - turn_start_time
+                        "execution_time": time.time() - turn_start_time,
+                        "battle_context": battle_context
                     }
                     
                     gameplay_history.append(turn_data)
                     
-                    # Store in persistent memory if available
+                    # Store in persistent memory with battle learning
                     if self.memory:
                         try:
                             self.memory.store_gameplay_turn(turn_data)
+                            
+                            # Store battle-specific learning if this was a battle action
+                            if battle_context.get("is_battle_action"):
+                                self._store_battle_learning(battle_context, ai_analysis, button_presses)
+                                
                         except Exception as e:
                             if self.debug:
                                 print(f"⚠️ Failed to store turn in memory: {e}")
@@ -971,3 +1147,112 @@ Keep it concise but informative."""
         except Exception as e:
             if self.debug:
                 print(f"⚠️ Failed to update progress file: {e}")
+    
+    def _extract_battle_context(self, ai_analysis: str, button_presses: List[str]) -> Dict[str, Any]:
+        """Extract battle context from AI analysis for learning"""
+        context = {
+            "is_battle_action": False,
+            "opponent": None,
+            "moves_mentioned": [],
+            "move_used": None,
+            "battle_outcome": None
+        }
+        
+        if not ai_analysis:
+            return context
+        
+        analysis_lower = ai_analysis.lower()
+        
+        # Detect if this is a battle-related action
+        battle_keywords = ["battle", "fight", "thundershock", "tackle", "scratch", "growl", "tail whip", "caterpie", "pidgey", "vs", "hp"]
+        if any(keyword in analysis_lower for keyword in battle_keywords):
+            context["is_battle_action"] = True
+        
+        # Extract opponent Pokemon if mentioned
+        pokemon_names = ["caterpie", "pidgey", "rattata", "weedle", "pikachu", "metapod", "kakuna"]
+        for pokemon in pokemon_names:
+            if pokemon in analysis_lower:
+                context["opponent"] = pokemon.title()
+                break
+        
+        # Extract moves mentioned in analysis
+        move_names = ["thundershock", "tackle", "scratch", "growl", "tail whip", "ember", "vine whip"]
+        for move in move_names:
+            if move in analysis_lower:
+                context["moves_mentioned"].append(move.title())
+        
+        # Determine which move was likely used based on button sequence and analysis
+        if button_presses and context["is_battle_action"]:
+            if button_presses == ["a"]:
+                # First move (top-left) was selected
+                if "thundershock" in analysis_lower:
+                    context["move_used"] = "Thundershock"
+                elif "tackle" in analysis_lower:
+                    context["move_used"] = "Tackle"
+                else:
+                    context["move_used"] = "First move"
+            elif button_presses == ["down", "a"]:
+                # Second move was selected
+                if "thundershock" in analysis_lower:
+                    context["move_used"] = "Thundershock"
+                else:
+                    context["move_used"] = "Second move"
+        
+        # Detect battle outcomes
+        outcome_keywords = {
+            "victory": ["won", "defeated", "fainted", "victory", "gained exp"],
+            "ongoing": ["battle", "attack", "use", "hp"],
+            "lost": ["lost", "my pokemon fainted", "returned to pokeball"]
+        }
+        
+        for outcome, keywords in outcome_keywords.items():
+            if any(keyword in analysis_lower for keyword in keywords):
+                context["battle_outcome"] = outcome
+                break
+        
+        return context
+    
+    def _store_battle_learning(self, battle_context: Dict[str, Any], ai_analysis: str, button_presses: List[str]):
+        """Store battle learning in memory for future reference"""
+        if not self.memory or not battle_context.get("is_battle_action"):
+            return
+        
+        try:
+            # Store move effectiveness if we have enough context
+            if battle_context.get("move_used") and battle_context.get("opponent"):
+                move = battle_context["move_used"]
+                opponent = battle_context["opponent"]
+                outcome = battle_context.get("battle_outcome", "ongoing")
+                
+                effectiveness_note = f"Used {move} vs {opponent}. Buttons: {button_presses}. Outcome: {outcome}"
+                
+                # Determine effectiveness based on context
+                effectiveness = "unknown"
+                if "super effective" in ai_analysis.lower():
+                    effectiveness = "super_effective"
+                elif "not very effective" in ai_analysis.lower():
+                    effectiveness = "not_very_effective" 
+                elif outcome == "victory":
+                    effectiveness = "effective"
+                
+                self.memory.store_move_effectiveness(
+                    move_name=move,
+                    move_type="unknown",  # Could be enhanced to detect type
+                    target_type=opponent,
+                    effectiveness=effectiveness,
+                    button_sequence=button_presses
+                )
+            
+            # Store general battle strategy learning
+            if battle_context.get("battle_outcome") == "victory":
+                strategy_note = f"Successful battle strategy: {ai_analysis[:100]}... Buttons used: {button_presses}"
+                self.memory.store_learned_knowledge(
+                    knowledge_type="battle_strategy",
+                    subject="successful_battle",
+                    content=strategy_note,
+                    confidence_score=0.8
+                )
+            
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ Failed to store battle learning: {e}")
