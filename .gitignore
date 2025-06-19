@@ -5,3 +5,4 @@
 .zip
 screenshots/
 __pycache__/
+*.pkl
