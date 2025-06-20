@@ -41,17 +41,22 @@ stuck_navigation:
     💡 **ALTERNATIVE STRATEGY**: Should you move toward a visible door instead?
     
     **RECOVERY STRATEGIES TO CONSIDER**:
-    1. **TRANSITION ROOM ALERT**: You're stuck in UP/DOWN loop between inside/outside!
-       - **INSIDE BUILDING**: Look for TWO exits - top carpet AND bottom carpet
-       - **TOP CARPET (UP)** = Forward to next area (Viridian Forest)  
-       - **BOTTOM CARPET (DOWN)** = Back to previous area (Viridian City)
-       - **GOAL**: If going to Viridian Forest, find and walk to TOP carpet, then press UP
-    2. **BUILDING NAVIGATION**: When inside, don't just press DOWN at first carpet you see
-       - **Look around**: Move LEFT/RIGHT to find the correct exit carpet
-       - **Two exits rule**: Most transition buildings have north AND south exits
-    3. **LOCATION CONTEXT**: Where do you want to go? 
-       - **Viridian Forest** = Find TOP/NORTH carpet inside building
-       - **Viridian City** = Use BOTTOM/SOUTH carpet inside building
+    1. **ROUTE GATE MECHANICS**: You're stuck because this is a TRANSITION BUILDING!
+       - **NOT a regular building** - this connects two different areas
+       - **Inside**: Rectangular room with carpet at BOTH ends (north and south)
+       - **Mission**: Find the NORTH carpet to reach Viridian Forest
+    
+    2. **SYSTEMATIC BUILDING EXPLORATION**:
+       - **Step 1**: Enter building (UP at dark rectangle)
+       - **Step 2**: Move LEFT and RIGHT to see the full room layout
+       - **Step 3**: Locate BOTH carpet areas (usually north and south ends)
+       - **Step 4**: Move to the TOP/NORTH carpet (toward your destination)
+       - **Step 5**: Press UP to exit toward Viridian Forest
+    
+    3. **CRITICAL REALIZATION**: 
+       - **Wrong Strategy**: "Enter building → immediately press DOWN to exit"
+       - **Right Strategy**: "Enter building → explore with LEFT/RIGHT → find north carpet → UP"
+       - **Goal Check**: Viridian Forest = NORTH, Viridian City = SOUTH
     
     **CRITICAL RULES**:
     - **NEVER repeat the same button that just failed multiple times**

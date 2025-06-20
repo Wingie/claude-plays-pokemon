@@ -66,8 +66,15 @@
 
 **Specific Route: Viridian City → Viridian Forest**
 - **Building**: Gatehouse at north edge of Viridian City
-- **Inside**: Two carpet areas - south and north ends
-- **Goal**: Find NORTH carpet (toward forest), then press UP
+- **Inside Layout**: Rectangular room with TWO carpet areas
+  - **South Carpet**: Bottom of room (leads back to Viridian City)
+  - **North Carpet**: Top of room (leads forward to Viridian Forest)
+- **Navigation Strategy**: 
+  1. Enter building (dark rectangle + UP)
+  2. Use LEFT/RIGHT to explore and find BOTH carpet areas
+  3. Move to NORTH carpet (top of room)
+  4. Press UP to exit toward Viridian Forest
+- **Critical**: Don't exit at first carpet you see - explore to find the correct one!
 
 ### Infinite Loop Detection
 **Warning Signs**: Same button pressed 3+ consecutive turns
@@ -82,6 +89,18 @@
 - **Direction**: north
 - **Leads to**: Viridian Forest
 - **Status**: ✅ Confirmed route
+
+**CRITICAL ROUTE KNOWLEDGE - Viridian City to Viridian Forest**:
+- **Challenge**: Most common AI failure point - infinite UP/DOWN loop
+- **Building Type**: Route Gate (transition building with multiple exits)
+- **Success Strategy**: 
+  1. Find dark rectangular entrance at north edge of Viridian City
+  2. Enter with UP
+  3. **CRUCIAL**: Inside, explore LEFT/RIGHT to map the room
+  4. Find TWO carpet areas (one at each end)
+  5. Move to NORTH carpet (far end of room)
+  6. Press UP to exit to Viridian Forest
+- **Common Mistake**: Exiting immediately at first carpet (leads back to city)
 
 **2025-06-19 Evening** - Navigation Problem SOLVED:
 - **Location**: Northern edge of Viridian City  
