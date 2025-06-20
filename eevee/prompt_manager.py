@@ -136,49 +136,50 @@ Format your response with clear sections and be specific about numbers and detai
                 "version": "1.0"
             },
             
-            "location_analysis": {
-                "name": "Location and Environment Analysis Base", 
-                "description": "Analyzes current location, map, and environmental features",
-                "template": """Analyze this Pokemon game location and environment:
+            "exploration_strategy": {
+                "name": "Pokemon Area Exploration Strategy",
+                "description": "Systematic exploration of Pokemon game areas to find all trainers and paths",
+                "template": """🎮 **POKEMON AREA EXPLORATION** 🎮
+    
+**🎯 CORE POKEMON PRINCIPLE**: 
+- **Trainers battle you AUTOMATICALLY** when they see you (line of sight)
+- **Your goal**: Explore every part of this area systematically
+- **Wild Pokemon**: Will also encounter you automatically in tall grass
+- **Navigation**: Move through area to discover all content
 
 Task Context: {task}
 
-Provide detailed analysis of:
+**📍 EXPLORATION ANALYSIS**:
 
-1. **Location Identification**:
-   - Current area/route/town name (if visible)
-   - Indoor vs outdoor environment
-   - Specific building or area type
+🎯 **OBSERVE** (What area are you in?):
+- What type of area: Route, Forest, Cave, City, Building?
+- Where is your character currently positioned?
+- What paths/directions are available from here?
+- Are there any trainers visible on screen?
+- Any unexplored paths or areas visible?
 
-2. **Player Character**:
-   - Character position on screen
-   - Direction character is facing
-   - Current movement state
+🧠 **EXPLORATION STRATEGY** (Systematic area clearing):
+- **PRIMARY GOAL**: Visit every walkable tile in this area
+- **Trainer Battles**: Will happen automatically when you get close enough
+- **Wild Pokemon**: Will appear in grass areas automatically  
+- **Area Completion**: When you've explored all possible paths
+- **Next Step**: Pick an unexplored direction and move there
 
-3. **Environmental Features**:
-   - Terrain types (grass, water, paths, buildings)
-   - Significant landmarks or structures
-   - Available exits and entrances
-   - Weather or time-of-day indicators
+⚡ **NEXT MOVEMENT** (1-2 buttons max):
+- Choose ONE unexplored direction: up, down, left, or right
+- If all nearby areas explored, backtrack and try different branch
+- If you see a trainer, move toward them (battle will start automatically)
+- If path blocked, try alternative route
+- **NEVER** spam same direction repeatedly
 
-4. **Interactive Elements**:
-   - NPCs and their positions/activities
-   - Items on the ground or available for interaction
-   - Signs, doors, or other interactive objects
-   - Battle opportunities (trainers, wild Pokemon areas)
+**🗺️ DEPTH-FIRST EXPLORATION RULES**:
+1. **Pick a direction** and follow it until you can't go further
+2. **When blocked**, backtrack and try the next available path  
+3. **Trainers will battle you** automatically - don't try to initiate
+4. **Area complete** when no more unexplored paths remain
+5. **Then find exit** to next area or return to previous area
 
-5. **Navigation Opportunities**:
-   - Immediate movement options
-   - Areas that can be explored
-   - Buildings or locations that can be entered
-
-6. **Strategic Considerations**:
-   - Pokemon Center or healing opportunities
-   - Shop or service locations
-   - Training opportunities
-   - Progress-blocking obstacles
-
-Be specific about positions, directions, and interactive elements.""",
+Use pokemon_controller with 1 directional button.""",
                 "variables": ["task"],
                 "version": "1.0"
             },
@@ -347,14 +348,14 @@ Be specific about moves, types, and strategic recommendations.""",
         variables = {"task": task}
         return self.get_prompt("pokemon_party_analysis", variables, verbose=verbose)
     
-    def get_location_analysis_prompt(self, task: str, include_playbook: str = None, verbose: bool = False) -> str:
-        """Get formatted location analysis prompt"""
+    def get_exploration_strategy_prompt(self, task: str, include_playbook: str = None, verbose: bool = False) -> str:
+        """Get formatted exploration strategy prompt"""
         variables = {"task": task}
-        return self.get_prompt("location_analysis", variables, include_playbook, verbose)
+        return self.get_prompt("exploration_strategy", variables, include_playbook, verbose)
         
-    def get_battle_analysis_prompt(self, task: str, verbose: bool = False) -> str:
+    def get_battle_analysis_prompt(self, task: str, recent_actions: str = "", verbose: bool = False) -> str:
         """Get formatted battle analysis prompt"""
-        variables = {"task": task}
+        variables = {"task": task, "recent_actions": recent_actions}
         return self.get_prompt("battle_analysis", variables, "battle", verbose)
     
     def add_playbook_entry(self, playbook_name: str, content: str, append: bool = True):

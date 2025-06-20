@@ -548,20 +548,7 @@ class ContinuousGameplay:
         context_lower = memory_context.lower()
         user_goal = self.session.goal.lower()
         
-        # HIGHEST PRIORITY: Stuck navigation detection (critical for avoiding infinite loops)
-        if hasattr(self, 'nav_enhancer') and self.nav_enhancer.stuck_mode:
-            prompt_type = "stuck_navigation"
-            playbooks = ["navigation"]
-            return prompt_type, playbooks
-        
-        # Check for user recovery tasks
-        recent_tasks = getattr(self, '_user_tasks', [])
-        if any("STUCK RECOVERY" in task for task in recent_tasks):
-            prompt_type = "stuck_navigation"
-            playbooks = ["navigation"] 
-            return prompt_type, playbooks
-        
-        # HIGH PRIORITY: Battle detection (most critical for Pokemon gameplay)
+        # HIGHEST PRIORITY: Battle detection (most critical for Pokemon gameplay)
         if self._detect_battle_context(context_lower):
             prompt_type = "battle_analysis"
             playbooks = ["battle"]
@@ -570,6 +557,25 @@ class ContinuousGameplay:
             if any(keyword in context_lower for keyword in ["gym", "leader", "badge"]) or \
                any(keyword in user_goal for keyword in ["gym", "leader", "badge"]):
                 playbooks.append("gyms")
+            
+            return prompt_type, playbooks
+        
+        # HIGH PRIORITY: Stuck navigation detection (but only if NOT in battle)
+        if hasattr(self, 'nav_enhancer') and self.nav_enhancer.stuck_mode:
+            # Skip stuck detection if we're in a battle - battles naturally involve repeated A presses
+            if not self._detect_battle_context(context_lower):
+                prompt_type = "stuck_recovery"
+                playbooks = ["navigation"]
+                return prompt_type, playbooks
+        
+        # Check for user recovery tasks (but only if NOT in battle)
+        recent_tasks = getattr(self, '_user_tasks', [])
+        if any("STUCK RECOVERY" in task for task in recent_tasks):
+            # Skip stuck recovery if we're in a battle
+            if not self._detect_battle_context(context_lower):
+                prompt_type = "stuck_recovery"
+                playbooks = ["navigation"] 
+                return prompt_type, playbooks
                 
         # PARTY MANAGEMENT: Pokemon party analysis
         elif self._detect_party_context(context_lower, user_goal):
@@ -583,12 +589,12 @@ class ContinuousGameplay:
             
         # SERVICES: Pokemon Centers, shops, healing
         elif self._detect_services_context(context_lower, user_goal):
-            prompt_type = "location_analysis"
+            prompt_type = "exploration_strategy"
             playbooks = ["services"]
             
         # NAVIGATION: Movement and exploration (default fallback)
         else:
-            prompt_type = "location_analysis"
+            prompt_type = "exploration_strategy"
             playbooks = ["navigation"]
             
             # Add navigation-specific context detection
@@ -608,8 +614,24 @@ class ContinuousGameplay:
     
     def _detect_battle_context(self, context_lower: str) -> bool:
         """Detect if currently in a Pokemon battle"""
-        battle_keywords = ["battle", "fight", "pokemon", "moves", "hp", "attack", "wild", "trainer", "fainted"]
-        return any(keyword in context_lower for keyword in battle_keywords)
+        # Specific battle UI indicators
+        battle_ui_keywords = [
+            "wild", "trainer", "battle", "fainted", "defeated",
+            "caterpie", "pidgey", "rattata", "weedle", "kakuna", "metapod",  # Common wild Pokemon
+            "brock", "misty", "surge", "erika", "sabrina", "koga", "blaine", "giovanni",  # Gym leaders
+        ]
+        
+        # Battle menu and action keywords
+        battle_action_keywords = [
+            "fight", "bag", "pokemon", "run",  # Main battle menu
+            "growl", "tackle", "scratch", "thundershock", "water gun", "ember",  # Common moves
+            "hp", "pp", "attack", "defense", "speed", "special",  # Battle stats
+            "super effective", "not very effective", "critical hit",  # Battle messages
+        ]
+        
+        # Look for any battle-related keywords
+        all_battle_keywords = battle_ui_keywords + battle_action_keywords
+        return any(keyword in context_lower for keyword in all_battle_keywords)
     
     def _detect_party_context(self, context_lower: str, user_goal: str) -> bool:
         """Detect Pokemon party management tasks"""

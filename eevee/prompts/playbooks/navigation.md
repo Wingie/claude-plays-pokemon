@@ -1,115 +1,117 @@
-# Navigation Knowledge Base
+# Pokemon Game Navigation - Core Mechanics
 
-*This playbook contains location knowledge discovered by the AI during gameplay.*
+## 🎮 **FUNDAMENTAL POKEMON GAME RULES**
 
-## Discovered Locations and Routes
+### **How Trainer Battles Work**
+- **Trainers battle you AUTOMATICALLY** when you enter their line of sight
+- **You do NOT press any buttons to start battles** - they happen when you get close
+- **Line of sight**: Trainers can see in straight lines (up/down/left/right)
+- **Battle initiation**: Trainer will walk up to you and the battle starts automatically
+- **Your job**: Explore areas to find trainers (they'll battle you when they see you)
 
-*AI will populate this section with learned navigation patterns*
+### **How Wild Pokemon Work**  
+- **Wild Pokemon appear AUTOMATICALLY** when walking in tall grass
+- **You do NOT initiate wild encounters** - they happen randomly while walking
+- **Grass areas**: Dark green/textured areas that trigger random encounters
+- **Your job**: Walk through grass areas to level up and catch Pokemon
 
-## Notable Landmarks
+### **Core Exploration Strategy**
+- **Goal**: Explore every part of the current area systematically
+- **Method**: Depth-first search - pick a direction and follow it completely
+- **Completion**: Area is "done" when you've walked on every possible tile
+- **Next area**: Find exits/entrances to move to new areas
 
-*AI will document significant buildings, NPCs, and terrain features*
+## 🗺️ **SYSTEMATIC AREA EXPLORATION**
 
-## Route Connections
+### **The Pokemon Exploration Loop**
+1. **Enter a new area** (Route, Forest, Cave, etc.)
+2. **Pick a direction** and follow it as far as possible
+3. **When blocked**, backtrack and try a different path
+4. **Battles happen automatically** as you encounter trainers
+5. **Continue until area fully explored** (no new paths to try)
+6. **Find the exit** to the next area
 
-*AI will map out how different areas connect to each other*
+### **Depth-First Exploration Rules**
+- **Rule 1**: Always follow a path to its end before trying alternatives
+- **Rule 2**: When you hit a dead end, backtrack to the last fork
+- **Rule 3**: Try each branch systematically (up, right, down, left)
+- **Rule 4**: Don't leave an area until you've tried every possible path
 
-## Healing and Service Locations
+### **Movement Strategy**
+- **One step at a time**: Move one tile, observe, then decide next move
+- **Systematic coverage**: Visit every walkable tile in the area
+- **Path following**: Follow obvious paths (lighter colored ground, clearings)
+- **Backtracking**: Return to previous locations to try unexplored branches
 
-*AI will note Pokemon Centers, shops, and other useful services*
+## 🚫 **COMMON MISTAKES TO AVOID**
 
-## Common Navigation Problems & Solutions
+### **DO NOT**:
+- ❌ **Try to initiate battles** (they happen automatically)
+- ❌ **Press A to start trainer battles** (battles start when you get close)
+- ❌ **Get stuck in loops** (if direction doesn't work after 2 tries, try different direction)
+- ❌ **Rush to specific locations** (systematic exploration finds everything)
+- ❌ **Ignore side paths** (side paths often have trainers and items)
 
-### Getting Stuck at Area Boundaries
-**Problem**: AI repeatedly tries to move in one direction but can't progress
-**Example**: Stuck at "northern edge of Viridian City" pressing UP repeatedly
-**Solutions to Try**:
-1. **LOOK FOR DOORS/ENTRANCES**: Dark rectangular areas in walls, carpet patterns
-2. **WALK TO THE DOOR**: Move toward the entrance point first
-3. **ENTER PROPERLY**: Once at door, press UP to enter or DOWN to exit
-4. Try different directions (left/right to find proper path)
-5. Check if there are any blocking NPCs that need to be talked to
+### **DO**:
+- ✅ **Explore systematically** (visit every possible area)
+- ✅ **Try different directions** when stuck
+- ✅ **Walk toward trainers** (battles start automatically when close)
+- ✅ **Backtrack when blocked** (find alternative routes)
+- ✅ **Complete areas fully** before moving to next area
 
-### Door and Entrance Recognition
-**What to Look For**:
-- **Dark rectangular areas** in walls (building entrances)
-- **Carpet/mat patterns** on the ground (entrance indicators)
-- **Different floor textures** (transition zones)
-- **Archways or doorframes** (visual entrance markers)
-- **Color changes** indicating building interiors vs exteriors
+## 🎯 **AREA COMPLETION CRITERIA**
 
-**How to Use Doors**:
-1. **Identify the door** - Look for dark rectangle in wall
-2. **Walk TO the door** - Move your character to stand in front of it
-3. **Enter the door** - Press UP when standing at the entrance
-4. **Exit buildings** - Press DOWN when on carpet/mat inside
+### **How to Know an Area is Complete**
+- **All paths explored**: You've tried every possible direction from every accessible tile
+- **All trainers fought**: No visible trainers remaining (they all battled you already)
+- **All items found**: Investigated any visible items or interactive objects
+- **Dead ends reached**: Every path leads to either an exit or an obstacle
 
-### Area Transition Rules
-- **Simple Buildings**: One entrance/exit - dark rectangles + UP to enter, carpet + DOWN to exit
-- **Transition Buildings (Route Gates)**: Special buildings connecting different areas
-- **Route Transitions**: Usually at map edges, just walk in that direction
+### **Signs You're Ready for Next Area**
+- No new paths to explore in current area
+- All visible trainers have been defeated
+- Found an exit leading to a new area (cave entrance, city gate, route transition)
+- Can't find any unexplored sections
 
-### CRITICAL: Transition Building Mechanics
-**What are Transition Buildings?**
-- Buildings that connect two different areas (like Viridian City ↔ Viridian Forest)
-- These buildings have **MULTIPLE exits** - each leads to a different destination
-- **NOT** single-door buildings - they have directional carpet exits
+## 🔧 **PROBLEM SOLVING**
 
-**How to Navigate Transition Buildings:**
-1. **Enter**: Walk to dark rectangle + UP (same as normal buildings)
-2. **Inside**: Look for **multiple carpet areas** - usually north and south ends
-3. **Choose Direction**: 
-   - **North carpet** = Forward destination (e.g., Viridian Forest)
-   - **South carpet** = Back to origin (e.g., Viridian City)
-4. **Explore**: Use LEFT/RIGHT to find the correct carpet for your destination
-5. **Exit**: Stand on chosen carpet + UP to proceed to that area
+### **When Stuck in One Spot**
+1. **Try perpendicular directions** (if stuck going up/down, try left/right)
+2. **Try opposite direction** (if stuck going right, try left)  
+3. **Look for interactions** (press A near objects, NPCs, signs)
+4. **Backtrack** to previous location and try different route
 
-**Specific Route: Viridian City → Viridian Forest**
-- **Building**: Gatehouse at north edge of Viridian City
-- **Inside Layout**: Rectangular room with TWO carpet areas
-  - **South Carpet**: Bottom of room (leads back to Viridian City)
-  - **North Carpet**: Top of room (leads forward to Viridian Forest)
-- **Navigation Strategy**: 
-  1. Enter building (dark rectangle + UP)
-  2. Use LEFT/RIGHT to explore and find BOTH carpet areas
-  3. Move to NORTH carpet (top of room)
-  4. Press UP to exit toward Viridian Forest
-- **Critical**: Don't exit at first carpet you see - explore to find the correct one!
+### **When Lost or Confused**
+1. **Stop and observe** current surroundings
+2. **Identify area type** (forest, route, cave, city)
+3. **Pick one direction** and explore it completely
+4. **Backtrack** to starting point and try next direction
+5. **Repeat** until area is fully mapped
 
-### Infinite Loop Detection
-**Warning Signs**: Same button pressed 3+ consecutive turns
-**AI Should**: Immediately try alternative approaches when warned about repetition
+### **When No Progress Made**
+- **Problem**: Moving in circles or hitting invisible walls
+- **Solution**: Try completely different direction
+- **Method**: If going horizontal, try vertical (and vice versa)
+- **Last resort**: Press A to interact with environment
 
-## Discovered Routes
+## 📍 **AREA TYPES & STRATEGIES**
 
-**Test Entry**: This is a test navigation note
+### **Forests (like Viridian Forest)**
+- **Layout**: Maze-like with many paths and dead ends
+- **Strategy**: Follow each path to completion before trying next
+- **Trainers**: Scattered throughout, will battle when you get close
+- **Completion**: When all paths explored and no new areas to discover
 
-**2025-06-19 19:09** - Navigation Discovery:
-- **From**: Viridian City
-- **Direction**: north
-- **Leads to**: Viridian Forest
-- **Status**: ✅ Confirmed route
+### **Routes (numbered paths between cities)**
+- **Layout**: Usually linear with some side branches
+- **Strategy**: Follow main path, explore all side branches
+- **Trainers**: Usually positioned along main and side paths
+- **Completion**: Reached the destination city/area
 
-**CRITICAL ROUTE KNOWLEDGE - Viridian City to Viridian Forest**:
-- **Challenge**: Most common AI failure point - infinite UP/DOWN loop
-- **Building Type**: Route Gate (transition building with multiple exits)
-- **Success Strategy**: 
-  1. Find dark rectangular entrance at north edge of Viridian City
-  2. Enter with UP
-  3. **CRUCIAL**: Inside, explore LEFT/RIGHT to map the room
-  4. Find TWO carpet areas (one at each end)
-  5. Move to NORTH carpet (far end of room)
-  6. Press UP to exit to Viridian Forest
-- **Common Mistake**: Exiting immediately at first carpet (leads back to city)
+### **Cities and Towns**
+- **Layout**: Buildings, Pokemon Centers, shops
+- **Strategy**: Enter every building, talk to NPCs
+- **Battles**: Usually fewer trainers, mostly in gyms
+- **Completion**: Visited all buildings and services
 
-**2025-06-19 Evening** - Navigation Problem SOLVED:
-- **Location**: Northern edge of Viridian City  
-- **Issue**: AI stuck pressing UP repeatedly (16+ turns)
-- **SOLUTION**: Look for dark rectangular door in wall, walk TO the door, then press UP to enter
-- **Status**: ✅ Door navigation system implemented
-
-**2025-06-20** - Door Navigation Rules Added:
-- **Viridian Forest Entry**: Dark doorway at north edge - walk to it + UP to enter
-- **Building Doors**: Dark rectangles in walls - walk to them + UP to enter  
-- **Exit Buildings**: Stand on carpet/mat inside + DOWN to exit
-- **Key Learning**: Don't just press directional buttons at boundaries - FIND THE DOOR FIRST!
+This playbook focuses on the core mechanics: **systematic exploration where battles happen automatically**. The AI's job is to explore areas completely, not to chase specific targets.

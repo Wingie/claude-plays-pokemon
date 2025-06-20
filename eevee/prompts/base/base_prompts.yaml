@@ -24,99 +24,124 @@ task_analysis:
   variables: ["task", "context_summary", "memory_context"]
   version: "1.0"
 
-stuck_navigation:
-  name: "Stuck Navigation Recovery"
-  description: "Handles navigation when AI is stuck in loops or making no progress"
+stuck_recovery:
+  name: "Simple Stuck Recovery"
+  description: "Quick recovery when AI is stuck in movement loops"
   template: |
-    🚨 **NAVIGATION ISSUE DETECTED** 🚨
-    
-    **PROBLEM**: {stuck_problem}
-    
-    **RECENT ACTIONS**: {recent_actions}
-    
-    **ANALYSIS REQUIRED**:
-    🎯 **OBSERVE**: What barriers or obstacles are preventing movement?
-    🔍 **DOOR CHECK**: Are there any **dark rectangular areas** in walls (doors/entrances)?
-    🧠 **DIAGNOSE**: Why are the recent actions not working?
-    💡 **ALTERNATIVE STRATEGY**: Should you move toward a visible door instead?
-    
-    **RECOVERY STRATEGIES TO CONSIDER**:
-    1. **ROUTE GATE MECHANICS**: You're stuck because this is a TRANSITION BUILDING!
-       - **NOT a regular building** - this connects two different areas
-       - **Inside**: Rectangular room with carpet at BOTH ends (north and south)
-       - **Mission**: Find the NORTH carpet to reach Viridian Forest
-    
-    2. **SYSTEMATIC BUILDING EXPLORATION**:
-       - **Step 1**: Enter building (UP at dark rectangle)
-       - **Step 2**: Move LEFT and RIGHT to see the full room layout
-       - **Step 3**: Locate BOTH carpet areas (usually north and south ends)
-       - **Step 4**: Move to the TOP/NORTH carpet (toward your destination)
-       - **Step 5**: Press UP to exit toward Viridian Forest
-    
-    3. **CRITICAL REALIZATION**: 
-       - **Wrong Strategy**: "Enter building → immediately press DOWN to exit"
-       - **Right Strategy**: "Enter building → explore with LEFT/RIGHT → find north carpet → UP"
-       - **Goal Check**: Viridian Forest = NORTH, Viridian City = SOUTH
-    
-    **CRITICAL RULES**:
-    - **NEVER repeat the same button that just failed multiple times**
-    - **Maximum 1-2 button presses (never more than 3)**
-    - **Try the OPPOSITE or PERPENDICULAR direction first**
-    - **If at area boundary, try A button for interaction**
-    
-    **Current Context**: {task}
-    **Goal**: {goal}
-    
-    Use the pokemon_controller tool with alternative button sequence.
-  variables: ["stuck_problem", "recent_actions", "task", "goal"]
-  version: "1.0"
+    STUCK RECOVERY MODE
+
+    PROBLEM: You've been repeating the same action: {recent_actions}
+
+    IMMEDIATE ACTION (Pick ONE):
+    1. Try PERPENDICULAR direction:
+       - If stuck going UP/DOWN → try LEFT or RIGHT
+       - If stuck going LEFT/RIGHT → try UP or DOWN
+
+    2. Try OPPOSITE direction:
+       - If stuck going UP → try DOWN
+       - If stuck going RIGHT → try LEFT
+
+    3. Try INTERACTION:
+       - Press A button (might be something to interact with)
+       - Press B button (might need to exit a menu)
+
+    CRITICAL RULES:
+    - Never repeat the same failed action more than 2 times
+    - Never use more than 2 buttons in one turn
+    - Never keep trying the same direction when it's clearly blocked
+
+    POKEMON GAME LOGIC:
+    - If you can't move in a direction, that path is blocked
+    - Try a different direction to continue exploring
+    - Trainers will battle you automatically when you get close
+    - Your goal is to explore the area systematically
+
+    Current Goal: {task}
+
+    CHOOSE ONE ALTERNATIVE DIRECTION AND TRY IT
+
+    Use pokemon_controller with 1 button press only.
+  variables: ["recent_actions", "task"]
+  version: "2.0"
 
 battle_analysis:
-  name: "Pokemon Battle Expert Analysis"
-  description: "Advanced battle analysis with type effectiveness and move selection"
+  name: "Pokemon Battle Menu Navigation Expert"
+  description: "Detailed battle UI navigation with phase detection and menu systems"
   template: |
-    ⚔️ **POKEMON BATTLE EXPERT MODE** ⚔️
+    POKEMON BATTLE NAVIGATION MODE
     
-    **BATTLE CONTEXT**: {task}
+    You are in a Pokemon battle. Battles use MENU NAVIGATION, not movement.
     
-    **BATTLE ANALYSIS PROTOCOL**:
+    Current Task: {task}
+    Recent Actions: {recent_actions}
     
-    🎯 **OBSERVATION PHASE**:
-    - What Pokemon am I using? What are its visible moves?
-    - What opponent Pokemon am I facing?
-    - What are the current HP levels for both Pokemon?
-    - Are we in the battle menu or move selection screen?
+    STEP 1 - IDENTIFY BATTLE PHASE:
+    Look at the screen and determine which phase you're in:
     
-    🧠 **STRATEGIC ANALYSIS PHASE**:
-    - What types are both Pokemon? (Use the Battle Playbook knowledge)
-    - Which of my moves are super effective? (2x damage)
-    - Which moves are neutral? (1x damage)  
-    - Which moves are not very effective? (0.5x damage)
-    - Any moves that have no effect? (0x damage)
+    PHASE A - BATTLE INTRO/TEXT: 
+    - See: Battle start text, "Wild Pokemon appeared", damage text, status messages
+    - Action: Press A to advance text
     
-    ⚡ **ACTION SELECTION PHASE**:
-    - If in battle menu: Press A to select "FIGHT"
-    - If in move selection: Use type effectiveness to choose best move
-    - Navigate to optimal move using directional buttons + A
+    PHASE B - MAIN BATTLE MENU:
+    - See: Four options in a menu - FIGHT, BAG, POKEMON, RUN
+    - CRITICAL: Check which option has the triangle/cursor (active selection)
+    - If BAG is selected: Press UP to move to FIGHT, then A
+    - If FIGHT is selected: Press A to confirm
+    - If other option selected: Use arrows to navigate to FIGHT, then A
     
-    **MOVE SELECTION PRIORITY**:
-    1. Super effective moves (2x damage) - HIGHEST PRIORITY
-    2. Strong neutral moves (1x damage) - SECOND PRIORITY  
-    3. Weak but effective moves (0.5x damage) - THIRD PRIORITY
-    4. Status moves (no damage) - ONLY if no damage moves available
+    PHASE C - MOVE SELECTION SCREEN:
+    - See: Four Pokemon moves displayed in a 2x2 grid
+    - Example layout:
+      [GROWL]        [THUNDERSHOCK]
+      [TAIL WHIP]    [THUNDER WAVE]
+    - Action: Navigate with arrow keys, then A to confirm
     
-    **BUTTON SEQUENCE RULES**:
-    - Battle menu visible? → ["a"] to select FIGHT
-    - Want first move? → ["a"] 
-    - Want second move? → ["down", "a"]
-    - Want third move (if 2x2 grid)? → ["right", "a"]  
-    - Want fourth move (if 2x2 grid)? → ["down", "right", "a"]
+    PHASE D - BATTLE ANIMATION:
+    - See: Pokemon attacking, damage numbers, HP bars changing
+    - Action: Press A to continue after animation
     
-    **CRITICAL**: Never spam A button. Always identify the best move first, then navigate to it.
+    STEP 2 - CURRENT PHASE ANALYSIS:
     
-    Use pokemon_controller tool with calculated button sequence.
-  variables: ["task"]
-  version: "1.0"
+    OBSERVE what you see RIGHT NOW:
+    - Text messages or menu options?
+    - Pokemon move names visible?
+    - Animation playing?
+    - What is highlighted/selected?
+    
+    STEP 3 - NAVIGATION ACTION:
+    
+    If PHASE A (text): Press ['a']
+    If PHASE B (main menu): 
+      - Check what's highlighted (triangle/cursor position)
+      - If FIGHT highlighted: Press ['a']
+      - If BAG highlighted: Press ['up', 'a'] (move up to FIGHT then select)
+      - If POKEMON highlighted: Press ['up', 'up', 'a'] (move up twice to FIGHT)
+      - If RUN highlighted: Press ['up', 'up', 'up', 'a'] (move up three times to FIGHT)
+    If PHASE C (moves): Use 2x2 grid navigation:
+      - Top-left move: ['a']
+      - Top-right move: ['right', 'a'] 
+      - Bottom-left move: ['down', 'a']
+      - Bottom-right move: ['down', 'right', 'a']
+    If PHASE D (animation): Press ['a'] to continue
+    
+    MOVE SELECTION STRATEGY:
+    1. Identify move types and opponent Pokemon type
+    2. Choose super effective moves (2x damage) if available
+    3. Avoid not very effective moves (0.5x damage)
+    4. Use strongest available move if no type advantage
+    
+    HEALTH MONITORING:
+    - Your Pokemon HP low? Consider BAG (healing items) or POKEMON (switch)
+    - Opponent Pokemon HP low? Use any damaging move to finish
+    
+    CRITICAL: 
+    - Battles require MENU navigation, not directional movement
+    - Pressing A repeatedly is normal in battles (advancing text/animations)
+    - Focus on completing the battle phase-by-phase
+    
+    Use pokemon_controller with menu navigation buttons only.
+  variables: ["task", "recent_actions"]
+  version: "3.0"
 
 pokemon_party_analysis:
   name: "Pokemon Party Analysis Base"
@@ -157,57 +182,52 @@ pokemon_party_analysis:
   variables: ["task", "recent_actions"]
   version: "2.0"
 
-location_analysis:
-  name: "Location Analysis - Step by Step Navigation"
-  description: "Analyzes current location with focus on immediate next movement"
+exploration_strategy:
+  name: "Pokemon Area Exploration Strategy"  
+  description: "Systematic exploration of Pokemon game areas to find all trainers and paths"
   template: |
-    Analyze this Pokemon location and decide the IMMEDIATE next movement:
+    POKEMON EXPLORATION STRATEGY
 
-    Task Context: {task}
+    CORE POKEMON RULES:
+    - Trainers battle you AUTOMATICALLY when they see you (line of sight)  
+    - Your goal: Explore every part of this area systematically
+    - Wild Pokemon will also encounter you automatically in tall grass
+    - Navigation: Move through area to discover all content
+
+    Current Task: {task}
     Recent Actions: {recent_actions}
 
-    **CRITICAL INSTRUCTIONS**:
-    - Take ONE step at a time (1-2 buttons maximum)
-    - Observe immediate surroundings only
-    - Don't plan long movement sequences
-    - React to what you see RIGHT NOW
+    OBSERVATION PHASE:
+    - What type of area are you in: Route, Forest, Cave, City, Building?
+    - Where is your character currently positioned?
+    - What paths/directions are available from here?
+    - Are there any trainers visible on screen?
+    - Any unexplored paths or areas visible?
 
-    **IMMEDIATE LOCATION ANALYSIS**:
+    EXPLORATION STRATEGY:
+    - PRIMARY GOAL: Visit every walkable tile in this area
+    - Trainer Battles: Will happen automatically when you get close enough
+    - Wild Pokemon: Will appear in grass areas automatically
+    - Area Completion: When you've explored all possible paths
+    - Next Step: Pick an unexplored direction and move there
 
-    🎯 **OBSERVATION** (What do you see RIGHT NOW?):
-    - Where is your character positioned?
-    - What's directly around you (trees, paths, buildings, NPCs)?
-    - **DOOR/ENTRANCE CHECK**: Are there any **dark rectangular areas** in walls? (These are doors!)
-    - **CARPET/MAT CHECK**: Any **carpet patterns** on the ground? (Building entrances/exits)
-    - **TRANSITION CHECK**: Different **floor textures** or **color changes**? (Area boundaries)
-    - Are there any obstacles blocking immediate movement?
-    - Is there a battle happening or menu open?
+    IMMEDIATE MOVEMENT (1-2 buttons max):
+    - Choose ONE unexplored direction: up, down, left, or right
+    - If all nearby areas explored, backtrack and try different branch
+    - If you see a trainer, move toward them (battle will start automatically)
+    - If path blocked, try alternative route
+    - NEVER spam same direction repeatedly
 
-    🧠 **ANALYSIS** (What's the immediate next step?):
-    - Based on your goal: {task}
-    - **IF YOU SEE A DOOR/ENTRANCE**: Move toward it first, then press UP to enter
-    - **IF ON CARPET/MAT INSIDE**: Press DOWN to exit building
-    - What direction makes sense for ONE step?
-    - Are you stuck or repeating the same action?
-    - Do you need to move toward a visible entrance?
+    DEPTH-FIRST EXPLORATION RULES:
+    1. Pick a direction and follow it until you can't go further
+    2. When blocked, backtrack and try the next available path
+    3. Trainers will battle you automatically - don't try to initiate
+    4. Area complete when no more unexplored paths remain
+    5. Then find exit to next area or return to previous area
 
-    ⚡ **IMMEDIATE MOVEMENT** (1 direction only):
-    - Choose ONE direction: up, down, left, or right
-    - OR press A to interact with something nearby
-    - OR press B to back out of a menu
-    - NEVER move multiple steps in one decision
-
-    **MOVEMENT GUIDELINES**:
-    - **PRIORITY 1**: If you see a door (dark rectangle in wall), move toward it
-    - **PRIORITY 2**: Once at door, press UP to enter (or DOWN to exit if inside)
-    - If you see a path, follow it one step at a time
-    - If blocked by obstacle, try a different direction
-    - If in a menu, press A or B as appropriate
-    - If you've been going the same direction multiple times, LOOK FOR DOORS instead
-
-    Use pokemon_controller with just 1 button press.
+    Use pokemon_controller with 1 directional button.
   variables: ["task", "recent_actions"]
-  version: "2.0"
+  version: "3.0"
 
 inventory_analysis:
   name: "Inventory and Items Analysis Base"
@@ -255,46 +275,3 @@ inventory_analysis:
   variables: ["task", "recent_actions"]
   version: "2.0"
 
-battle_analysis:
-  name: "Battle Situation Analysis - Step by Step"
-  description: "Analyzes Pokemon battles with focus on immediate next action"
-  template: |
-    Analyze this Pokemon battle and decide the IMMEDIATE next action:
-
-    Task Context: {task}
-    Recent Actions: {recent_actions}
-
-    **CRITICAL INSTRUCTIONS**:
-    - Focus ONLY on the immediate next step
-    - Maximum 1-2 button presses (never more than 3)
-    - Observe what's on screen RIGHT NOW
-    - Don't plan multiple moves ahead
-
-    **IMMEDIATE BATTLE ANALYSIS**:
-
-    🎯 **OBSERVATION** (What do you see RIGHT NOW?):
-    - What menu or battle screen is currently displayed?
-    - What are the exact options visible?
-    - What is your Pokemon's current state?
-    - What is the opponent's current state?
-
-    🧠 **ANALYSIS** (What should happen next?):
-    - What is the immediate problem to solve?
-    - What menu navigation is needed right now?
-    - Is this a move selection, battle menu, or other screen?
-
-    ⚡ **IMMEDIATE ACTION** (1-2 buttons only):
-    - If battle menu visible: Press A to select FIGHT
-    - If move selection visible: Use direction + A for specific move
-    - If text scrolling: Press A to continue
-    - NEVER plan more than 2 buttons at once
-
-    **MOVE SELECTION GUIDE**:
-    - First move (top-left): Just press A
-    - Second move (below first): Press DOWN then A  
-    - Third move (top-right): Press RIGHT then A
-    - Fourth move (bottom-right): Press DOWN, RIGHT, then A
-
-    Use pokemon_controller with 1-2 buttons maximum.
-  variables: ["task", "recent_actions"]
-  version: "2.0"

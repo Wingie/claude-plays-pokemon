@@ -1,8 +1,17 @@
 # Pokemon Battle Expert Playbook
 
-**CRITICAL BATTLE NAVIGATION RULES:**
+## 🎮 **CRITICAL: HOW BATTLES START**
 
-**🎯 MOVE SELECTION PROCESS:**
+### **🚨 BATTLES ARE AUTOMATIC - YOU DON'T INITIATE THEM! 🚨**
+- **Trainer battles start AUTOMATICALLY** when you walk into their line of sight
+- **Wild Pokemon battles start AUTOMATICALLY** when walking in tall grass  
+- **You do NOT press any buttons to start battles**
+- **Your job**: Walk around exploring - battles happen to you automatically
+- **Battle initiation**: The screen will change to battle mode without your input
+
+## **⚔️ BATTLE NAVIGATION RULES**
+
+### **🎯 MOVE SELECTION PROCESS:**
 1. **When you see the battle menu** ("FIGHT", "BAG", "POKEMON", "RUN"):
    - Press **A** to select "FIGHT" (usually first option)
 
