@@ -64,6 +64,11 @@ class EeveeAgent:
         self.enable_neo4j = enable_neo4j
         self.enable_okr = enable_okr
         
+        # Model fallback system for rate limiting
+        self.available_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"]
+        self.rate_limited_models = set()
+        self.current_model = model
+        
         # Initialize core components
         self._init_ai_components()
         self._init_directories()
@@ -83,7 +88,7 @@ class EeveeAgent:
         
         if self.verbose:
             print(f"🔮 EeveeAgent initialized")
-            print(f"   Model: {self.model}")
+            print(f"   Model: {self.current_model} (fallbacks: {', '.join(self.available_models[1:])})")
             print(f"   Memory Session: {self.memory_session}")
             print(f"   Window: {self.window_title}")
     
@@ -95,7 +100,7 @@ class EeveeAgent:
         
         # Initialize native Gemini API
         genai.configure(api_key=api_key)
-        self.gemini = genai.GenerativeModel(model_name=self.model)
+        self.gemini = genai.GenerativeModel(model_name=self.current_model)
         
         # Define Pokemon controller tool using Google's format
         self.pokemon_function_declaration = FunctionDeclaration(
@@ -146,6 +151,28 @@ class EeveeAgent:
             self.task_executor = None
             if self.debug:
                 print("⚠️  TaskExecutor not available, using basic execution")
+    
+    def _switch_to_next_model(self) -> bool:
+        """
+        Switch to next available model when current model is rate limited
+        
+        Returns:
+            bool: True if successfully switched to new model, False if all models rate limited
+        """
+        for model in self.available_models:
+            if model not in self.rate_limited_models:
+                if model != self.current_model:
+                    old_model = self.current_model
+                    self.current_model = model
+                    self.gemini = genai.GenerativeModel(model_name=model)
+                    
+                    if self.verbose:
+                        print(f"🔄 Switched from {old_model} to {model} due to rate limiting")
+                    return True
+        
+        if self.verbose:
+            print("❌ All models are rate limited - waiting for quota reset")
+        return False
     
     def _call_gemini_api(self, prompt: str, image_data: str = None, use_tools: bool = False, max_tokens: int = 1000) -> Dict[str, Any]:
         """
@@ -224,13 +251,21 @@ class EeveeAgent:
             except Exception as e:
                 error_msg = str(e).lower()
                 
-                # Handle 429 rate limit errors with smart backoff
+                # Handle 429 rate limit errors with model switching
                 if "429" in error_msg or "rate limit" in error_msg or "quota" in error_msg:
-                    retry_delay = self._parse_retry_delay(str(e), base_delay * (2 ** attempt))
-                    if self.verbose:
-                        print(f"⚠️ Rate limit hit (attempt {attempt + 1}/{max_retries}). Waiting {retry_delay:.1f}s...")
-                    time.sleep(retry_delay)
-                    continue
+                    # Mark current model as rate limited and try to switch
+                    self.rate_limited_models.add(self.current_model)
+                    
+                    if self._switch_to_next_model():
+                        # Successfully switched models, retry immediately with new model
+                        continue
+                    else:
+                        # All models rate limited, fall back to waiting
+                        retry_delay = self._parse_retry_delay(str(e), base_delay * (2 ** attempt))
+                        if self.verbose:
+                            print(f"⚠️ All models rate limited (attempt {attempt + 1}/{max_retries}). Waiting {retry_delay:.1f}s...")
+                        time.sleep(retry_delay)
+                        continue
                 
                 # Handle timeout and connection errors  
                 elif any(keyword in error_msg for keyword in ["timeout", "connection", "network", "temporarily unavailable"]):
