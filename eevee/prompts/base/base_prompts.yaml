@@ -41,13 +41,17 @@ stuck_navigation:
     💡 **ALTERNATIVE STRATEGY**: Should you move toward a visible door instead?
     
     **RECOVERY STRATEGIES TO CONSIDER**:
-    1. **TRANSITION ROOM CHECK**: If stuck going up/down repeatedly, you might be in a transition room!
-       - **UP carpet/exit = forward to next area (like Viridian Forest)**
-       - **DOWN carpet/exit = back to previous area (like Viridian City)**
-    2. **DOOR NAVIGATION**: Look for dark rectangles in walls, move toward them, then UP to enter
-    3. **Perpendicular Movement**: Try moving in a direction 90° from recent attempts (left/right)
-    4. **Visual Inspection**: Look for carpet patterns, floor changes, or entrance indicators
-    5. **Strategic Thinking**: Consider your goal - do you want to go forward or back?
+    1. **TRANSITION ROOM ALERT**: You're stuck in UP/DOWN loop between inside/outside!
+       - **INSIDE BUILDING**: Look for TWO exits - top carpet AND bottom carpet
+       - **TOP CARPET (UP)** = Forward to next area (Viridian Forest)  
+       - **BOTTOM CARPET (DOWN)** = Back to previous area (Viridian City)
+       - **GOAL**: If going to Viridian Forest, find and walk to TOP carpet, then press UP
+    2. **BUILDING NAVIGATION**: When inside, don't just press DOWN at first carpet you see
+       - **Look around**: Move LEFT/RIGHT to find the correct exit carpet
+       - **Two exits rule**: Most transition buildings have north AND south exits
+    3. **LOCATION CONTEXT**: Where do you want to go? 
+       - **Viridian Forest** = Find TOP/NORTH carpet inside building
+       - **Viridian City** = Use BOTTOM/SOUTH carpet inside building
     
     **CRITICAL RULES**:
     - **NEVER repeat the same button that just failed multiple times**

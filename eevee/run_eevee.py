@@ -284,6 +284,13 @@ class ContinuousGameplay:
             analysis_text = api_result.get("text", "No analysis provided")
             button_sequence = api_result.get("button_presses", ["a"])
             
+            # DEBUG: Check what we got from API
+            if self.eevee.verbose:
+                print(f"🔍 DEBUG - API Response Length: {len(analysis_text)}")
+                print(f"🔍 DEBUG - Has button_presses: {bool(api_result.get('button_presses'))}")
+                if len(analysis_text) < 50:
+                    print(f"🔍 DEBUG - Short response: '{analysis_text}'")
+            
             # Always show enhanced analysis logging for better debugging
             self._log_enhanced_analysis(turn_number, analysis_text, button_sequence)
             
@@ -327,32 +334,17 @@ class ContinuousGameplay:
             print(f"⚠️ No valid buttons found, using default 'a'")
             validated_actions = ['a']
         
-        # AGGRESSIVE LOOP DETECTION: Halt execution if same action 3+ times in a row
-        if hasattr(self, '_last_three_actions'):
-            if (len(self._last_three_actions) >= 2 and 
-                all(action == validated_actions for action in self._last_three_actions[-2:]) and
-                validated_actions == self._last_three_actions[-1]):
-                print(f"🛑 EMERGENCY STOP: Same action {validated_actions} repeated 3+ times!")
-                print(f"🔄 Forcing alternative action: trying opposite direction")
-                # Force a different action based on current action
-                if validated_actions == ['up']:
-                    validated_actions = ['down']
-                elif validated_actions == ['down']:
-                    validated_actions = ['left']  # Try sideways instead of up
-                elif validated_actions == ['left']:
-                    validated_actions = ['right']
-                elif validated_actions == ['right']:
-                    validated_actions = ['up']
-                else:
-                    validated_actions = ['a']  # Fallback to interaction
-                print(f"🔄 Switched to: {validated_actions}")
-        
-        # Track recent actions for loop detection
+        # LOOP DETECTION: Track patterns for informational purposes only
         if not hasattr(self, '_last_three_actions'):
             self._last_three_actions = []
         self._last_three_actions.append(validated_actions)
         if len(self._last_three_actions) > 3:
             self._last_three_actions.pop(0)
+        
+        # INFORMATION ONLY: Alert about repetitive patterns without overriding
+        if hasattr(self, '_last_three_actions') and len(self._last_three_actions) >= 3:
+            if all(action == validated_actions for action in self._last_three_actions[-3:]):
+                print(f"ℹ️  PATTERN ALERT: Action {validated_actions} repeated 3 times - AI should consider alternatives")
         
         try:
             # Execute button sequence
@@ -365,7 +357,8 @@ class ContinuousGameplay:
             self._record_turn_action(turn_number, observation, validated_actions, result_text)
             
             # ENHANCED: Add navigation analysis after action execution
-            nav_analysis = self._analyze_navigation_progress(turn_number, validated_actions, ai_result.get("reasoning", ""))
+            reasoning_text = ai_result.get("reasoning", "No reasoning provided")
+            nav_analysis = self._analyze_navigation_progress(turn_number, validated_actions, reasoning_text)
             
             return {
                 "success": success,

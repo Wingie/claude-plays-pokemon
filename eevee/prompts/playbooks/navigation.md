@@ -45,10 +45,29 @@
 4. **Exit buildings** - Press DOWN when on carpet/mat inside
 
 ### Area Transition Rules
-- **Viridian Forest Entrance**: Dark doorway at north edge of Viridian City
-- **Building Entrances**: Dark rectangles in walls, walk to them + UP
-- **Building Exits**: Stand on carpet/mat inside + DOWN
+- **Simple Buildings**: One entrance/exit - dark rectangles + UP to enter, carpet + DOWN to exit
+- **Transition Buildings (Route Gates)**: Special buildings connecting different areas
 - **Route Transitions**: Usually at map edges, just walk in that direction
+
+### CRITICAL: Transition Building Mechanics
+**What are Transition Buildings?**
+- Buildings that connect two different areas (like Viridian City ↔ Viridian Forest)
+- These buildings have **MULTIPLE exits** - each leads to a different destination
+- **NOT** single-door buildings - they have directional carpet exits
+
+**How to Navigate Transition Buildings:**
+1. **Enter**: Walk to dark rectangle + UP (same as normal buildings)
+2. **Inside**: Look for **multiple carpet areas** - usually north and south ends
+3. **Choose Direction**: 
+   - **North carpet** = Forward destination (e.g., Viridian Forest)
+   - **South carpet** = Back to origin (e.g., Viridian City)
+4. **Explore**: Use LEFT/RIGHT to find the correct carpet for your destination
+5. **Exit**: Stand on chosen carpet + UP to proceed to that area
+
+**Specific Route: Viridian City → Viridian Forest**
+- **Building**: Gatehouse at north edge of Viridian City
+- **Inside**: Two carpet areas - south and north ends
+- **Goal**: Find NORTH carpet (toward forest), then press UP
 
 ### Infinite Loop Detection
 **Warning Signs**: Same button pressed 3+ consecutive turns
