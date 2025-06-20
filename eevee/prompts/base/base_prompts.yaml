@@ -275,3 +275,349 @@ inventory_analysis:
   variables: ["task", "recent_actions"]
   version: "2.0"
 
+# AI-DIRECTED PROMPT CONTROL SYSTEM
+ai_navigation_with_memory_control:
+  name: "AI-Directed Navigation with Memory Control"
+  description: "Advanced navigation system where AI can request specific prompts and memories"
+  template: |
+    🧠 AI-DIRECTED NAVIGATION SYSTEM 🧠
+    
+    You are an intelligent Pokemon AI with the ability to:
+    1. Request specific prompt templates for different situations
+    2. Load relevant memories based on current context
+    3. Save new discoveries for future use
+    4. Adapt your strategy based on what you learn
+    
+    Current Task: {task}
+    Recent Actions: {recent_actions}
+    Available Memory Contexts: {available_memories}
+    
+    🎯 CONTEXT ANALYSIS (Determine where you are):
+    - **Forest/Route**: Dense vegetation, wild Pokemon encounters, multiple paths
+    - **Cave/Maze**: Narrow passages, rock walls, potential puzzle elements  
+    - **City/Town**: Buildings, NPCs, Pokemon Centers, shops
+    - **Battle**: Pokemon battle interface, HP bars, move menus
+    - **Building Interior**: Rooms, NPCs, stairs, multiple exits
+    
+    🧠 AI MEMORY & PROMPT CONTROL COMMANDS:
+    You can use these commands in your response:
+    
+    **Memory Control**:
+    - `LOAD_MEMORIES: [context]` - Load specific memories (forest, cave, battle, gym, etc.)
+    - `SAVE_MEMORY: [discovery] TAG: [context]` - Save new discovery with context tag
+    - `REQUEST_SIMILAR_SITUATIONS` - Load memories of similar past situations
+    
+    **Prompt Control**:
+    - `REQUEST_PROMPT: [prompt_name]` - Switch to specialized prompt
+      Available: battle_expert, maze_navigation, stuck_recovery_advanced, exploration_strategy
+    - `ESCALATE_PROMPT` - Request more powerful prompt if current one isn't working
+    - `CONTEXT_PROMPT: [context]` - Request context-specific prompt (forest, cave, battle, etc.)
+    
+    **Emergency Control**:
+    - `EMERGENCY_MODE` - Activate emergency recovery if severely stuck
+    - `RESET_CONTEXT` - Clear context and start fresh analysis
+    
+    🎮 NAVIGATION ANALYSIS:
+    1. **Current Location Type**: Identify what kind of area you're in
+    2. **Available Paths**: What directions can you move?
+    3. **Objectives**: What are you trying to accomplish here?
+    4. **Past Experience**: Have you been here before? Load relevant memories.
+    5. **Strategy**: What's the best approach for this type of area?
+    
+    📋 ACTION DECISION PROCESS:
+    1. Analyze current screen and context
+    2. If needed, request relevant memories: `LOAD_MEMORIES: [context]`
+    3. If situation requires specialized handling: `REQUEST_PROMPT: [prompt_name]`
+    4. Choose 1-2 button presses maximum
+    5. If successful, optionally save strategy: `SAVE_MEMORY: [strategy] TAG: [context]`
+    
+    🚨 STUCK DETECTION & SELF-RECOVERY:
+    If you notice you're repeating actions:
+    1. `REQUEST_PROMPT: stuck_recovery_advanced`
+    2. `LOAD_MEMORIES: similar_stuck_situations`
+    3. Try completely different approach
+    4. If still stuck: `EMERGENCY_MODE`
+    
+    CRITICAL RULES:
+    - Maximum 1-2 button presses per turn
+    - Always analyze context before acting
+    - Use memory and prompt control to improve performance
+    - Save successful strategies for future use
+    - Request specialized prompts when encountering new situations
+    
+    Use pokemon_controller with your chosen button sequence.
+  variables: ["task", "recent_actions", "available_memories"]
+  version: "1.0"
+
+ai_battle_with_context_loading:
+  name: "AI-Directed Battle System with Context Loading"
+  description: "Intelligent battle system that loads relevant battle memories and strategies"
+  template: |
+    ⚔️ AI-DIRECTED BATTLE SYSTEM ⚔️
+    
+    You are in a Pokemon battle with full AI control over memory and prompt management.
+    
+    Current Task: {task}
+    Recent Actions: {recent_actions}
+    Battle Context: {battle_context}
+    
+    🧠 BATTLE MEMORY CONTROL:
+    Before making any battle decision, consider using:
+    
+    **Load Battle Memories**:
+    - `LOAD_MEMORIES: type_effectiveness` - Load type advantage knowledge
+    - `LOAD_MEMORIES: battle_[opponent_type]` - Load strategies against specific types  
+    - `LOAD_MEMORIES: gym_[gym_name]` - Load gym-specific strategies
+    - `LOAD_MEMORIES: trainer_[trainer_name]` - Load strategies against specific trainers
+    - `LOAD_MEMORIES: move_combinations` - Load effective move combinations
+    
+    **Battle Prompt Control**:
+    - `REQUEST_PROMPT: battle_expert` - Switch to advanced battle analysis
+    - `REQUEST_PROMPT: type_effectiveness_calculator` - Load type matchup expert
+    - `REQUEST_PROMPT: battle_menu_navigation` - Focus on menu navigation
+    - `CONTEXT_PROMPT: battle_phase_[intro/menu/moves/animation]` - Phase-specific guidance
+    
+    ⚔️ BATTLE PHASE DETECTION:
+    First, identify your current battle phase:
+    
+    **PHASE 1 - Battle Text/Intro**:
+    - Screen shows: Text messages, "Wild Pokemon appeared", damage numbers
+    - Action: Press A to advance text
+    - Memory: `LOAD_MEMORIES: battle_intro_patterns`
+    
+    **PHASE 2 - Main Battle Menu**:
+    - Screen shows: FIGHT, BAG, POKEMON, RUN options with cursor
+    - Action: Navigate to FIGHT and press A
+    - Memory: `LOAD_MEMORIES: battle_menu_navigation`
+    
+    **PHASE 3 - Move Selection**:
+    - Screen shows: 2x2 grid of Pokemon moves
+    - Strategy needed: `LOAD_MEMORIES: type_effectiveness`
+    - Prompt control: `REQUEST_PROMPT: move_selection_expert`
+    
+    **PHASE 4 - Battle Animation**:
+    - Screen shows: Attack animations, HP changes
+    - Action: Press A to continue
+    - Memory: `SAVE_MEMORY: [move_result] TAG: battle_outcome`
+    
+    🎯 INTELLIGENT MOVE SELECTION:
+    1. `LOAD_MEMORIES: type_effectiveness` - Check type advantages
+    2. Identify opponent Pokemon type from screen
+    3. Identify your Pokemon's available moves  
+    4. Calculate best move: Super Effective > Neutral > Not Very Effective
+    5. `SAVE_MEMORY: [successful_strategy] TAG: battle_[opponent_type]`
+    
+    🆘 BATTLE EMERGENCY CONTROL:
+    - If Pokemon HP critical: `REQUEST_PROMPT: healing_strategy`
+    - If battle going poorly: `LOAD_MEMORIES: battle_retreat_strategies`
+    - If unfamiliar opponent: `REQUEST_PROMPT: unknown_pokemon_analysis`
+    
+    💾 BATTLE LEARNING SYSTEM:
+    Save effective strategies for future battles:
+    - `SAVE_MEMORY: [winning_move] TAG: effective_against_[type]`
+    - `SAVE_MEMORY: [battle_strategy] TAG: gym_[gym_name]`
+    - `SAVE_MEMORY: [type_advantage] TAG: type_effectiveness`
+    
+    BATTLE ACTION SEQUENCE:
+    1. Identify battle phase from screen
+    2. Load relevant battle memories for context
+    3. If needed, request specialized battle prompt
+    4. Make strategic move selection (1-2 buttons max)
+    5. Save successful strategies for future battles
+    
+    Use pokemon_controller with battle-appropriate button sequence.
+  variables: ["task", "recent_actions", "battle_context"]
+  version: "1.0"
+
+ai_maze_with_solution_memory:
+  name: "AI-Directed Maze Navigation with Solution Memory"
+  description: "Advanced maze solving that learns and remembers successful paths"
+  template: |
+    🗿 AI-DIRECTED MAZE NAVIGATION SYSTEM 🗿
+    
+    You are navigating a maze-like area with the ability to learn and remember solutions.
+    
+    Current Task: {task}
+    Recent Actions: {recent_actions}
+    Maze Context: {maze_context}
+    
+    🧠 MAZE MEMORY CONTROL:
+    
+    **Load Maze Memories**:
+    - `LOAD_MEMORIES: maze_[location_name]` - Load solutions for this specific maze
+    - `LOAD_MEMORIES: maze_patterns` - Load general maze-solving techniques
+    - `LOAD_MEMORIES: dead_end_patterns` - Load known dead-end markers
+    - `LOAD_MEMORIES: exit_indicators` - Load signs that indicate maze exits
+    
+    **Maze Prompt Control**:
+    - `REQUEST_PROMPT: maze_solver_expert` - Advanced maze-solving strategies
+    - `REQUEST_PROMPT: pathfinding_algorithm` - Systematic path exploration
+    - `REQUEST_PROMPT: landmark_recognition` - Identify visual landmarks
+    
+    🗺️ MAZE ANALYSIS PROTOCOL:
+    
+    **Step 1 - Context Recognition**:
+    Check if this maze type has been encountered before:
+    - `LOAD_MEMORIES: maze_[current_location]`
+    - Look for familiar landmarks or patterns
+    - Identify maze characteristics (cave, forest, building, etc.)
+    
+    **Step 2 - Pattern Recognition**:
+    - **Walls**: What blocks movement (rocks, trees, walls)?
+    - **Paths**: What directions are available?
+    - **Landmarks**: Any distinctive visual markers?
+    - **Exits**: Any signs pointing to exits?
+    
+    **Step 3 - Strategy Selection**:
+    Based on maze type, choose approach:
+    - **First Time**: `REQUEST_PROMPT: maze_exploration_systematic`
+    - **Previously Solved**: `LOAD_MEMORIES: maze_[location]_solution`
+    - **Partially Familiar**: `LOAD_MEMORIES: maze_patterns` + exploration
+    
+    🧭 MAZE NAVIGATION STRATEGIES:
+    
+    **Systematic Exploration** (for new mazes):
+    1. Follow right-hand rule (always turn right when possible)
+    2. Mark dead ends mentally: `SAVE_MEMORY: dead_end_at_[description] TAG: maze_[location]`
+    3. Note successful paths: `SAVE_MEMORY: path_[direction_sequence] TAG: maze_[location]`
+    
+    **Solution Recall** (for known mazes):
+    1. `LOAD_MEMORIES: maze_[location]_solution`
+    2. Follow remembered successful path
+    3. If path blocked/changed: `REQUEST_PROMPT: maze_adaptation_strategy`
+    
+    **Landmark Navigation**:
+    1. Identify unique visual features
+    2. `SAVE_MEMORY: landmark_[description]_leads_to_[direction] TAG: maze_[location]`
+    3. Use landmarks for orientation and backtracking
+    
+    💾 MAZE LEARNING SYSTEM:
+    
+    **Save Successful Solutions**:
+    - `SAVE_MEMORY: SOLUTION: [full_path_sequence] TAG: maze_[location]_solution`
+    - `SAVE_MEMORY: shortcut_[start]_to_[end] TAG: maze_[location]`
+    - `SAVE_MEMORY: exit_found_at_[description] TAG: maze_[location]`
+    
+    **Save Dead Ends**:
+    - `SAVE_MEMORY: DEAD_END: [path_to_dead_end] TAG: maze_[location]_avoid`
+    - `SAVE_MEMORY: blocked_path_[description] TAG: maze_[location]`
+    
+    **Save Patterns**:
+    - `SAVE_MEMORY: pattern_[description]_indicates_[meaning] TAG: maze_patterns`
+    
+    🚨 MAZE STUCK RECOVERY:
+    If you're going in circles:
+    1. `LOAD_MEMORIES: maze_[location]_avoid` - Check known dead ends
+    2. `REQUEST_PROMPT: maze_unstuck_strategy` - Get specialized help
+    3. Try opposite direction from recent actions
+    4. Look for unexplored paths: `REQUEST_PROMPT: pathfinding_fresh_approach`
+    
+    MAZE ACTION SEQUENCE:
+    1. Load relevant maze memories for this location
+    2. Analyze current position and available paths
+    3. Choose strategy based on familiarity with maze
+    4. Make 1-2 movement buttons maximum
+    5. Save discoveries and successful moves for future reference
+    
+    Use pokemon_controller with directional movement only.
+  variables: ["task", "recent_actions", "maze_context"]
+  version: "1.0"
+
+ai_emergency_recovery_with_escalation:
+  name: "AI Emergency Recovery with Escalation Control"
+  description: "Multi-tier emergency system for when AI is severely stuck"
+  template: |
+    🚨 AI EMERGENCY RECOVERY SYSTEM 🚨
+    
+    EMERGENCY MODE ACTIVATED - You have been stuck for multiple turns.
+    
+    Problem Pattern: {recent_actions}
+    Current Task: {task}
+    Escalation Level: {escalation_level}
+    
+    🆘 EMERGENCY MEMORY COMMANDS:
+    
+    **Load Emergency Memories**:
+    - `LOAD_MEMORIES: emergency_recoveries` - Past successful unstuck strategies
+    - `LOAD_MEMORIES: stuck_in_[current_context]` - Context-specific unstuck methods
+    - `LOAD_MEMORIES: last_resort_strategies` - Nuclear option strategies
+    - `LOAD_MEMORIES: similar_stuck_patterns` - How similar situations were resolved
+    
+    **Emergency Prompt Escalation**:
+    - `ESCALATE_PROMPT: level_2` - More aggressive unstuck strategies
+    - `ESCALATE_PROMPT: level_3` - Drastic measures, ignore normal rules
+    - `REQUEST_PROMPT: human_intervention_needed` - Signal for help
+    - `RESET_ALL_CONTEXT` - Complete fresh start
+    
+    🔄 ESCALATION LEVELS:
+    
+    **Level 1 - Gentle Recovery** (3-5 repeated actions):
+    1. `LOAD_MEMORIES: gentle_unstuck_strategies`
+    2. Try perpendicular movement to stuck direction
+    3. Single button press, opposite direction
+    4. `SAVE_MEMORY: attempted_gentle_recovery TAG: emergency_log`
+    
+    **Level 2 - Aggressive Recovery** (6-10 repeated actions):
+    1. `LOAD_MEMORIES: aggressive_unstuck_strategies`
+    2. Try random walk: random direction for 3 moves
+    3. Try interaction: press A button 
+    4. Try menu escape: press B button
+    5. `ESCALATE_PROMPT: level_2`
+    
+    **Level 3 - Nuclear Options** (10+ repeated actions):
+    1. `LOAD_MEMORIES: last_resort_strategies`
+    2. Try button combinations: ['b', 'b'], ['start'], ['select']
+    3. Try systematic exploration: up, right, down, left sequence
+    4. `REQUEST_PROMPT: human_intervention_needed`
+    5. `RESET_ALL_CONTEXT`
+    
+    🧠 EMERGENCY ANALYSIS:
+    
+    **Identify Stuck Pattern**:
+    - Repeated same button 3+ times
+    - No visual progress for 3+ screenshots  
+    - Stuck in menu loop
+    - Movement blocked in all directions
+    
+    **Context-Specific Recovery**:
+    - **Battle Stuck**: `LOAD_MEMORIES: battle_menu_unstuck`
+    - **Navigation Stuck**: `LOAD_MEMORIES: movement_unstuck`
+    - **Menu Stuck**: `LOAD_MEMORIES: menu_escape_strategies`
+    - **Unknown Context**: `LOAD_MEMORIES: universal_unstuck`
+    
+    📊 EMERGENCY LEARNING:
+    
+    **Save Recovery Strategies**:
+    - `SAVE_MEMORY: EMERGENCY_SUCCESS: [recovery_action] TAG: unstuck_[context]`
+    - `SAVE_MEMORY: failed_recovery: [failed_action] TAG: unstuck_avoid`
+    - `SAVE_MEMORY: escalation_worked_at_level_[X] TAG: emergency_strategies`
+    
+    **Track Stuck Patterns**:
+    - `SAVE_MEMORY: STUCK_PATTERN: [button_sequence] TAG: avoid_patterns`
+    - `SAVE_MEMORY: stuck_context: [situation] TAG: high_risk_areas`
+    
+    🎯 EMERGENCY ACTION PROTOCOL:
+    
+    **Immediate Actions** (try in order):
+    1. Load emergency memories: `LOAD_MEMORIES: emergency_recoveries`
+    2. Try opposite of stuck action
+    3. Try perpendicular movement
+    4. Try interaction (A button)
+    5. Try menu escape (B button)
+    6. If nothing works: `ESCALATE_PROMPT: level_2`
+    
+    **Post-Recovery**:
+    1. `SAVE_MEMORY: RECOVERY_SUCCESS: [what_worked] TAG: emergency_strategies`
+    2. `SAVE_MEMORY: avoid_[stuck_pattern] TAG: prevention`
+    3. Resume normal operation with elevated caution
+    
+    EMERGENCY RULES:
+    - Ignore normal button limits - up to 3 buttons if necessary
+    - Try completely different approach from what was stuck
+    - If recovery successful, MUST save the strategy
+    - If recovery fails, escalate to next level
+    
+    Use pokemon_controller with emergency recovery button sequence.
+  variables: ["recent_actions", "task", "escalation_level"]
+  version: "1.0"
+

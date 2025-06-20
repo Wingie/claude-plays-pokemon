@@ -34,6 +34,11 @@ class PromptManager:
         
         # Usage tracking for debugging
         self.usage_log = []
+        
+        # Initialize active template and playbook
+        self.active_template = None
+        self.active_playbook = None
+        self.verbose = False
     
     def _load_base_prompts(self) -> Dict[str, Any]:
         """Load base prompt templates"""
@@ -104,7 +109,7 @@ Be specific and actionable in your response.""",
 
 Current Task Context: {task}
 
-Please examine the screen and provide detailed information about:
+Please examine and report on:
 
 1. **Pokemon Party Overview**:
    - How many Pokemon are in the party
@@ -405,7 +410,45 @@ Be specific about moves, types, and strategic recommendations.""",
         self.playbooks = self._load_playbooks()
         print("🔄 Reloaded all prompt templates and playbooks")
     
-    
+    def set_active_template(self, template_name: str) -> bool:
+        """
+        Set the active prompt template by name.
+        
+        Args:
+            template_name: Name of the template to activate (must exist in base_prompts)
+            
+        Returns:
+            bool: True if template was found and activated, False otherwise
+        """
+        if template_name in self.base_prompts:
+            self.active_template = template_name
+            if self.verbose:
+                print(f"✓ Activated prompt template: {template_name}")
+            return True
+        else:
+            if self.verbose:
+                print(f"✗ Template not found: {template_name}")
+            return False
+            
+    def set_active_playbook(self, playbook_name: str) -> bool:
+        """
+        Set the active playbook by name.
+        
+        Args:
+            playbook_name: Name of the playbook to activate (must exist in playbooks)
+            
+        Returns:
+            bool: True if playbook was found and activated, False otherwise
+        """
+        if playbook_name in self.playbooks:
+            self.active_playbook = playbook_name
+            if self.verbose:
+                print(f"✓ Activated playbook: {playbook_name}")
+            return True
+        else:
+            if self.verbose:
+                print(f"✗ Playbook not found: {playbook_name}")
+            return False
     
     def _format_context_summary(self, game_context: Dict) -> str:
         """Format game context for prompt inclusion"""
@@ -443,3 +486,277 @@ Be specific about moves, types, and strategic recommendations.""",
         
         return "\n".join(context_parts) if context_parts else "No relevant memory context"
     
+    # AI-DIRECTED PROMPT CONTROL METHODS
+    
+    def process_ai_commands(self, ai_response: str, memory_system=None) -> Dict[str, Any]:
+        """
+        Process AI prompt control commands from AI response
+        
+        Args:
+            ai_response: The AI's response text containing potential commands
+            memory_system: Optional memory system to execute memory commands
+            
+        Returns:
+            Dict containing processed commands and their results
+        """
+        commands_processed = {
+            "memory_commands": [],
+            "prompt_commands": [],
+            "emergency_commands": [],
+            "context_changes": []
+        }
+        
+        lines = ai_response.split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            
+            # Memory control commands
+            if line.startswith('LOAD_MEMORIES:'):
+                context = line.split(':', 1)[1].strip()
+                if memory_system:
+                    memories = self._load_memories_by_context(context, memory_system)
+                    commands_processed["memory_commands"].append({
+                        "action": "load",
+                        "context": context,
+                        "result": memories
+                    })
+            
+            elif line.startswith('SAVE_MEMORY:'):
+                # Extract memory content and tag
+                parts = line.split('TAG:', 1)
+                if len(parts) == 2:
+                    content = parts[0].replace('SAVE_MEMORY:', '').strip()
+                    tag = parts[1].strip()
+                    if memory_system:
+                        result = self._save_memory_with_tag(content, tag, memory_system)
+                        commands_processed["memory_commands"].append({
+                            "action": "save",
+                            "content": content,
+                            "tag": tag,
+                            "result": result
+                        })
+            
+            # Prompt control commands
+            elif line.startswith('REQUEST_PROMPT:'):
+                prompt_name = line.split(':', 1)[1].strip()
+                result = self._switch_to_prompt(prompt_name)
+                commands_processed["prompt_commands"].append({
+                    "action": "request",
+                    "prompt": prompt_name,
+                    "result": result
+                })
+            
+            elif line.startswith('CONTEXT_PROMPT:'):
+                context = line.split(':', 1)[1].strip()
+                result = self._select_context_prompt(context)
+                commands_processed["prompt_commands"].append({
+                    "action": "context_switch",
+                    "context": context,
+                    "result": result
+                })
+            
+            elif line.startswith('ESCALATE_PROMPT'):
+                level = "level_1"
+                if ':' in line:
+                    level = line.split(':', 1)[1].strip()
+                result = self._escalate_prompt(level)
+                commands_processed["prompt_commands"].append({
+                    "action": "escalate",
+                    "level": level,
+                    "result": result
+                })
+            
+            # Emergency commands
+            elif 'EMERGENCY_MODE' in line:
+                result = self._activate_emergency_mode()
+                commands_processed["emergency_commands"].append({
+                    "action": "emergency_mode",
+                    "result": result
+                })
+            
+            elif 'RESET_CONTEXT' in line:
+                result = self._reset_context()
+                commands_processed["emergency_commands"].append({
+                    "action": "reset_context",
+                    "result": result
+                })
+        
+        return commands_processed
+    
+    def _load_memories_by_context(self, context: str, memory_system) -> List[Dict]:
+        """Load memories matching the specified context"""
+        try:
+            # This would interface with the actual memory system
+            if hasattr(memory_system, 'search_memories_by_tag'):
+                return memory_system.search_memories_by_tag(context)
+            elif hasattr(memory_system, 'get_memories'):
+                all_memories = memory_system.get_memories()
+                # Filter by context/tag
+                filtered = [m for m in all_memories if context.lower() in str(m).lower()]
+                return filtered[:10]  # Limit to 10 most relevant
+            else:
+                return []
+        except Exception as e:
+            if self.verbose:
+                print(f"⚠️ Memory loading failed: {e}")
+            return []
+    
+    def _save_memory_with_tag(self, content: str, tag: str, memory_system) -> bool:
+        """Save memory with specified tag"""
+        try:
+            if hasattr(memory_system, 'save_memory_with_tag'):
+                return memory_system.save_memory_with_tag(content, tag)
+            elif hasattr(memory_system, 'add_memory'):
+                # Fallback for simpler memory systems
+                tagged_content = f"[{tag}] {content}"
+                return memory_system.add_memory(tagged_content)
+            else:
+                return False
+        except Exception as e:
+            if self.verbose:
+                print(f"⚠️ Memory saving failed: {e}")
+            return False
+    
+    def _switch_to_prompt(self, prompt_name: str) -> bool:
+        """Switch to a specific prompt template"""
+        # Map AI prompt names to actual template names
+        prompt_mapping = {
+            "battle_expert": "ai_battle_with_context_loading",
+            "maze_navigation": "ai_maze_with_solution_memory", 
+            "stuck_recovery_advanced": "ai_emergency_recovery_with_escalation",
+            "exploration_strategy": "ai_navigation_with_memory_control",
+            "emergency_recovery": "ai_emergency_recovery_with_escalation"
+        }
+        
+        actual_prompt = prompt_mapping.get(prompt_name, prompt_name)
+        
+        if actual_prompt in self.base_prompts:
+            self.active_template = actual_prompt
+            if self.verbose:
+                print(f"🔄 AI requested prompt switch to: {prompt_name} ({actual_prompt})")
+            return True
+        else:
+            if self.verbose:
+                print(f"❌ AI requested unknown prompt: {prompt_name}")
+            return False
+    
+    def _select_context_prompt(self, context: str) -> bool:
+        """Select appropriate prompt based on context"""
+        context_mapping = {
+            "forest": "ai_navigation_with_memory_control",
+            "cave": "ai_maze_with_solution_memory",
+            "battle": "ai_battle_with_context_loading",
+            "maze": "ai_maze_with_solution_memory",
+            "emergency": "ai_emergency_recovery_with_escalation"
+        }
+        
+        prompt_name = context_mapping.get(context.lower())
+        if prompt_name:
+            self.active_template = prompt_name
+            if self.verbose:
+                print(f"🎯 AI selected context prompt: {context} → {prompt_name}")
+            return True
+        return False
+    
+    def _escalate_prompt(self, level: str) -> bool:
+        """Escalate to more powerful prompt based on level"""
+        if "level_2" in level or "level_3" in level:
+            self.active_template = "ai_emergency_recovery_with_escalation"
+            if self.verbose:
+                print(f"⚡ AI escalated to emergency recovery: {level}")
+            return True
+        return False
+    
+    def _activate_emergency_mode(self) -> bool:
+        """Activate emergency recovery mode"""
+        self.active_template = "ai_emergency_recovery_with_escalation"
+        if self.verbose:
+            print("🚨 AI activated emergency mode")
+        return True
+    
+    def _reset_context(self) -> bool:
+        """Reset context to default navigation"""
+        self.active_template = "ai_navigation_with_memory_control"
+        if self.verbose:
+            print("🔄 AI reset context to default navigation")
+        return True
+    
+    def get_ai_directed_prompt(
+        self, 
+        context_type: str = "navigation",
+        task: str = "",
+        recent_actions: List[str] = None,
+        available_memories: List[str] = None,
+        battle_context: Dict = None,
+        maze_context: Dict = None,
+        escalation_level: str = "level_1",
+        verbose: bool = False
+    ) -> str:
+        """
+        Get AI-directed prompt with full context and memory control
+        
+        Args:
+            context_type: Type of context (navigation, battle, maze, emergency)
+            task: Current task description
+            recent_actions: List of recent button actions
+            available_memories: List of available memory contexts
+            battle_context: Battle-specific context information
+            maze_context: Maze-specific context information  
+            escalation_level: Emergency escalation level
+            verbose: Enable verbose logging
+            
+        Returns:
+            Formatted AI-directed prompt
+        """
+        
+        # Use active template if set, otherwise select based on context
+        if self.active_template:
+            template_name = self.active_template
+        else:
+            context_mapping = {
+                "navigation": "ai_navigation_with_memory_control",
+                "battle": "ai_battle_with_context_loading", 
+                "maze": "ai_maze_with_solution_memory",
+                "emergency": "ai_emergency_recovery_with_escalation"
+            }
+            template_name = context_mapping.get(context_type, "ai_navigation_with_memory_control")
+        
+        if template_name not in self.base_prompts:
+            # Fallback to basic navigation if template not found
+            template_name = "exploration_strategy"
+        
+        # Prepare variables based on template type
+        variables = {
+            "task": task,
+            "recent_actions": str(recent_actions or [])
+        }
+        
+        if "navigation" in template_name:
+            variables["available_memories"] = str(available_memories or [])
+        
+        if "battle" in template_name:
+            variables["battle_context"] = str(battle_context or {})
+            
+        if "maze" in template_name:
+            variables["maze_context"] = str(maze_context or {})
+            
+        if "emergency" in template_name:
+            variables["escalation_level"] = escalation_level
+        
+        # Get and format the template
+        template = self.base_prompts[template_name]["template"]
+        
+        if verbose:
+            print(f"🧠 AI-Directed Prompt: {template_name}")
+            if self.active_template:
+                print(f"   (AI requested: {self.active_template})")
+        
+        try:
+            formatted_prompt = template.format(**variables)
+            return formatted_prompt
+        except KeyError as e:
+            if verbose:
+                print(f"⚠️ Template formatting error: {e}")
+            # Fallback to basic template
+            return self.get_prompt("exploration_strategy", variables, verbose=verbose)

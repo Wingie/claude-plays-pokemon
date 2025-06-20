@@ -72,3 +72,11 @@ Ready for Pokemon AI guidance with human-in-the-loop control! 🎮✨
 - 🎯 [11:39:59] 20-turn checkpoint: Good navigation with minor issues → checkpoint | Progress ratio: 0.80, Issues: 1
 - 🎯 [18:23:20] 20-turn checkpoint: Good navigation with minor issues → checkpoint | Progress ratio: 0.65, Issues: 0
 - 🎯 [18:24:54] 20-turn checkpoint: Good navigation with minor issues → checkpoint | Progress ratio: 0.60, Issues: 1
+- 🎯 [18:26:21] 20-turn checkpoint: Moderate navigation - some stuck patterns detected → checkpoint | Progress ratio: 0.50, Issues: 0
+- 🎯 [18:27:50] 20-turn checkpoint: Good navigation with minor issues → checkpoint | Progress ratio: 0.60, Issues: 0
+- 🎯 [20:47:22] 20-turn checkpoint: Excellent navigation - making consistent progress → checkpoint | Progress ratio: 0.95, Issues: 0
+- 🎯 [21:23:12] 20-turn checkpoint: Poor navigation - significant intervention needed → checkpoint | Progress ratio: 0.30, Issues: 0
+- 🎯 [21:24:54] 20-turn checkpoint: Good navigation with minor issues → checkpoint | Progress ratio: 0.60, Issues: 1
+- 🎯 [21:27:02] 20-turn checkpoint: Poor navigation - significant intervention needed → checkpoint | Progress ratio: 0.25, Issues: 1
+- 🎯 [21:28:44] 20-turn checkpoint: Poor navigation - significant intervention needed → checkpoint | Progress ratio: 0.25, Issues: 1
+- 🎯 [21:31:49] 20-turn checkpoint: Moderate navigation - some stuck patterns detected → checkpoint | Progress ratio: 0.50, Issues: 0

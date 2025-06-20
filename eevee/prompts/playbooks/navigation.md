@@ -15,11 +15,29 @@
 - **Grass areas**: Dark green/textured areas that trigger random encounters
 - **Your job**: Walk through grass areas to level up and catch Pokemon
 
-### **Core Exploration Strategy**
-- **Goal**: Explore every part of the current area systematically
-- **Method**: Depth-first search - pick a direction and follow it completely
-- **Completion**: Area is "done" when you've walked on every possible tile
-- **Next area**: Find exits/entrances to move to new areas
+## 🧠 **DIRECTION MEMORY SYSTEM**
+
+### **How Direction Memory Works**
+- Tracks your last 10 movements to detect patterns
+- Identifies which directions lead to progress vs. dead ends
+- Adjusts strategy based on what's worked before
+- Detects when you're going in circles
+
+### **Using Direction Memory Effectively**
+1. **Recent History**:
+   - Last 5-10 movements are analyzed
+   - Detects repetitive patterns indicating being stuck
+   - Identifies which directions have been tried recently
+
+2. **Success Tracking**:
+   - Notes which directions led to new areas
+   - Remembers blocked paths to avoid retrying them
+   - Adjusts strategy based on past success rates
+
+3. **Getting Unstuck**:
+   - If stuck, check which directions haven't been tried
+   - Prefer directions that led to progress before
+   - If all else fails, try interacting with the environment
 
 ## 🗺️ **SYSTEMATIC AREA EXPLORATION**
 
@@ -36,12 +54,6 @@
 - **Rule 2**: When you hit a dead end, backtrack to the last fork
 - **Rule 3**: Try each branch systematically (up, right, down, left)
 - **Rule 4**: Don't leave an area until you've tried every possible path
-
-### **Movement Strategy**
-- **One step at a time**: Move one tile, observe, then decide next move
-- **Systematic coverage**: Visit every walkable tile in the area
-- **Path following**: Follow obvious paths (lighter colored ground, clearings)
-- **Backtracking**: Return to previous locations to try unexplored branches
 
 ## 🚫 **COMMON MISTAKES TO AVOID**
 
@@ -73,13 +85,14 @@
 - Found an exit leading to a new area (cave entrance, city gate, route transition)
 - Can't find any unexplored sections
 
-## 🔧 **PROBLEM SOLVING**
+## 🔧 **STUCK RECOVERY STRATEGIES**
 
 ### **When Stuck in One Spot**
 1. **Try perpendicular directions** (if stuck going up/down, try left/right)
 2. **Try opposite direction** (if stuck going right, try left)  
 3. **Look for interactions** (press A near objects, NPCs, signs)
 4. **Backtrack** to previous location and try different route
+5. **Use direction memory** to avoid retrying failed paths
 
 ### **When Lost or Confused**
 1. **Stop and observe** current surroundings
@@ -88,30 +101,86 @@
 4. **Backtrack** to starting point and try next direction
 5. **Repeat** until area is fully mapped
 
-### **When No Progress Made**
-- **Problem**: Moving in circles or hitting invisible walls
-- **Solution**: Try completely different direction
-- **Method**: If going horizontal, try vertical (and vice versa)
-- **Last resort**: Press A to interact with environment
+### **Advanced Recovery Techniques**
+- **Wall Following**: Keep one hand on the wall to your right/left
+- **Grid Search**: Move in expanding squares from starting point
+- **Spiral Pattern**: Move in increasingly larger circles
+- **Landmark Navigation**: Use distinctive features as reference points
 
 ## 📍 **AREA TYPES & STRATEGIES**
 
 ### **Forests (like Viridian Forest)**
-- **Layout**: Maze-like with many paths and dead ends
-- **Strategy**: Follow each path to completion before trying next
-- **Trainers**: Scattered throughout, will battle when you get close
-- **Completion**: When all paths explored and no new areas to discover
+# 🧭 Advanced Navigation System
 
-### **Routes (numbered paths between cities)**
-- **Layout**: Usually linear with some side branches
-- **Strategy**: Follow main path, explore all side branches
-- **Trainers**: Usually positioned along main and side paths
-- **Completion**: Reached the destination city/area
+## 🔄 Core Navigation Loop
+1. **Assess** current position and surroundings
+2. **Plan** next 3-5 moves based on environment
+3. **Execute** movements while scanning for changes
+4. **Verify** progress and adjust strategy
 
-### **Cities and Towns**
-- **Layout**: Buildings, Pokemon Centers, shops
-- **Strategy**: Enter every building, talk to NPCs
-- **Battles**: Usually fewer trainers, mostly in gyms
-- **Completion**: Visited all buildings and services
+## 🧩 Environment-Based Strategies
 
-This playbook focuses on the core mechanics: **systematic exploration where battles happen automatically**. The AI's job is to explore areas completely, not to chase specific targets.
+### 🌳 Forests (e.g., Viridian Forest)
+- **Layout**: Complex maze with dense trees and winding paths
+- **Optimal Pathfinding**:
+  - Use right-hand wall following
+  - Check behind every tree cluster
+  - Look for subtle path indicators (worn grass, light patterns)
+- **Trainer Detection**:
+  - Watch for movement between trees
+  - Listen for battle music cues
+  - Note trainer line of sight (4-directional)
+
+### 🛣️ Routes
+- **Layout**: Linear with branching side paths
+- **Efficient Exploration**:
+  - Follow main path first
+  - Explore side branches systematically
+  - Use landmarks for orientation
+- **Progression Markers**:
+  - Route signs
+  - Terrain changes
+  - Camera perspective shifts
+
+### 🏔️ Caves & Dungeons
+- **Layout**: Multi-level with dark areas
+- **Navigation Aids**:
+  - Use Flash (if available)
+  - Follow wall patterns
+  - Drop items as breadcrumbs
+- **Level Transitions**:
+  - Note elevation changes
+  - Watch for ladders/stairs
+  - Listen for echo changes
+
+## 🧠 Smart Movement System
+
+### Direction Memory
+- Tracks last 10 movements
+- Detects patterns and loops
+- Adjusts strategy based on success rate
+
+### Path Optimization
+- Avoids retracing steps
+- Prioritizes unexplored areas
+- Marks dead ends
+
+## 🚨 Recovery Protocols
+
+### When Stuck:
+1. Pause and observe surroundings
+2. Check last 5 moves for patterns
+3. Try perpendicular directions
+4. Look for environmental interactions
+
+### Common Issues:
+- **Invisible Walls**: Try diagonal movement
+- **Soft Locks**: Save frequently
+- **Camera Issues**: Reset view if possible
+
+## 📊 Performance Metrics
+- Exploration efficiency
+- Trainer encounter rate
+- Item discovery rate
+- Time per area
+- The system gets better over time as it learns the game's patterns

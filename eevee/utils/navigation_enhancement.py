@@ -447,3 +447,135 @@ class NavigationEnhancer:
             suggestions.append("Add systematic exploration patterns to prompts")
         
         return suggestions
+    
+    def apply_critique_to_prompt_manager(self, critique: Dict[str, Any], prompt_manager) -> Dict[str, Any]:
+        """
+        Apply 20-turn critique results to automatically update PromptManager settings
+        
+        Args:
+            critique: The critique results from generate_critique()
+            prompt_manager: The PromptManager instance to update
+            
+        Returns:
+            Dict containing the changes made
+        """
+        changes_made = {
+            "prompt_changes": [],
+            "memory_updates": [],
+            "template_switches": [],
+            "emergency_actions": []
+        }
+        
+        progress_ratio = critique.get('progress_ratio', 0.5)
+        problems = critique.get('problems_identified', [])
+        assessment = critique.get('overall_assessment', '')
+        
+        # AUTO-SWITCH PROMPTS BASED ON PERFORMANCE
+        
+        if progress_ratio < 0.2:
+            # Critical performance - switch to emergency mode
+            if prompt_manager.set_active_template("ai_emergency_recovery_with_escalation"):
+                changes_made["template_switches"].append("EMERGENCY: Switched to emergency recovery prompt")
+                changes_made["emergency_actions"].append("Activated emergency mode due to extremely poor progress")
+        
+        elif progress_ratio < 0.4:
+            # Poor performance - try more powerful navigation
+            if prompt_manager.set_active_template("ai_navigation_with_memory_control"):
+                changes_made["template_switches"].append("LOW_PROGRESS: Switched to AI-directed navigation")
+        
+        elif "stuck patterns detected" in assessment:
+            # Moderate performance with stuck patterns
+            if prompt_manager.set_active_template("ai_emergency_recovery_with_escalation"):
+                changes_made["template_switches"].append("STUCK_PATTERNS: Switched to advanced recovery")
+        
+        # MEMORY-BASED IMPROVEMENTS
+        
+        # Save critique results as memory for future reference
+        if hasattr(prompt_manager, '_save_memory_with_tag'):
+            critique_summary = f"20-turn analysis: {assessment}, progress: {progress_ratio:.2f}"
+            try:
+                prompt_manager._save_memory_with_tag(critique_summary, "navigation_critique", None)
+                changes_made["memory_updates"].append("Saved critique analysis to memory")
+            except:
+                pass  # Memory system might not be available
+        
+        # PROBLEM-SPECIFIC FIXES
+        
+        for problem in problems:
+            if "Low progress" in problem:
+                changes_made["prompt_changes"].append("Added environmental interaction emphasis")
+                
+            elif "repetition" in problem.lower():
+                changes_made["prompt_changes"].append("Enhanced stuck detection and recovery strategies")
+                
+            elif "limited action diversity" in problem:
+                changes_made["prompt_changes"].append("Encouraged more varied movement patterns")
+        
+        # ADAPTIVE LEARNING UPDATES
+        
+        # Update prompt manager's internal state based on what's working
+        most_common_action = critique.get('most_common_action', ('none', 0))
+        if most_common_action[1] > 10:  # If action used more than 10 times
+            action_analysis = f"Action '{most_common_action[0]}' used {most_common_action[1]} times"
+            changes_made["memory_updates"].append(action_analysis)
+        
+        # ESCALATION TRIGGERS
+        
+        if len(problems) >= 3:
+            # Multiple problems detected - escalate
+            changes_made["emergency_actions"].append("Multiple navigation problems detected - escalating intervention")
+            
+        if progress_ratio == 0.0:
+            # No progress at all - emergency intervention
+            changes_made["emergency_actions"].append("ZERO PROGRESS: No movement detected in 20 turns")
+        
+        return changes_made
+    
+    def update_navigation_strategy(self, critique: Dict[str, Any]) -> str:
+        """
+        Update internal navigation strategy based on critique
+        
+        Args:
+            critique: The critique results
+            
+        Returns:
+            String describing the strategy update
+        """
+        progress_ratio = critique.get('progress_ratio', 0.5)
+        problems = critique.get('problems_identified', [])
+        
+        strategy_updates = []
+        
+        # Adjust similarity threshold based on progress
+        if progress_ratio < 0.3:
+            # Lower threshold to detect more subtle changes
+            old_threshold = self.similarity_threshold
+            self.similarity_threshold = max(0.90, self.similarity_threshold - 0.02)
+            if self.similarity_threshold != old_threshold:
+                strategy_updates.append(f"Lowered similarity threshold to {self.similarity_threshold:.2f}")
+        
+        elif progress_ratio > 0.8:
+            # Raise threshold to avoid false positives when doing well
+            old_threshold = self.similarity_threshold
+            self.similarity_threshold = min(0.98, self.similarity_threshold + 0.01)
+            if self.similarity_threshold != old_threshold:
+                strategy_updates.append(f"Raised similarity threshold to {self.similarity_threshold:.2f}")
+        
+        # Adjust stuck detection sensitivity
+        if any("repetition" in problem.lower() for problem in problems):
+            # More sensitive stuck detection
+            self.stuck_threshold = max(2, self.stuck_threshold - 1)
+            strategy_updates.append(f"Increased stuck detection sensitivity (threshold: {self.stuck_threshold})")
+        
+        # Update history size based on problem complexity
+        if len(problems) >= 2:
+            # Increase history tracking for complex problems
+            old_size = self.history_size
+            self.history_size = min(30, self.history_size + 5)
+            if self.history_size != old_size:
+                strategy_updates.append(f"Increased history tracking to {self.history_size} turns")
+        
+        if not strategy_updates:
+            return "No navigation strategy updates needed"
+        
+        return "Navigation strategy updated: " + "; ".join(strategy_updates)

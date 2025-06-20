@@ -581,16 +581,19 @@ class ContinuousGameplay:
         elif self._detect_party_context(context_lower, user_goal):
             prompt_type = "pokemon_party_analysis"
             playbooks = ["battle"]  # Party management uses battle knowledge for moves/types
+            # Continue to goal-based enhancements
             
         # INVENTORY MANAGEMENT: Bag and items
         elif self._detect_inventory_context(context_lower, user_goal):
             prompt_type = "inventory_analysis" 
             playbooks = ["services"]  # Inventory management relates to shops/services
+            # Continue to goal-based enhancements
             
         # SERVICES: Pokemon Centers, shops, healing
         elif self._detect_services_context(context_lower, user_goal):
             prompt_type = "exploration_strategy"
             playbooks = ["services"]
+            # Continue to goal-based enhancements
             
         # NAVIGATION: Movement and exploration (default fallback)
         else:
@@ -656,6 +659,182 @@ class ContinuousGameplay:
         
         return any(keyword in context_lower for keyword in service_keywords) or \
                any(keyword in user_goal.lower() for keyword in goal_keywords)
+    
+    # 🧠 NEW AI-DIRECTED CONTEXT DETECTION METHODS
+    
+    def _determine_ai_context(self, memory_context: str, recent_actions: List[str] = None) -> tuple[str, Dict[str, Any]]:
+        """
+        Determine appropriate AI-directed prompt context with enhanced data
+        
+        Args:
+            memory_context: Recent memory/gameplay context
+            recent_actions: List of recent button actions
+            
+        Returns:
+            Tuple of (context_type, context_data_dict)
+        """
+        context_lower = memory_context.lower()
+        user_goal = self.session.goal.lower()
+        recent_actions = recent_actions or []
+        
+        context_data = {
+            "battle_context": {},
+            "maze_context": {},
+            "forest_context": {},
+            "cave_context": {}
+        }
+        
+        # BATTLE CONTEXT (highest priority)
+        if self._detect_battle_context(context_lower):
+            context_data["battle_context"] = {
+                "battle_phase": self._detect_battle_phase(context_lower),
+                "is_gym_battle": any(keyword in context_lower for keyword in ["gym", "leader", "badge"]),
+                "recent_battle_actions": [action for action in recent_actions if action in ['a', 'up', 'down', 'left', 'right']]
+            }
+            return "battle", context_data
+        
+        # EMERGENCY CONTEXT (if stuck patterns detected)
+        stuck_level = self._get_escalation_level()
+        if stuck_level != "level_1":
+            context_data["emergency_context"] = {
+                "escalation_level": stuck_level,
+                "stuck_patterns": self._analyze_stuck_patterns(recent_actions),
+                "attempts_count": len([action for action in recent_actions if action == recent_actions[-1]]) if recent_actions else 0
+            }
+            return "emergency", context_data
+        
+        # MAZE/CAVE CONTEXT
+        if any(keyword in context_lower for keyword in ["cave", "tunnel", "rock", "ladder", "stairs", "level"]):
+            context_data["cave_context"] = {
+                "is_multilevel": any(keyword in context_lower for keyword in ["stairs", "ladder", "level"]),
+                "area_name": self._extract_location_name(context_lower),
+                "rock_formations": "rock" in context_lower
+            }
+            return "maze", context_data
+        
+        # FOREST CONTEXT  
+        elif any(keyword in context_lower for keyword in ["forest", "viridian forest", "trees", "dense"]):
+            context_data["forest_context"] = {
+                "forest_name": self._extract_location_name(context_lower),
+                "is_dense": any(keyword in context_lower for keyword in ["dense", "thick"]),
+                "has_trainers": "trainer" in context_lower
+            }
+            return "navigation", context_data  # Use navigation with forest context
+        
+        # DEFAULT NAVIGATION CONTEXT
+        else:
+            return "navigation", context_data
+    
+    def _detect_battle_phase(self, context_lower: str) -> str:
+        """Detect current battle phase for context"""
+        if any(keyword in context_lower for keyword in ["appeared", "wild", "trainer", "battle text"]):
+            return "intro"
+        elif any(keyword in context_lower for keyword in ["fight", "bag", "pokemon", "run"]):
+            return "menu"
+        elif any(keyword in context_lower for keyword in ["move", "attack", "thundershock", "tackle"]):
+            return "moves"
+        elif any(keyword in context_lower for keyword in ["animation", "damage", "hp"]):
+            return "animation"
+        else:
+            return "unknown"
+    
+    def _get_escalation_level(self) -> str:
+        """Determine current escalation level based on stuck patterns"""
+        if not hasattr(self, 'nav_enhancer'):
+            return "level_1"
+        
+        if hasattr(self.nav_enhancer, 'stuck_counter'):
+            stuck_count = getattr(self.nav_enhancer, 'stuck_counter', 0)
+            if stuck_count >= 10:
+                return "level_3"  # Nuclear options
+            elif stuck_count >= 6:
+                return "level_2"  # Aggressive recovery
+            else:
+                return "level_1"  # Gentle recovery
+        
+        return "level_1"
+    
+    def _get_available_memory_contexts(self) -> List[str]:
+        """Get list of available memory contexts for AI to choose from"""
+        contexts = ["navigation", "battle", "gym", "forest", "cave", "services"]
+        
+        # Add context based on current goal
+        user_goal = self.session.goal.lower()
+        if "gym" in user_goal:
+            contexts.append("gym_strategies")
+        if "forest" in user_goal:
+            contexts.append("forest_navigation")
+        if "battle" in user_goal:
+            contexts.append("battle_tactics")
+        
+        return contexts
+    
+    def _analyze_stuck_patterns(self, recent_actions: List[str]) -> Dict[str, Any]:
+        """Analyze recent actions for stuck patterns"""
+        if not recent_actions:
+            return {"pattern": "none", "severity": "low"}
+        
+        # Count consecutive identical actions
+        consecutive_count = 1
+        if len(recent_actions) > 1:
+            for i in range(len(recent_actions) - 2, -1, -1):
+                if recent_actions[i] == recent_actions[-1]:
+                    consecutive_count += 1
+                else:
+                    break
+        
+        # Determine pattern severity
+        if consecutive_count >= 5:
+            severity = "critical"
+        elif consecutive_count >= 3:
+            severity = "high"
+        elif consecutive_count >= 2:
+            severity = "medium"
+        else:
+            severity = "low"
+        
+        return {
+            "pattern": f"consecutive_{recent_actions[-1]}" if recent_actions else "none",
+            "severity": severity,
+            "count": consecutive_count,
+            "last_action": recent_actions[-1] if recent_actions else None
+        }
+    
+    def _extract_location_name(self, context_lower: str) -> str:
+        """Extract location name from context"""
+        # Common Pokemon location patterns
+        locations = [
+            "viridian forest", "viridian city", "pallet town", "pewter city",
+            "cerulean city", "vermillion city", "lavender town", "celadon city",
+            "fuchsia city", "saffron city", "cinnabar island", "indigo plateau",
+            "rock tunnel", "victory road", "pokemon tower", "silph co"
+        ]
+        
+        for location in locations:
+            if location in context_lower:
+                return location.title()
+        
+        # Fallback to generic extraction
+        import re
+        match = re.search(r'(route \d+|forest|city|town|cave|tunnel)', context_lower)
+        return match.group(1).title() if match else "Unknown Location"
+    
+    def _get_recent_action_list(self) -> List[str]:
+        """Get list of recent button actions for context analysis"""
+        if not hasattr(self, 'recent_turns') or not self.recent_turns:
+            return []
+        
+        # Extract button actions from recent turns
+        recent_actions = []
+        for turn in self.recent_turns[-10:]:  # Last 10 turns
+            if isinstance(turn, dict) and 'action' in turn:
+                action = turn['action']
+                if isinstance(action, list):
+                    recent_actions.extend(action)
+                else:
+                    recent_actions.append(action)
+        
+        return recent_actions
     
     def _analyze_recent_actions_for_context(self) -> Dict[str, Any]:
         """Analyze recent actions to determine likely game context"""
@@ -723,7 +902,7 @@ class ContinuousGameplay:
         prompt_manager = getattr(self.eevee, 'prompt_manager', None)
         
         if prompt_manager:
-            # Use enhanced prompt system with battle playbook
+            # 🧠 NEW: Use AI-directed prompt system that can self-manage
             variables = {
                 "task": self.session.goal,
                 "context_summary": f"Turn {turn_number}/{self.session.max_turns}",
@@ -734,16 +913,41 @@ class ContinuousGameplay:
             }
             
             try:
-                # Determine appropriate prompt type and playbooks based on context
-                prompt_type, playbooks = self._determine_prompt_context(memory_context)
+                # Get recent actions for context analysis
+                recent_actions_list = self._get_recent_action_list()
                 
-                # Get context-appropriate prompt
-                prompt = prompt_manager.get_prompt(
-                    prompt_type, 
-                    variables, 
-                    include_playbook=playbooks[0] if playbooks else None,
-                    verbose=True  # Always show prompt debugging
-                )
+                # Determine appropriate context for AI-directed prompts
+                context_type, context_data = self._determine_ai_context(memory_context, recent_actions_list)
+                
+                # Initialize variables to avoid UnboundLocalError
+                playbooks = []
+                prompt_type = "fallback"
+                
+                # Try AI-directed prompt system first
+                if hasattr(prompt_manager, 'get_ai_directed_prompt'):
+                    prompt = prompt_manager.get_ai_directed_prompt(
+                        context_type=context_type,
+                        task=self.session.goal,
+                        recent_actions=recent_actions_list or [],
+                        available_memories=self._get_available_memory_contexts(),
+                        battle_context=context_data.get('battle_context'),
+                        maze_context=context_data.get('maze_context'),
+                        escalation_level=self._get_escalation_level(),
+                        verbose=True
+                    )
+                    
+                    if self.eevee.verbose:
+                        print(f"🧠 Using AI-directed prompt system: {context_type}")
+                
+                else:
+                    # Fallback to original prompt system
+                    prompt_type, playbooks = self._determine_prompt_context(memory_context)
+                    prompt = prompt_manager.get_prompt(
+                        prompt_type, 
+                        variables, 
+                        include_playbook=playbooks[0] if playbooks else None,
+                        verbose=True
+                    )
                 
                 # Add additional playbook context if multiple playbooks are relevant
                 if len(playbooks) > 1:
@@ -875,6 +1079,42 @@ Use the pokemon_controller tool with a list of button presses."""
             critique = self.nav_enhancer.generate_critique()
             nav_analysis["critique"] = critique
             
+            # 🧠 NEW: AUTOMATICALLY UPDATE PROMPTS BASED ON CRITIQUE
+            if hasattr(self.eevee, 'prompt_manager'):
+                try:
+                    # Apply critique results to prompt manager
+                    prompt_changes = self.nav_enhancer.apply_critique_to_prompt_manager(
+                        critique, self.eevee.prompt_manager
+                    )
+                    
+                    # Update navigation strategy based on critique
+                    strategy_update = self.nav_enhancer.update_navigation_strategy(critique)
+                    
+                    nav_analysis["prompt_changes"] = prompt_changes
+                    nav_analysis["strategy_update"] = strategy_update
+                    
+                    if self.eevee.verbose:
+                        print(f"\n🔧 AUTOMATIC PROMPT UPDATES (Turn {turn_number}):")
+                        
+                        if prompt_changes.get("template_switches"):
+                            for switch in prompt_changes["template_switches"]:
+                                print(f"   📝 {switch}")
+                        
+                        if prompt_changes.get("emergency_actions"):
+                            for action in prompt_changes["emergency_actions"]:
+                                print(f"   🚨 {action}")
+                        
+                        if prompt_changes.get("memory_updates"):
+                            for update in prompt_changes["memory_updates"]:
+                                print(f"   🧠 {update}")
+                        
+                        if strategy_update != "No navigation strategy updates needed":
+                            print(f"   ⚙️ {strategy_update}")
+                            
+                except Exception as e:
+                    if self.eevee.verbose:
+                        print(f"   ⚠️ Prompt update failed: {e}")
+            
             # Update OKR progress during critique analysis
             if self.eevee.enable_okr:
                 progress_summary = f"20-turn checkpoint: {critique.get('overall_assessment', 'unknown assessment')}"
@@ -887,6 +1127,11 @@ Use the pokemon_controller tool with a list of button presses."""
                 print(f"   Progress ratio: {critique.get('progress_ratio', 'unknown'):.2f}")
                 print(f"   Problems: {len(critique.get('problems_identified', []))}")
                 print(f"   Assessment: {critique.get('overall_assessment', 'unknown')}")
+                
+                # Show prompt suggestions from critique
+                suggestions = critique.get('suggested_prompt_changes', [])
+                if suggestions:
+                    print(f"   📋 Prompt suggestions: {'; '.join(suggestions)}")
         
         return nav_analysis
     
