@@ -117,11 +117,12 @@ class InteractiveController:
 class ContinuousGameplay:
     """Manages continuous Pokemon gameplay with AI"""
     
-    def __init__(self, eevee_agent: EeveeAgent, interactive: bool = True):
+    def __init__(self, eevee_agent: EeveeAgent, interactive: bool = True, episode_review_frequency: int = 100):
         self.eevee = eevee_agent
         self.interactive = interactive
         self.session = None
         self.interactive_controller = None
+        self.episode_review_frequency = episode_review_frequency
         
         # Gameplay state
         self.paused = False
@@ -205,6 +206,12 @@ class ContinuousGameplay:
                 
                 # Step 4: Update memory and session state
                 self._update_session_state(turn_count, ai_result, execution_result)
+                
+                # Step 4.5: Periodic episode review check
+                if hasattr(self, 'episode_review_frequency') and self.episode_review_frequency > 0:
+                    if turn_count % self.episode_review_frequency == 0:
+                        print(f"\n🔍 PERIODIC EPISODE REVIEW: Analyzing last {self.episode_review_frequency} turns...")
+                        self._run_periodic_episode_review(turn_count)
                 
                 # Step 5: Wait before next turn
                 time.sleep(self.turn_delay)
@@ -1041,6 +1048,49 @@ Use the pokemon_controller tool with a list of button presses."""
             "last_action": self.session.last_action
         }
     
+    def _run_periodic_episode_review(self, current_turn: int):
+        """Run periodic episode review and suggest prompt improvements"""
+        try:
+            from episode_reviewer import EpisodeReviewer
+            from pathlib import Path
+            
+            # Get current eevee directory
+            eevee_dir = Path(__file__).parent
+            reviewer = EpisodeReviewer(eevee_dir)
+            
+            # Find the most recent session directory
+            runs_dir = eevee_dir / "runs"
+            recent_sessions = sorted(runs_dir.glob("*"), key=lambda x: x.stat().st_mtime, reverse=True)
+            
+            if recent_sessions:
+                latest_session = recent_sessions[0]
+                
+                # Generate episode review for current session
+                metrics = reviewer.analyze_episode(latest_session)
+                improvements = reviewer.suggest_prompt_improvements(metrics)
+                
+                print(f"📊 REVIEW CHECKPOINT (Turn {current_turn}):")
+                print(f"   Navigation Efficiency: {metrics.navigation_efficiency:.2f}")
+                print(f"   Battles Won: {metrics.battles_won}")
+                print(f"   Stuck Patterns: {metrics.stuck_patterns}")
+                
+                if improvements:
+                    print(f"🔧 {len(improvements)} prompt improvements suggested")
+                    # Save periodic review
+                    review_file = latest_session / f"periodic_review_turn_{current_turn}.md"
+                    report = reviewer.generate_episode_report(latest_session)
+                    with open(review_file, 'w') as f:
+                        f.write(f"# Periodic Review - Turn {current_turn}\n\n{report}")
+                    print(f"📋 Periodic review saved: {review_file}")
+                else:
+                    print(f"✅ Performance on track - no changes needed")
+                
+        except Exception as e:
+            print(f"⚠️ Periodic episode review failed: {e}")
+            if hasattr(self.eevee, 'debug') and self.eevee.debug:
+                import traceback
+                traceback.print_exc()
+    
     def _analyze_navigation_progress(self, turn_number: int, buttons_pressed: List[str], ai_reasoning: str) -> Dict[str, Any]:
         """
         Analyze navigation progress using screenshot comparison and loop detection
@@ -1297,6 +1347,13 @@ Examples:
     )
     
     parser.add_argument(
+        "--episode-review-frequency",
+        type=int,
+        default=100,
+        help="Generate episode review every N turns (default: 100, 0 to disable)"
+    )
+    
+    parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="Enable verbose output"
@@ -1536,7 +1593,7 @@ def main():
             print(f"\n{'='*60}")
             
             # Initialize continuous gameplay
-            gameplay = ContinuousGameplay(eevee, interactive=interactive)
+            gameplay = ContinuousGameplay(eevee, interactive=interactive, episode_review_frequency=args.episode_review_frequency)
             
             # Start session
             session = gameplay.start_session(args.goal, args.max_turns)
@@ -1551,6 +1608,55 @@ def main():
                 print(f"=� Status: {session_summary['status']}")
                 print(f"= Turns: {session_summary['turns_completed']}/{session_summary['max_turns']}")
                 print(f"=� User interactions: {session_summary['user_interactions']}")
+                
+                # Trigger episode review if enabled and session completed sufficient turns
+                if args.episode_review_frequency > 0 and session_summary['turns_completed'] >= args.episode_review_frequency:
+                    try:
+                        from episode_reviewer import EpisodeReviewer
+                        reviewer = EpisodeReviewer(eevee_dir)
+                        
+                        # Find the most recent session directory
+                        runs_dir = eevee_dir / "runs"
+                        recent_sessions = sorted(runs_dir.glob("*"), key=lambda x: x.stat().st_mtime, reverse=True)
+                        
+                        if recent_sessions:
+                            latest_session = recent_sessions[0]
+                            print(f"\n🔍 EPISODE REVIEW: Analyzing {session_summary['turns_completed']}-turn session...")
+                            print(f"📊 Session: {latest_session.name}")
+                            
+                            # Generate episode review report
+                            report = reviewer.generate_episode_report(latest_session)
+                            
+                            # Save report to file
+                            report_file = latest_session / "episode_review.md"
+                            with open(report_file, 'w') as f:
+                                f.write(report)
+                            
+                            print(f"📋 Episode review saved: {report_file}")
+                            
+                            # Show key findings
+                            metrics = reviewer.analyze_episode(latest_session)
+                            improvements = reviewer.suggest_prompt_improvements(metrics)
+                            
+                            print(f"\n📈 EPISODE SUMMARY:")
+                            print(f"   Navigation Efficiency: {metrics.navigation_efficiency:.2f}")
+                            print(f"   Battles Won: {metrics.battles_won}")
+                            print(f"   Stuck Patterns: {metrics.stuck_patterns}")
+                            print(f"   Major Achievements: {len(metrics.major_achievements)}")
+                            
+                            if improvements:
+                                print(f"\n🔧 PROMPT IMPROVEMENTS SUGGESTED: {len(improvements)}")
+                                for improvement in improvements[:3]:  # Show top 3
+                                    print(f"   • {improvement.prompt_name} ({improvement.priority} priority)")
+                                    print(f"     {improvement.reasoning}")
+                            else:
+                                print(f"\n✅ No prompt improvements needed - excellent performance!")
+                        
+                    except Exception as e:
+                        print(f"⚠️ Episode review failed: {e}")
+                        if args.debug:
+                            import traceback
+                            traceback.print_exc()
                 
                 # Save session report
                 if args.save_report:
