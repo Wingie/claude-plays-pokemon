@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Tuple
 from dataclasses import dataclass
+from prompt_template_updater import PromptTemplateUpdater, TemplateChange
 
 @dataclass
 class EpisodeMetrics:
@@ -51,6 +52,9 @@ class EpisodeReviewer:
         # Load current prompt templates
         self.prompt_templates = self._load_prompt_templates()
         self.current_okrs = self._load_current_okrs()
+        
+        # Initialize template updater
+        self.template_updater = PromptTemplateUpdater(self.prompts_dir, self.runs_dir)
     
     def analyze_episode(self, session_dir: Path) -> EpisodeMetrics:
         """Analyze a completed 100-turn episode"""
@@ -450,6 +454,160 @@ Found {len(improvements)} potential improvements:
 - Include "emergency exploration mode" for severe stuck situations
 - Add memory clearing mechanisms for loop breaking
 """
+    
+    def update_yaml_templates(self, session_dir: Path, apply_changes: bool = True) -> Dict[str, Any]:
+        """
+        Apply episode review improvements to actual YAML template files
+        
+        Args:
+            session_dir: Directory containing the session data to analyze
+            apply_changes: Whether to actually apply changes or just return what would be changed
+            
+        Returns:
+            Dictionary with update results and change information
+        """
+        try:
+            # Analyze the episode first
+            metrics = self.analyze_episode(session_dir)
+            improvements = self.suggest_prompt_improvements(metrics)
+            
+            if not improvements:
+                return {
+                    "success": True,
+                    "changes_applied": 0,
+                    "message": "No improvements needed - excellent performance!",
+                    "metrics": {
+                        "navigation_efficiency": metrics.navigation_efficiency,
+                        "battle_win_rate": metrics.battles_won / max(1, metrics.battles_won + metrics.battles_lost),
+                        "stuck_patterns": metrics.stuck_patterns
+                    }
+                }
+            
+            # Prepare performance metrics for tracking
+            performance_metrics = {
+                "navigation_efficiency": metrics.navigation_efficiency,
+                "battle_win_rate": metrics.battles_won / max(1, metrics.battles_won + metrics.battles_lost),
+                "stuck_patterns": metrics.stuck_patterns,
+                "turns_completed": metrics.turns_completed,
+                "areas_discovered": metrics.new_areas_discovered
+            }
+            
+            changes_applied = []
+            session_info = f"Episode {session_dir.name} - {metrics.turns_completed} turns"
+            
+            if apply_changes:
+                print(f"🔧 APPLYING {len(improvements)} PROMPT IMPROVEMENTS...")
+                
+                # Apply each improvement
+                for improvement in improvements:
+                    print(f"📝 Updating {improvement.prompt_name} - {improvement.reasoning}")
+                    
+                    change = self.template_updater.apply_improvement_suggestion(
+                        improvement, performance_metrics
+                    )
+                    
+                    if change:
+                        changes_applied.append(change)
+                        print(f"   ✅ {improvement.prompt_name} v{change.old_version} → v{change.new_version}")
+                    else:
+                        print(f"   ❌ Failed to apply changes to {improvement.prompt_name}")
+                
+                # Commit changes to git if any were successfully applied
+                if changes_applied:
+                    git_success = self.template_updater.commit_changes_to_git(changes_applied, session_info)
+                    if git_success:
+                        print(f"📦 Committed {len(changes_applied)} template changes to git")
+                    else:
+                        print(f"⚠️ Template changes applied but git commit failed")
+                
+                return {
+                    "success": True,
+                    "changes_applied": len(changes_applied),
+                    "changes": [
+                        {
+                            "template": change.template_name,
+                            "version": f"{change.old_version} → {change.new_version}",
+                            "reasoning": change.reasoning
+                        }
+                        for change in changes_applied
+                    ],
+                    "git_committed": git_success if changes_applied else False,
+                    "message": f"Applied {len(changes_applied)} improvements based on episode analysis",
+                    "metrics": performance_metrics
+                }
+            else:
+                # Dry run mode - just return what would be changed
+                return {
+                    "success": True,
+                    "changes_applied": 0,
+                    "dry_run": True,
+                    "potential_changes": [
+                        {
+                            "template": improvement.prompt_name,
+                            "priority": improvement.priority,
+                            "reasoning": improvement.reasoning,
+                            "suggested_changes": improvement.suggested_changes
+                        }
+                        for improvement in improvements
+                    ],
+                    "message": f"Would apply {len(improvements)} improvements (dry run mode)",
+                    "metrics": performance_metrics
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "changes_applied": 0,
+                "message": f"Failed to update templates: {e}"
+            }
+    
+    def rollback_last_template_changes(self) -> Dict[str, Any]:
+        """
+        Rollback the last template changes if performance decreased
+        
+        Returns:
+            Dictionary with rollback results
+        """
+        try:
+            success = self.template_updater.rollback_last_change()
+            
+            if success:
+                return {
+                    "success": True,
+                    "message": "Successfully rolled back last template changes",
+                    "action": "rollback_completed"
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": "Rollback failed - check git history manually",
+                    "action": "rollback_failed"
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "message": f"Rollback error: {e}",
+                "action": "rollback_error"
+            }
+    
+    def get_template_change_history(self, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Get recent template change history for analysis
+        
+        Args:
+            limit: Maximum number of changes to return
+            
+        Returns:
+            List of recent template changes
+        """
+        try:
+            return self.template_updater.get_change_history(limit)
+        except Exception as e:
+            print(f"⚠️ Failed to get change history: {e}")
+            return []
 
 # Example usage and testing
 if __name__ == "__main__":
@@ -458,9 +616,11 @@ if __name__ == "__main__":
     # Find most recent session
     runs_dir = Path("runs")
     if runs_dir.exists():
-        recent_sessions = sorted(runs_dir.glob("*"), key=lambda x: x.stat().st_mtime, reverse=True)
-        if recent_sessions:
-            latest_session = recent_sessions[0]
+        recent_sessions = sorted(runs_dir.glob("session_*"), key=lambda x: x.stat().st_mtime, reverse=True)
+        # Filter to only directories with session_data.json
+        valid_sessions = [s for s in recent_sessions if s.is_dir() and (s / "session_data.json").exists()]
+        if valid_sessions:
+            latest_session = valid_sessions[0]
             print(f"Analyzing session: {latest_session.name}")
             
             try:
@@ -469,6 +629,7 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"Error analyzing session: {e}")
         else:
-            print("No sessions found in runs directory")
+            print("No valid session directories found in runs directory")
+            print("Looking for directories matching 'session_*' with session_data.json")
     else:
         print("Runs directory not found")

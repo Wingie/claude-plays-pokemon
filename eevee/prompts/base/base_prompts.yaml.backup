@@ -40,12 +40,33 @@ task_analysis:
 
     - Always consider current objectives when making decisions
 
+    - Priority: Gym badges > Team building > Exploration > Item collection
+
+
+    **OBJECTIVE FOCUS**:
+
+    - Always consider current objectives when making decisions
+
+    - Priority: Gym badges > Team building > Exploration > Item collection
+
+
+    **OBJECTIVE FOCUS**:
+
+    - Always consider current objectives when making decisions
+
+    - Priority: Gym badges > Team building > Exploration > Item collection
+
+
+    **OBJECTIVE FOCUS**:
+
+    - Always consider current objectives when making decisions
+
     - Priority: Gym badges > Team building > Exploration > Item collection'
   variables:
   - task
   - context_summary
   - memory_context
-  version: '1.6'
+  version: '1.4'
 stuck_recovery:
   name: Simple Stuck Recovery
   description: Quick recovery when AI is stuck in movement loops
@@ -72,6 +93,14 @@ battle_analysis:
   description: Detailed battle UI navigation with phase detection and menu systems
   template: "POKEMON BATTLE NAVIGATION MODE\n\nYou are in a Pokemon battle. Battles\
     \ use MENU NAVIGATION, not movement.\n\nCurrent Task: {task}\n\n**TYPE EFFECTIVENESS\
+    \ PRIORITY**:\n- Always check type advantages before selecting moves\n- Super\
+    \ Effective (2x damage) > Neutral (1x) > Not Very Effective (0.5x)\n\n**TYPE EFFECTIVENESS\
+    \ PRIORITY**:\n- Always check type advantages before selecting moves\n- Super\
+    \ Effective (2x damage) > Neutral (1x) > Not Very Effective (0.5x)\n\n**TYPE EFFECTIVENESS\
+    \ PRIORITY**:\n- Always check type advantages before selecting moves\n- Super\
+    \ Effective (2x damage) > Neutral (1x) > Not Very Effective (0.5x)\n\n**TYPE EFFECTIVENESS\
+    \ PRIORITY**:\n- Always check type advantages before selecting moves\n- Super\
+    \ Effective (2x damage) > Neutral (1x) > Not Very Effective (0.5x)\n\n**TYPE EFFECTIVENESS\
     \ PRIORITY**:\n- Always check type advantages before selecting moves\n- Super\
     \ Effective (2x damage) > Neutral (1x) > Not Very Effective (0.5x)\nRecent Actions:\
     \ {recent_actions}\n\nSTEP 1 - IDENTIFY BATTLE PHASE:\nLook at the screen and\
@@ -109,7 +138,7 @@ battle_analysis:
   variables:
   - task
   - recent_actions
-  version: '3.6'
+  version: '3.5'
 pokemon_party_analysis:
   name: Pokemon Party Analysis Base
   description: Analyzes Pokemon party status, levels, moves, and condition

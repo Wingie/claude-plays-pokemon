@@ -157,7 +157,26 @@ class ContinuousGameplay:
             max_turns=max_turns
         )
         
-        print(f"<� Starting continuous Pokemon gameplay")
+        # Create session directory and initialize session data file for episode reviewer
+        self.session_dir = self.eevee.runs_dir / f"session_{session_id}"
+        self.session_dir.mkdir(exist_ok=True)
+        
+        # Initialize session data file
+        self.session_data_file = self.session_dir / "session_data.json"
+        self.session_turns = []  # Track turns for episode reviewer
+        
+        initial_session_data = {
+            "session_id": session_id,
+            "goal": goal,
+            "start_time": self.session.start_time,
+            "turns": []
+        }
+        
+        with open(self.session_data_file, 'w') as f:
+            json.dump(initial_session_data, f, indent=2)
+        
+        print(f"🎮 Starting continuous Pokemon gameplay")
+        print(f"📁 Session: {session_id}")
         print(f"<� Goal: {goal}")
         print(f"=� Max turns: {max_turns}")
         print(f"= Turn delay: {self.turn_delay}s")
@@ -206,6 +225,9 @@ class ContinuousGameplay:
                 
                 # Step 4: Update memory and session state
                 self._update_session_state(turn_count, ai_result, execution_result)
+                
+                # Step 4.1: Update session data file for episode reviewer
+                self._update_session_data_file(turn_count, ai_result, execution_result)
                 
                 # Step 4.5: Periodic episode review check
                 if hasattr(self, 'episode_review_frequency') and self.episode_review_frequency > 0:
@@ -404,6 +426,41 @@ class ContinuousGameplay:
             except Exception as e:
                 if self.eevee.debug:
                     print(f"�  Memory storage failed: {e}")
+    
+    def _update_session_data_file(self, turn_number: int, ai_result: Dict[str, Any], execution_result: Dict[str, Any]):
+        """Update session data file for episode reviewer"""
+        if not hasattr(self, 'session_data_file') or not hasattr(self, 'session_turns'):
+            return
+        
+        try:
+            # Create turn data in the format expected by episode reviewer
+            turn_data = {
+                "turn": turn_number,
+                "timestamp": datetime.now().isoformat(),
+                "ai_analysis": ai_result.get("analysis", ""),
+                "button_presses": ai_result.get("action", []),
+                "action_result": execution_result.get("success", False),
+                "screenshot_path": f"screenshot_{turn_number}.png",
+                "execution_time": execution_result.get("execution_time", 0.0)
+            }
+            
+            # Add to session turns list
+            self.session_turns.append(turn_data)
+            
+            # Update the session data file
+            session_data = {
+                "session_id": self.session.session_id,
+                "goal": self.session.goal,
+                "start_time": self.session.start_time,
+                "turns": self.session_turns
+            }
+            
+            with open(self.session_data_file, 'w') as f:
+                json.dump(session_data, f, indent=2)
+            
+        except Exception as e:
+            if self.eevee.debug:
+                print(f"⚠️ Failed to update session data file: {e}")
     
     def _handle_user_input(self):
         """Handle real-time user input during gameplay"""
@@ -1049,7 +1106,7 @@ Use the pokemon_controller tool with a list of button presses."""
         }
     
     def _run_periodic_episode_review(self, current_turn: int):
-        """Run periodic episode review and suggest prompt improvements"""
+        """Run periodic episode review and apply prompt improvements automatically"""
         try:
             from episode_reviewer import EpisodeReviewer
             from pathlib import Path
@@ -1060,36 +1117,94 @@ Use the pokemon_controller tool with a list of button presses."""
             
             # Find the most recent session directory
             runs_dir = eevee_dir / "runs"
-            recent_sessions = sorted(runs_dir.glob("*"), key=lambda x: x.stat().st_mtime, reverse=True)
+            recent_sessions = sorted(runs_dir.glob("session_*"), key=lambda x: x.stat().st_mtime, reverse=True)
             
-            if recent_sessions:
-                latest_session = recent_sessions[0]
+            # Filter to only directories with session_data.json
+            valid_sessions = [s for s in recent_sessions if s.is_dir() and (s / "session_data.json").exists()]
+            
+            if valid_sessions:
+                latest_session = valid_sessions[0]
                 
-                # Generate episode review for current session
-                metrics = reviewer.analyze_episode(latest_session)
-                improvements = reviewer.suggest_prompt_improvements(metrics)
+                print(f"🔍 PERIODIC EPISODE REVIEW (Turn {current_turn}): Analyzing last {self.episode_review_frequency} turns...")
                 
-                print(f"📊 REVIEW CHECKPOINT (Turn {current_turn}):")
-                print(f"   Navigation Efficiency: {metrics.navigation_efficiency:.2f}")
-                print(f"   Battles Won: {metrics.battles_won}")
-                print(f"   Stuck Patterns: {metrics.stuck_patterns}")
+                # NEW: Apply actual YAML template updates based on performance
+                update_result = reviewer.update_yaml_templates(latest_session, apply_changes=True)
                 
-                if improvements:
-                    print(f"🔧 {len(improvements)} prompt improvements suggested")
-                    # Save periodic review
-                    review_file = latest_session / f"periodic_review_turn_{current_turn}.md"
-                    report = reviewer.generate_episode_report(latest_session)
-                    with open(review_file, 'w') as f:
-                        f.write(f"# Periodic Review - Turn {current_turn}\n\n{report}")
-                    print(f"📋 Periodic review saved: {review_file}")
+                if update_result["success"]:
+                    changes_applied = update_result["changes_applied"]
+                    metrics = update_result["metrics"]
+                    
+                    print(f"📊 PERFORMANCE METRICS:")
+                    print(f"   Navigation Efficiency: {metrics['navigation_efficiency']:.2f}")
+                    print(f"   Battle Win Rate: {metrics['battle_win_rate']:.2f}")
+                    print(f"   Stuck Patterns: {metrics['stuck_patterns']}")
+                    
+                    if changes_applied > 0:
+                        print(f"\n🔧 AUTOMATIC PROMPT LEARNING: Applied {changes_applied} improvements")
+                        
+                        for change in update_result.get("changes", []):
+                            print(f"   📝 {change['template']} {change['version']}: {change['reasoning']}")
+                        
+                        if update_result.get("git_committed"):
+                            print(f"   📦 Changes committed to git with full tracking")
+                        
+                        # Save detailed periodic review
+                        review_file = latest_session / f"periodic_review_turn_{current_turn}.md"
+                        report = reviewer.generate_episode_report(latest_session)
+                        with open(review_file, 'w') as f:
+                            f.write(f"# Periodic Review - Turn {current_turn}\n\n{report}")
+                        print(f"   📋 Detailed review saved: {review_file}")
+                        
+                        # Log the learning event
+                        self._log_learning_event(current_turn, update_result)
+                        
+                    else:
+                        print(f"\n✅ EXCELLENT PERFORMANCE: No prompt improvements needed")
+                        print(f"   Current templates are performing optimally")
                 else:
-                    print(f"✅ Performance on track - no changes needed")
+                    print(f"\n❌ TEMPLATE UPDATE FAILED: {update_result.get('message', 'Unknown error')}")
+                    if update_result.get('error'):
+                        print(f"   Error details: {update_result['error']}")
+            else:
+                print(f"\n⚠️ PERIODIC EPISODE REVIEW: No valid session directories found")
+                print(f"   Searched in: {runs_dir}")
+                print(f"   Looking for directories matching 'session_*' with session_data.json")
                 
         except Exception as e:
             print(f"⚠️ Periodic episode review failed: {e}")
             if hasattr(self.eevee, 'debug') and self.eevee.debug:
                 import traceback
                 traceback.print_exc()
+    
+    def _log_learning_event(self, turn_number: int, update_result: Dict[str, Any]):
+        """Log automatic learning events to runs directory"""
+        try:
+            if not hasattr(self, '_learning_log_file'):
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                self._learning_log_file = self.eevee.runs_dir / f"learning_events_{timestamp}.log"
+            
+            with open(self._learning_log_file, 'a') as f:
+                f.write(f"\n{'='*60}\n")
+                f.write(f"TURN {turn_number} - AUTOMATIC LEARNING EVENT\n")
+                f.write(f"Timestamp: {datetime.now().isoformat()}\n")
+                f.write(f"Changes Applied: {update_result['changes_applied']}\n")
+                
+                if update_result['changes_applied'] > 0:
+                    f.write(f"Template Updates:\n")
+                    for change in update_result.get('changes', []):
+                        f.write(f"  - {change['template']} {change['version']}: {change['reasoning']}\n")
+                    
+                    f.write(f"Git Committed: {update_result.get('git_committed', False)}\n")
+                
+                metrics = update_result['metrics']
+                f.write(f"Performance Metrics:\n")
+                f.write(f"  - Navigation Efficiency: {metrics['navigation_efficiency']:.2f}\n")
+                f.write(f"  - Battle Win Rate: {metrics['battle_win_rate']:.2f}\n")
+                f.write(f"  - Stuck Patterns: {metrics['stuck_patterns']}\n")
+                f.write(f"{'='*60}\n")
+        
+        except Exception as e:
+            print(f"⚠️ Failed to log learning event: {e}")
     
     def _analyze_navigation_progress(self, turn_number: int, buttons_pressed: List[str], ai_reasoning: str) -> Dict[str, Any]:
         """
@@ -1617,10 +1732,13 @@ def main():
                         
                         # Find the most recent session directory
                         runs_dir = eevee_dir / "runs"
-                        recent_sessions = sorted(runs_dir.glob("*"), key=lambda x: x.stat().st_mtime, reverse=True)
+                        recent_sessions = sorted(runs_dir.glob("session_*"), key=lambda x: x.stat().st_mtime, reverse=True)
                         
-                        if recent_sessions:
-                            latest_session = recent_sessions[0]
+                        # Filter to only directories with session_data.json
+                        valid_sessions = [s for s in recent_sessions if s.is_dir() and (s / "session_data.json").exists()]
+                        
+                        if valid_sessions:
+                            latest_session = valid_sessions[0]
                             print(f"\n🔍 EPISODE REVIEW: Analyzing {session_summary['turns_completed']}-turn session...")
                             print(f"📊 Session: {latest_session.name}")
                             
@@ -1651,6 +1769,10 @@ def main():
                                     print(f"     {improvement.reasoning}")
                             else:
                                 print(f"\n✅ No prompt improvements needed - excellent performance!")
+                        else:
+                            print(f"\n⚠️ EPISODE REVIEW: No valid session directories found")
+                            print(f"   Searched in: {runs_dir}")
+                            print(f"   Looking for directories matching 'session_*' with session_data.json")
                         
                     except Exception as e:
                         print(f"⚠️ Episode review failed: {e}")
