@@ -4,3 +4,6 @@ pyautogui>=0.9.53
 pygetwindow>=0.0.9
 Pillow>=9.0.0
 pyobjc>=8.5  # For macOS Quartz access
+opencv-python>=4.5.0  # For image processing and comparison
+scikit-image>=0.19.0  # For structural similarity (SSIM) calculations
+numpy>=1.21.0  # For numerical operations

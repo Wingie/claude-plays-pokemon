@@ -52,7 +52,8 @@ class EeveeAgent:
         memory_session: str = "default",
         verbose: bool = False,
         debug: bool = False,
-        enable_neo4j: bool = False
+        enable_neo4j: bool = False,
+        enable_okr: bool = True
     ):
         """Initialize the enhanced Eevee agent"""
         self.window_title = window_title
@@ -61,6 +62,7 @@ class EeveeAgent:
         self.verbose = verbose
         self.debug = debug
         self.enable_neo4j = enable_neo4j
+        self.enable_okr = enable_okr
         
         # Initialize core components
         self._init_ai_components()
@@ -2045,3 +2047,59 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
         except Exception as e:
             if self.debug:
                 print(f"⚠️ Failed to store location knowledge: {e}")
+    
+    def get_okr_context(self) -> str:
+        """
+        Get contextual OKR (Objectives & Key Results) for current game state
+        
+        Returns:
+            String containing focused, immediate objectives
+        """
+        if not self.enable_okr:
+            return ""
+        
+        try:
+            okr_prompt_path = Path(__file__).parent / "prompts" / "okr_prompt.md"
+            if okr_prompt_path.exists():
+                with open(okr_prompt_path, 'r') as f:
+                    okr_content = f.read()
+                return f"\n{okr_content}\n"
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ Failed to read OKR prompt: {e}")
+        
+        return ""
+    
+    def update_okr_progress(self, action: str, result: str, progress_note: str = ""):
+        """
+        Update OKR progress log with recent actions and results
+        
+        Args:
+            action: Action taken by the AI
+            result: Result or outcome
+            progress_note: Optional note about progress toward objectives
+        """
+        if not self.enable_okr:
+            return
+        
+        try:
+            okr_path = Path(__file__).parent / "prompts" / "OKR.md"
+            if okr_path.exists():
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                
+                # Create progress entry
+                if progress_note:
+                    entry = f"- 🎯 [{timestamp}] {action} → {result} | {progress_note}\n"
+                else:
+                    entry = f"- 🎯 [{timestamp}] {action} → {result}\n"
+                
+                # Append to file
+                with open(okr_path, 'a') as f:
+                    f.write(entry)
+                
+                if self.verbose:
+                    print(f"📊 OKR Progress: {action} → {result}")
+                    
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ Failed to update OKR progress: {e}")

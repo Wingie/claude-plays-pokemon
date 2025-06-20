@@ -44,6 +44,7 @@ try:
     from memory_system import MemorySystem
     from prompt_manager import PromptManager
     from task_executor import TaskExecutor
+    from utils.navigation_enhancement import NavigationEnhancer
 except ImportError as e:
     print(f"⚠️  Core Eevee components not available: {e}")
     print("Starting with basic implementation...")
@@ -126,6 +127,9 @@ class ContinuousGameplay:
         self.paused = False
         self.running = False
         self.turn_delay = 2.0  # Seconds between turns
+        
+        # Enhanced navigation system
+        self.nav_enhancer = NavigationEnhancer(history_size=20, similarity_threshold=0.95)
         
         # Track recent actions for context (last 5 turns)
         self.recent_turns = []
@@ -323,21 +327,52 @@ class ContinuousGameplay:
             print(f"⚠️ No valid buttons found, using default 'a'")
             validated_actions = ['a']
         
+        # AGGRESSIVE LOOP DETECTION: Halt execution if same action 3+ times in a row
+        if hasattr(self, '_last_three_actions'):
+            if (len(self._last_three_actions) >= 2 and 
+                all(action == validated_actions for action in self._last_three_actions[-2:]) and
+                validated_actions == self._last_three_actions[-1]):
+                print(f"🛑 EMERGENCY STOP: Same action {validated_actions} repeated 3+ times!")
+                print(f"🔄 Forcing alternative action: trying opposite direction")
+                # Force a different action based on current action
+                if validated_actions == ['up']:
+                    validated_actions = ['down']
+                elif validated_actions == ['down']:
+                    validated_actions = ['left']  # Try sideways instead of up
+                elif validated_actions == ['left']:
+                    validated_actions = ['right']
+                elif validated_actions == ['right']:
+                    validated_actions = ['up']
+                else:
+                    validated_actions = ['a']  # Fallback to interaction
+                print(f"🔄 Switched to: {validated_actions}")
+        
+        # Track recent actions for loop detection
+        if not hasattr(self, '_last_three_actions'):
+            self._last_three_actions = []
+        self._last_three_actions.append(validated_actions)
+        if len(self._last_three_actions) > 3:
+            self._last_three_actions.pop(0)
+        
         try:
             # Execute button sequence
             success = self.eevee.controller.press_sequence(validated_actions, delay_between=0.5)
             
             # Record this turn's action for recent context
-            observation = ai_result.get("analysis", "")[:200]  # Truncate observation
+            observation = ai_result.get("analysis", "")  # Full observation, no truncation
             result_text = "success" if success else "failed"
             turn_number = getattr(self.session, 'turns_completed', 0) + 1
             self._record_turn_action(turn_number, observation, validated_actions, result_text)
+            
+            # ENHANCED: Add navigation analysis after action execution
+            nav_analysis = self._analyze_navigation_progress(turn_number, validated_actions, ai_result.get("reasoning", ""))
             
             return {
                 "success": success,
                 "actions_executed": validated_actions,
                 "original_actions": actions,  # Keep track of what AI originally wanted
-                "execution_time": datetime.now().isoformat()
+                "execution_time": datetime.now().isoformat(),
+                "navigation_analysis": nav_analysis  # Include navigation insights
             }
             
         except Exception as e:
@@ -448,12 +483,26 @@ class ContinuousGameplay:
             return ""
     
     def _record_turn_action(self, turn_number: int, observation: str, action: List[str], result: str):
-        """Record a turn's action for recent context"""
+        """Record a turn's action for recent context with progress tracking"""
+        
+        # Get navigation analysis if available
+        nav_progress = False
+        visual_similarity = 0.0
+        if hasattr(self, 'nav_enhancer'):
+            # Check if we have recent turn data with progress info
+            if self.nav_enhancer.turn_history:
+                last_turn = self.nav_enhancer.turn_history[-1]
+                nav_progress = last_turn.progress_made
+                visual_similarity = last_turn.visual_similarity
+        
         turn_record = {
             "turn": turn_number,
-            "observation": observation[:200],  # Truncate long observations
+            "observation": observation,  # Full observation, no truncation
             "action": action,
-            "result": result[:100]  # Truncate long results
+            "result": result,  # Full result, no truncation  
+            "progress_made": nav_progress,  # Enhanced: Track if visual progress was made
+            "visual_similarity": visual_similarity,  # Enhanced: Track visual similarity
+            "timestamp": datetime.now().isoformat()
         }
         
         # Add to recent turns, keep only last N turns
@@ -473,14 +522,23 @@ class ContinuousGameplay:
             obs = turn_record["observation"]
             actions = turn_record["action"]
             result = turn_record["result"]
+            progress = turn_record.get("progress_made", "unknown")
+            similarity = turn_record.get("visual_similarity", 0.0)
             
-            summary += f"Turn {turn_num}: Observed '{obs}' → Pressed {actions} → {result}\n"
+            # Enhanced summary with progress tracking
+            progress_indicator = "✅" if progress else "❌" if similarity > 0.95 else "?"
+            summary += f"Turn {turn_num}: {progress_indicator} Observed '{obs}' → Pressed {actions} → {result}\n"
         
-        # Add pattern detection
+        # Enhanced pattern detection with progress analysis
         if len(self.recent_turns) >= 3:
             last_actions = [turn["action"] for turn in self.recent_turns[-3:]]
+            last_progress = [turn.get("progress_made", False) for turn in self.recent_turns[-3:]]
+            
             if all(action == last_actions[0] for action in last_actions):
-                summary += "⚠️ WARNING: You've been repeating the same action. Consider trying something different.\n"
+                summary += "🚨 CRITICAL: You've been repeating the same action. Try a different approach!\n"
+                
+            if not any(last_progress):
+                summary += "⚠️ WARNING: No visual progress in last 3 turns. Consider changing strategy.\n"
         
         return summary
     
@@ -496,6 +554,19 @@ class ContinuousGameplay:
         """
         context_lower = memory_context.lower()
         user_goal = self.session.goal.lower()
+        
+        # HIGHEST PRIORITY: Stuck navigation detection (critical for avoiding infinite loops)
+        if hasattr(self, 'nav_enhancer') and self.nav_enhancer.stuck_mode:
+            prompt_type = "stuck_navigation"
+            playbooks = ["navigation"]
+            return prompt_type, playbooks
+        
+        # Check for user recovery tasks
+        recent_tasks = getattr(self, '_user_tasks', [])
+        if any("STUCK RECOVERY" in task for task in recent_tasks):
+            prompt_type = "stuck_navigation"
+            playbooks = ["navigation"] 
+            return prompt_type, playbooks
         
         # HIGH PRIORITY: Battle detection (most critical for Pokemon gameplay)
         if self._detect_battle_context(context_lower):
@@ -596,8 +667,18 @@ class ContinuousGameplay:
         }
     
     def _log_enhanced_analysis(self, turn_number: int, analysis_text: str, button_sequence: List[str]):
-        """Simple logging with action summary and buttons pressed"""
-        print(f"\n🎮 TURN {turn_number}: Pressed {button_sequence} - {analysis_text[:100]}{'...' if len(analysis_text) > 100 else ''}")
+        """Enhanced logging with loop detection and full reasoning"""
+        print(f"\n🎮 TURN {turn_number}: Pressed {button_sequence}")
+        
+        # Check for immediate loop patterns
+        recent_actions = self._get_recent_actions_summary()
+        if "consecutive" in recent_actions.lower():
+            print(f"⚠️  LOOP WARNING: {recent_actions}")
+        
+        # Show full AI reasoning
+        print(f"💭 FULL AI REASONING:")
+        print(f"   {analysis_text}")
+        print(f"{'='*60}")
     
     def _extract_section(self, text: str, keywords: List[str]) -> str:
         """Extract a section from AI response based on keywords"""
@@ -632,7 +713,9 @@ class ContinuousGameplay:
                 "task": self.session.goal,
                 "context_summary": f"Turn {turn_number}/{self.session.max_turns}",
                 "memory_context": memory_context,
-                "recent_actions": self._get_recent_actions_summary()
+                "recent_actions": self._get_recent_actions_summary(),
+                "goal": self.session.goal,
+                "stuck_problem": self._get_stuck_problem_description(),
             }
             
             try:
@@ -654,6 +737,13 @@ class ContinuousGameplay:
                             prompt += f"\n\n## Additional Knowledge from {additional_playbook.title()}:\n"
                             prompt += prompt_manager.playbooks[additional_playbook]
                 
+                # Add OKR context if enabled
+                okr_context = ""
+                if self.eevee.enable_okr:
+                    okr_context = self.eevee.get_okr_context()
+                    if self.eevee.verbose:
+                        print(f"📊 OKR Context included: {len(okr_context)} characters")
+                
                 # Add continuous gameplay context
                 prompt += f"""
 
@@ -662,7 +752,7 @@ class ContinuousGameplay:
 - Goal: {self.session.goal}
 - User instruction: {recent_task if recent_task else "Continue autonomous gameplay"}
 - Memory: {memory_context}
-
+{okr_context}
 **ENHANCED ANALYSIS REQUIREMENTS**:
 🎯 **OBSERVATION**: Describe exactly what you see on screen
 🧠 **ANALYSIS**: Explain your reasoning process for the next action
@@ -689,6 +779,13 @@ Use the pokemon_controller tool with your chosen button sequence."""
     
     def _build_fallback_prompt(self, turn_number: int, memory_context: str, recent_task: str) -> str:
         """Build fallback prompt when prompt manager is unavailable"""
+        # Add OKR context if enabled
+        okr_context = ""
+        if self.eevee.enable_okr:
+            okr_context = self.eevee.get_okr_context()
+            if self.eevee.verbose:
+                print(f"📊 OKR Context (fallback) included: {len(okr_context)} characters")
+        
         return f"""# Pokemon Fire Red AI Expert - Turn {turn_number}
 
 **GOAL**: {self.session.goal}
@@ -696,7 +793,7 @@ Use the pokemon_controller tool with your chosen button sequence."""
 **USER INSTRUCTION**: {recent_task if recent_task else "Continue autonomous gameplay"}
 
 **RECENT MEMORY**: {memory_context}
-
+{okr_context}
 **GAMEPLAY CONTEXT**:
 - Turn {turn_number} of {self.session.max_turns}
 - Continuous autonomous gameplay with user guidance
@@ -724,6 +821,118 @@ Use the pokemon_controller tool with a list of button presses."""
             "last_analysis": self.session.last_analysis,
             "last_action": self.session.last_action
         }
+    
+    def _analyze_navigation_progress(self, turn_number: int, buttons_pressed: List[str], ai_reasoning: str) -> Dict[str, Any]:
+        """
+        Analyze navigation progress using screenshot comparison and loop detection
+        
+        Args:
+            turn_number: Current turn number
+            buttons_pressed: Buttons pressed this turn
+            ai_reasoning: AI's reasoning for this action
+            
+        Returns:
+            Navigation analysis with stuck detection and recovery suggestions
+        """
+        # Get current screenshot path (assuming it was just captured)
+        screenshot_path = None
+        try:
+            # Get the most recent screenshot from the eevee controller
+            screenshot_path = self.eevee.controller.capture_screen()
+        except Exception as e:
+            print(f"⚠️ Navigation analysis: Screenshot capture failed: {e}")
+            return {"error": "Screenshot capture failed", "navigation_status": "unknown"}
+        
+        # Process with navigation enhancer
+        nav_analysis = self.nav_enhancer.add_turn_data(
+            turn_number=turn_number,
+            screenshot_path=screenshot_path,
+            buttons_pressed=buttons_pressed,
+            ai_reasoning=ai_reasoning
+        )
+        
+        # Handle navigation interventions
+        if nav_analysis.get("needs_intervention"):
+            self._handle_navigation_intervention(nav_analysis)
+        
+        # Check if we should run a critique (every 20 turns)
+        if turn_number % 20 == 0:
+            critique = self.nav_enhancer.generate_critique()
+            nav_analysis["critique"] = critique
+            
+            # Update OKR progress during critique analysis
+            if self.eevee.enable_okr:
+                progress_summary = f"20-turn checkpoint: {critique.get('overall_assessment', 'unknown assessment')}"
+                problems = len(critique.get('problems_identified', []))
+                progress_note = f"Progress ratio: {critique.get('progress_ratio', 0):.2f}, Issues: {problems}"
+                self.eevee.update_okr_progress(progress_summary, "checkpoint", progress_note)
+            
+            if self.eevee.verbose:
+                print(f"\n📊 NAVIGATION CRITIQUE (Turn {turn_number}):")
+                print(f"   Progress ratio: {critique.get('progress_ratio', 'unknown'):.2f}")
+                print(f"   Problems: {len(critique.get('problems_identified', []))}")
+                print(f"   Assessment: {critique.get('overall_assessment', 'unknown')}")
+        
+        return nav_analysis
+    
+    def _handle_navigation_intervention(self, nav_analysis: Dict[str, Any]):
+        """Handle navigation intervention when AI is stuck"""
+        if nav_analysis.get("loop_detected"):
+            consecutive_actions = nav_analysis.get("consecutive_similar_actions", 0)
+            print(f"🚨 LOOP DETECTED: {consecutive_actions} consecutive identical actions")
+            
+            # Trigger stuck mode in the enhancer
+            self.nav_enhancer.trigger_stuck_mode()
+            
+        if nav_analysis.get("visual_stuck"):
+            print(f"🚨 VISUAL STUCK: No progress for {nav_analysis.get('consecutive_similar_screenshots', 0)} screenshots")
+        
+        # Display recovery suggestions
+        recovery = nav_analysis.get("suggested_recovery", {})
+        if recovery.get("type") == "recovery_needed":
+            print(f"💡 RECOVERY SUGGESTION: {recovery.get('problem', 'Navigation issue detected')}")
+            
+            recommended = recovery.get("recommended_strategy")
+            if recommended:
+                print(f"   Recommended: {recommended.get('description', 'Try alternative approach')}")
+                print(f"   Actions: {recommended.get('actions', [])}")
+                
+                # Add recovery strategy to user task queue for next turn
+                if not hasattr(self, '_user_tasks'):
+                    self._user_tasks = []
+                
+                recovery_task = f"STUCK RECOVERY: {recommended.get('description', 'Use alternative navigation')}"
+                self._user_tasks.append(recovery_task)
+        
+        # Log navigation confidence
+        confidence = nav_analysis.get("navigation_confidence", 0.5)
+        if confidence < 0.3:
+            print(f"⚠️ Low navigation confidence: {confidence:.2f}")
+        elif self.eevee.verbose:
+            print(f"📍 Navigation confidence: {confidence:.2f}")
+    
+    def _get_stuck_problem_description(self) -> str:
+        """Generate description of current stuck navigation problem"""
+        if not hasattr(self, 'nav_enhancer'):
+            return "Navigation analysis not available"
+        
+        # Get recent action patterns
+        recent_actions = self._get_recent_actions_summary()
+        
+        # Check if we have navigation analysis data
+        if hasattr(self.nav_enhancer, 'recent_actions') and self.nav_enhancer.recent_actions:
+            consecutive_count = self.nav_enhancer._count_consecutive_actions()
+            if consecutive_count >= 3:
+                last_action = list(self.nav_enhancer.recent_actions)[-1] if self.nav_enhancer.recent_actions else []
+                return f"Stuck pressing {last_action} button {consecutive_count} times consecutively with no visual progress"
+        
+        # Check for visual stuck
+        if hasattr(self.nav_enhancer, 'consecutive_similar_screenshots'):
+            if self.nav_enhancer.consecutive_similar_screenshots >= 3:
+                return f"No visual changes detected for {self.nav_enhancer.consecutive_similar_screenshots} consecutive turns"
+        
+        # Fallback description
+        return f"Navigation issue detected. Recent actions: {recent_actions}"
 
 
 def parse_arguments():
@@ -843,7 +1052,8 @@ Examples:
     parser.add_argument(
         "--enable-okr",
         action="store_true",
-        help="Enable OKR.md progress tracking"
+        default=True,
+        help="Enable OKR.md progress tracking (default: True)"
     )
     
     parser.add_argument(
@@ -1018,7 +1228,8 @@ def main():
                 memory_session=args.memory_session,
                 verbose=args.verbose,
                 debug=args.debug,
-                enable_neo4j=args.neo4j_memory
+                enable_neo4j=args.neo4j_memory,
+                enable_okr=args.enable_okr
             )
             print(" Eevee agent initialized successfully")
         except Exception as e:

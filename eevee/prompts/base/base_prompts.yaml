@@ -24,6 +24,91 @@ task_analysis:
   variables: ["task", "context_summary", "memory_context"]
   version: "1.0"
 
+stuck_navigation:
+  name: "Stuck Navigation Recovery"
+  description: "Handles navigation when AI is stuck in loops or making no progress"
+  template: |
+    🚨 **NAVIGATION ISSUE DETECTED** 🚨
+    
+    **PROBLEM**: {stuck_problem}
+    
+    **RECENT ACTIONS**: {recent_actions}
+    
+    **ANALYSIS REQUIRED**:
+    🎯 **OBSERVE**: What barriers or obstacles are preventing movement?
+    🔍 **DOOR CHECK**: Are there any **dark rectangular areas** in walls (doors/entrances)?
+    🧠 **DIAGNOSE**: Why are the recent actions not working?
+    💡 **ALTERNATIVE STRATEGY**: Should you move toward a visible door instead?
+    
+    **RECOVERY STRATEGIES TO CONSIDER**:
+    1. **TRANSITION ROOM CHECK**: If stuck going up/down repeatedly, you might be in a transition room!
+       - **UP carpet/exit = forward to next area (like Viridian Forest)**
+       - **DOWN carpet/exit = back to previous area (like Viridian City)**
+    2. **DOOR NAVIGATION**: Look for dark rectangles in walls, move toward them, then UP to enter
+    3. **Perpendicular Movement**: Try moving in a direction 90° from recent attempts (left/right)
+    4. **Visual Inspection**: Look for carpet patterns, floor changes, or entrance indicators
+    5. **Strategic Thinking**: Consider your goal - do you want to go forward or back?
+    
+    **CRITICAL RULES**:
+    - **NEVER repeat the same button that just failed multiple times**
+    - **Maximum 1-2 button presses (never more than 3)**
+    - **Try the OPPOSITE or PERPENDICULAR direction first**
+    - **If at area boundary, try A button for interaction**
+    
+    **Current Context**: {task}
+    **Goal**: {goal}
+    
+    Use the pokemon_controller tool with alternative button sequence.
+  variables: ["stuck_problem", "recent_actions", "task", "goal"]
+  version: "1.0"
+
+battle_analysis:
+  name: "Pokemon Battle Expert Analysis"
+  description: "Advanced battle analysis with type effectiveness and move selection"
+  template: |
+    ⚔️ **POKEMON BATTLE EXPERT MODE** ⚔️
+    
+    **BATTLE CONTEXT**: {task}
+    
+    **BATTLE ANALYSIS PROTOCOL**:
+    
+    🎯 **OBSERVATION PHASE**:
+    - What Pokemon am I using? What are its visible moves?
+    - What opponent Pokemon am I facing?
+    - What are the current HP levels for both Pokemon?
+    - Are we in the battle menu or move selection screen?
+    
+    🧠 **STRATEGIC ANALYSIS PHASE**:
+    - What types are both Pokemon? (Use the Battle Playbook knowledge)
+    - Which of my moves are super effective? (2x damage)
+    - Which moves are neutral? (1x damage)  
+    - Which moves are not very effective? (0.5x damage)
+    - Any moves that have no effect? (0x damage)
+    
+    ⚡ **ACTION SELECTION PHASE**:
+    - If in battle menu: Press A to select "FIGHT"
+    - If in move selection: Use type effectiveness to choose best move
+    - Navigate to optimal move using directional buttons + A
+    
+    **MOVE SELECTION PRIORITY**:
+    1. Super effective moves (2x damage) - HIGHEST PRIORITY
+    2. Strong neutral moves (1x damage) - SECOND PRIORITY  
+    3. Weak but effective moves (0.5x damage) - THIRD PRIORITY
+    4. Status moves (no damage) - ONLY if no damage moves available
+    
+    **BUTTON SEQUENCE RULES**:
+    - Battle menu visible? → ["a"] to select FIGHT
+    - Want first move? → ["a"] 
+    - Want second move? → ["down", "a"]
+    - Want third move (if 2x2 grid)? → ["right", "a"]  
+    - Want fourth move (if 2x2 grid)? → ["down", "right", "a"]
+    
+    **CRITICAL**: Never spam A button. Always identify the best move first, then navigate to it.
+    
+    Use pokemon_controller tool with calculated button sequence.
+  variables: ["task"]
+  version: "1.0"
+
 pokemon_party_analysis:
   name: "Pokemon Party Analysis Base"
   description: "Analyzes Pokemon party status, levels, moves, and condition"
@@ -83,14 +168,19 @@ location_analysis:
     🎯 **OBSERVATION** (What do you see RIGHT NOW?):
     - Where is your character positioned?
     - What's directly around you (trees, paths, buildings, NPCs)?
+    - **DOOR/ENTRANCE CHECK**: Are there any **dark rectangular areas** in walls? (These are doors!)
+    - **CARPET/MAT CHECK**: Any **carpet patterns** on the ground? (Building entrances/exits)
+    - **TRANSITION CHECK**: Different **floor textures** or **color changes**? (Area boundaries)
     - Are there any obstacles blocking immediate movement?
     - Is there a battle happening or menu open?
 
     🧠 **ANALYSIS** (What's the immediate next step?):
     - Based on your goal: {task}
+    - **IF YOU SEE A DOOR/ENTRANCE**: Move toward it first, then press UP to enter
+    - **IF ON CARPET/MAT INSIDE**: Press DOWN to exit building
     - What direction makes sense for ONE step?
     - Are you stuck or repeating the same action?
-    - Do you need to interact with something first?
+    - Do you need to move toward a visible entrance?
 
     ⚡ **IMMEDIATE MOVEMENT** (1 direction only):
     - Choose ONE direction: up, down, left, or right
@@ -99,10 +189,12 @@ location_analysis:
     - NEVER move multiple steps in one decision
 
     **MOVEMENT GUIDELINES**:
+    - **PRIORITY 1**: If you see a door (dark rectangle in wall), move toward it
+    - **PRIORITY 2**: Once at door, press UP to enter (or DOWN to exit if inside)
     - If you see a path, follow it one step at a time
     - If blocked by obstacle, try a different direction
     - If in a menu, press A or B as appropriate
-    - If you've been going the same direction multiple times, consider other options
+    - If you've been going the same direction multiple times, LOOK FOR DOORS instead
 
     Use pokemon_controller with just 1 button press.
   variables: ["task", "recent_actions"]
