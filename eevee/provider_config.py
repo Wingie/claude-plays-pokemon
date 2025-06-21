@@ -98,6 +98,47 @@ def list_task_assignments() -> Dict[str, str]:
     """
     return TASK_MODEL_MAPPING.copy()
 
+def get_prompt_template_path(provider: str, template_type: str = "base_prompts") -> Path:
+    """
+    Get the path to provider-specific prompt templates
+    
+    Args:
+        provider: Provider name ('gemini' or 'mistral')
+        template_type: Type of template file ('base_prompts', 'playbooks', etc.)
+        
+    Returns:
+        Path to the template file
+    """
+    base_dir = Path(__file__).parent / "prompts" / "providers" / provider.lower()
+    return base_dir / f"{template_type}.yaml"
+
+def get_provider_prompt_style(provider: str) -> Dict[str, str]:
+    """
+    Get prompt style preferences for each provider
+    
+    Args:
+        provider: Provider name ('gemini' or 'mistral')
+        
+    Returns:
+        Dictionary with style preferences
+    """
+    styles = {
+        "gemini": {
+            "format": "documentation",
+            "structure": "structured_sections",
+            "character_approach": "third_person_guidance",
+            "best_for": "detailed_analysis_and_planning"
+        },
+        "mistral": {
+            "format": "character_first", 
+            "structure": "conversational",
+            "character_approach": "first_person_roleplay",
+            "best_for": "immediate_action_and_roleplay"
+        }
+    }
+    
+    return styles.get(provider.lower(), styles["gemini"])  # Default to Gemini style
+
 class ProviderConfig:
     """Configuration manager for LLM providers and model selection"""
     
@@ -239,6 +280,21 @@ class ProviderConfig:
             validation_result['errors'].append("Primary provider is Mistral but MISTRAL_API_KEY is missing")
         
         return validation_result
+    
+    def get_prompt_manager_config(self) -> Dict[str, Any]:
+        """
+        Get configuration for PromptManager with provider-specific settings
+        
+        Returns:
+            Configuration dictionary for PromptManager
+        """
+        return {
+            'current_provider': self.primary_provider,
+            'fallback_provider': self.fallback_provider,
+            'prompt_style': get_provider_prompt_style(self.primary_provider),
+            'template_path': get_prompt_template_path(self.primary_provider),
+            'verbose': self.eevee_verbose
+        }
     
     def switch_provider(self, provider: str) -> bool:
         """

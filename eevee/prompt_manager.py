@@ -27,10 +27,12 @@ class PromptManager:
         # Create subdirectories
         (self.prompts_dir / "base").mkdir(exist_ok=True)
         (self.prompts_dir / "playbooks").mkdir(exist_ok=True)
+        (self.prompts_dir / "providers").mkdir(exist_ok=True)
+        (self.prompts_dir / "providers" / "gemini").mkdir(exist_ok=True)
+        (self.prompts_dir / "providers" / "mistral").mkdir(exist_ok=True)
         
-        # Load prompt templates
-        self.base_prompts = self._load_base_prompts()
-        self.playbooks = self._load_playbooks()
+        # Initialize verbose flag early
+        self.verbose = False
         
         # Usage tracking for debugging
         self.usage_log = []
@@ -38,10 +40,19 @@ class PromptManager:
         # Initialize active template and playbook
         self.active_template = None
         self.active_playbook = None
-        self.verbose = False
+        
+        # Load prompt templates
+        self.base_prompts = self._load_base_prompts()
+        self.playbooks = self._load_playbooks()
     
     def _load_base_prompts(self) -> Dict[str, Any]:
-        """Load base prompt templates"""
+        """Load base prompt templates with provider-specific support"""
+        # Try to load provider-specific prompts first
+        provider_specific_prompts = self._load_provider_specific_prompts()
+        if provider_specific_prompts:
+            return provider_specific_prompts
+        
+        # Fallback to base prompts
         base_prompts_file = self.prompts_dir / "base" / "base_prompts.yaml"
         
         if base_prompts_file.exists():
@@ -64,6 +75,119 @@ class PromptManager:
                 playbooks[playbook_file.stem] = f.read()
         
         return playbooks
+    
+    def _load_provider_specific_prompts(self) -> Dict[str, Any]:
+        """Load provider-specific prompt templates based on current provider"""
+        # Determine current provider from environment or centralized config
+        current_provider = self._get_current_provider()
+        
+        if not current_provider:
+            return None
+            
+        # Try provider-specific prompts directory
+        provider_prompts_file = self.prompts_dir / "providers" / current_provider / "base_prompts.yaml"
+        
+        if provider_prompts_file.exists():
+            try:
+                with open(provider_prompts_file, 'r') as f:
+                    provider_prompts = yaml.safe_load(f)
+                    if self.verbose:
+                        print(f"📂 Loaded {current_provider}-specific prompts from {provider_prompts_file}")
+                    return provider_prompts
+            except Exception as e:
+                if self.verbose:
+                    print(f"⚠️ Failed to load {current_provider} prompts: {e}")
+                return None
+        
+        return None
+    
+    def _get_current_provider(self) -> str:
+        """Determine current provider from environment or config"""
+        # Always check environment variable first for runtime changes
+        import os
+        env_provider = os.getenv('LLM_PROVIDER', '').lower()
+        if env_provider in ['gemini', 'mistral']:
+            return env_provider
+        
+        try:
+            # Fallback to provider config
+            from provider_config import get_provider_config
+            config = get_provider_config()
+            return config.primary_provider
+        except Exception:
+            return None
+    
+    def switch_to_provider(self, provider: str, verbose: bool = False) -> bool:
+        """
+        Switch to provider-specific prompts and reload templates
+        
+        Args:
+            provider: Provider name ('gemini' or 'mistral')
+            verbose: Enable verbose logging
+            
+        Returns:
+            True if switch was successful, False otherwise
+        """
+        if provider.lower() not in ['gemini', 'mistral']:
+            if verbose:
+                print(f"❌ Invalid provider: {provider}")
+            return False
+        
+        # Create provider directory if it doesn't exist
+        provider_dir = self.prompts_dir / "providers" / provider.lower()
+        provider_dir.mkdir(exist_ok=True)
+        
+        # Temporarily set environment variable for provider detection
+        import os
+        old_provider = os.getenv('LLM_PROVIDER', '')
+        os.environ['LLM_PROVIDER'] = provider.lower()
+        
+        try:
+            # Reload prompts with new provider
+            old_prompts = len(self.base_prompts)
+            self.base_prompts = self._load_base_prompts()
+            new_prompts = len(self.base_prompts)
+            
+            if verbose:
+                print(f"✅ Switched to {provider} prompts ({new_prompts} templates loaded)")
+                if old_prompts != new_prompts:
+                    print(f"📊 Template count changed: {old_prompts} → {new_prompts}")
+            
+            return True
+            
+        except Exception as e:
+            # Restore old provider on error
+            if old_provider:
+                os.environ['LLM_PROVIDER'] = old_provider
+            else:
+                os.environ.pop('LLM_PROVIDER', None)
+            
+            if verbose:
+                print(f"❌ Failed to switch to {provider}: {e}")
+            return False
+    
+    def get_current_provider_info(self) -> Dict[str, Any]:
+        """
+        Get information about current provider and loaded templates
+        
+        Returns:
+            Dictionary with provider info and template details
+        """
+        current_provider = self._get_current_provider()
+        
+        # Check if provider-specific templates are loaded
+        provider_specific = False
+        if current_provider:
+            provider_file = self.prompts_dir / "providers" / current_provider / "base_prompts.yaml"
+            provider_specific = provider_file.exists()
+        
+        return {
+            'current_provider': current_provider,
+            'provider_specific_loaded': provider_specific,
+            'template_count': len(self.base_prompts),
+            'available_providers': ['gemini', 'mistral'],
+            'template_versions': self.get_template_versions()
+        }
     
     def _log_usage(self, prompt_type: str, template_source: str):
         """Log prompt usage for debugging"""

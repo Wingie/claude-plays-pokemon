@@ -282,6 +282,9 @@ class GeminiProvider(BaseLLMProvider):
                     if "buttons" in args:
                         button = args["buttons"].lower().strip()
                         result.button_presses.append(button)
+                        # Provide meaningful text when function calling succeeds
+                        if not result.text:
+                            result.text = f"Pressing {button.upper()} button for Pokemon game control"
         else:
             # Handle text-only response
             result.text = response.text if response.text else ""
@@ -292,7 +295,7 @@ class GeminiProvider(BaseLLMProvider):
         
         # Default fallback
         if not result.button_presses:
-            result.button_presses = ["a"]
+            result.button_presses = ["b"]
         
         return result
     
@@ -350,6 +353,25 @@ class MistralProvider(BaseLLMProvider):
             self.client = Mistral(api_key=self.api_key)
         except ImportError:
             raise ImportError("mistralai package required for Mistral provider. Install with: pip install mistralai")
+        
+        # Initialize function calling for Mistral (JSON schema format)
+        self.pokemon_function_schema = {
+            "type": "function",
+            "function": {
+                "name": "pokemon_controller",
+                "description": "Control Pokemon game with button presses",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "buttons": {
+                            "type": "string",
+                            "description": "Single button press: up, down, left, right, a, b, start, select"
+                        }
+                    },
+                    "required": ["buttons"]
+                }
+            }
+        }
     
     def get_available_models(self) -> Dict[str, ModelCapability]:
         """Get available Mistral models and their capabilities"""
@@ -406,31 +428,34 @@ class MistralProvider(BaseLLMProvider):
                 # Text-only
                 messages = [{"role": "user", "content": request.prompt}]
             
-            # Make API call using new client format
-            response = self.client.chat.complete(
-                model=model_name,
-                messages=messages,
-                max_tokens=request.max_tokens,
-                temperature=request.temperature
-            )
+            # Make API call using new client format with optional function calling
+            if request.use_tools:
+                response = self.client.chat.complete(
+                    model=model_name,
+                    messages=messages,
+                    max_tokens=request.max_tokens,
+                    temperature=request.temperature,
+                    tools=[self.pokemon_function_schema]
+                )
+            else:
+                response = self.client.chat.complete(
+                    model=model_name,
+                    messages=messages,
+                    max_tokens=request.max_tokens,
+                    temperature=request.temperature
+                )
             
             # Process response
-            text = response.choices[0].message.content if response.choices else ""
-            button_presses = self._parse_buttons_from_text(text)
+            result = self._process_mistral_response(response, request.use_tools)
+            result.provider = "mistral"
+            result.model = model_name
+            result.response_time = time.time() - start_time
             
-            if not button_presses:
-                button_presses = ["a"]  # Default fallback
+            if hasattr(response, 'usage') and response.usage:
+                result.tokens_used = response.usage.total_tokens
             
             self._record_api_success()
-            
-            return LLMResponse(
-                text=text,
-                button_presses=button_presses,
-                provider="mistral",
-                model=model_name,
-                response_time=time.time() - start_time,
-                tokens_used=response.usage.total_tokens if hasattr(response, 'usage') else None
-            )
+            return result
             
         except Exception as e:
             self._record_api_failure()
@@ -442,6 +467,44 @@ class MistralProvider(BaseLLMProvider):
                 model=model_name,
                 response_time=time.time() - start_time
             )
+    
+    def _process_mistral_response(self, response, use_tools: bool) -> LLMResponse:
+        """Process Mistral API response into standardized format"""
+        result = LLMResponse(text="", button_presses=[])
+        
+        if response.choices and response.choices[0].message:
+            message = response.choices[0].message
+            
+            # Handle function calling response
+            if use_tools and hasattr(message, 'tool_calls') and message.tool_calls:
+                for tool_call in message.tool_calls:
+                    if (hasattr(tool_call, 'function') and 
+                        tool_call.function.name == "pokemon_controller"):
+                        try:
+                            import json
+                            args = json.loads(tool_call.function.arguments)
+                            if "buttons" in args:
+                                button = args["buttons"].lower().strip()
+                                result.button_presses.append(button)
+                                # Provide meaningful text when function calling succeeds
+                                if not result.text:
+                                    result.text = f"Pressing {button.upper()} button for Pokemon game control"
+                        except (json.JSONDecodeError, KeyError):
+                            pass
+            
+            # Get text content
+            if hasattr(message, 'content') and message.content:
+                result.text = message.content
+        
+        # Parse buttons from text if no function calls
+        if result.text and not result.button_presses:
+            result.button_presses = self._parse_buttons_from_text(result.text)
+        
+        # Default fallback
+        if not result.button_presses:
+            result.button_presses = ["b"]
+        
+        return result
     
     def _parse_buttons_from_text(self, text: str) -> List[str]:
         """Parse button commands from Mistral text response"""
