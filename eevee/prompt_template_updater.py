@@ -168,52 +168,97 @@ class PromptTemplateUpdater:
         
         for line in lines:
             line = line.strip()
+            if not line or not line.startswith('-'):
+                continue
+                
+            # Remove the "- " prefix
+            suggestion = line[2:].strip()
             
-            # Detect common change patterns
-            if "Add explicit stuck detection" in line or "STUCK_DETECTION" in line:
+            # Parse specific improvement suggestions
+            if "Critical stuck recovery" in suggestion:
                 changes.append({
                     "type": "add_rule",
-                    "content": "- RULE: If you've used the same action 3+ times, try a completely different direction"
+                    "content": "- CRITICAL: If blocked 3+ times, immediately try opposite or perpendicular direction"
                 })
             
-            elif "Add area memory" in line or "PATH_MEMORY" in line:
-                changes.append({
-                    "type": "add_rule", 
-                    "content": "- RULE: Remember visited locations to avoid backtracking loops"
-                })
-            
-            elif "Add goal-oriented pathfinding" in line or "OBJECTIVE_NAVIGATION" in line:
+            elif "Pattern detection" in suggestion:
                 changes.append({
                     "type": "add_rule",
-                    "content": "- RULE: Prioritize movement toward known objectives (gyms, Pokemon Centers)"
+                    "content": "- PATTERN DETECTION: Break repetitive cycles by trying completely different approach"
                 })
             
-            elif "Type effectiveness emphasis" in line:
+            elif "Item interaction" in suggestion:
+                changes.append({
+                    "type": "add_rule",
+                    "content": "- ITEM COLLECTION: Press 'A' button when near visible items (Pokeballs, etc.)"
+                })
+                
+            elif "Visual awareness" in suggestion:
+                changes.append({
+                    "type": "add_rule",
+                    "content": "- VISUAL FOCUS: Actively look for and move toward items visible on screen"
+                })
+            
+            elif "Type effectiveness emphasis" in suggestion:
                 changes.append({
                     "type": "add_section",
                     "content": "\n**TYPE EFFECTIVENESS PRIORITY**:\n- Always check type advantages before selecting moves\n- Super Effective (2x damage) > Neutral (1x) > Not Very Effective (0.5x)",
                     "position": "after_task"
                 })
+                
+            elif "HP management" in suggestion:
+                changes.append({
+                    "type": "add_rule",
+                    "content": "- HP MONITORING: Switch Pokemon or use healing items when HP below 30%"
+                })
             
-            elif "OKR integration" in line:
+            elif "OKR integration" in suggestion:
                 changes.append({
                     "type": "add_section",
                     "content": "\n**OBJECTIVE FOCUS**:\n- Always consider current objectives when making decisions\n- Priority: Gym badges > Team building > Exploration > Item collection",
-                    "position": "after_task"
+                    "position": "end"
                 })
-            
-            elif "Pattern detection" in line and "2+ times" in line:
+                
+            elif "Item accessibility" in suggestion:
                 changes.append({
-                    "type": "replace_text",
-                    "find": "3+ times",
-                    "replace": "2+ times"
+                    "type": "add_rule",
+                    "content": "- ACCESSIBILITY: Some items require HM moves (Cut/Surf) - skip blocked items early game"
                 })
-            
-            elif "Menu detection" in line or "exit level-up screen" in line:
+                
+            elif "Path recognition" in suggestion:
                 changes.append({
-                    "type": "add_section",
-                    "content": "\n**MENU EXIT PROTOCOL**:\n- RULE: If you can't move your character, press B to exit menus\n- RULE: Post-battle level-up screens require B to continue\n- RULE: If same screen persists for 2+ turns, press B",
-                    "position": "start"
+                    "type": "add_rule", 
+                    "content": "- PATH BLOCKING: If repeatedly blocked by trees/water, explore different accessible areas"
+                })
+                
+            elif "Item prioritization" in suggestion:
+                changes.append({
+                    "type": "add_rule",
+                    "content": "- REACHABILITY: Focus on items accessible without special abilities (no Cut/Surf needed)"
+                })
+                
+            elif "Emergency recovery" in suggestion:
+                changes.append({
+                    "type": "add_rule",
+                    "content": "- EMERGENCY: Change direction immediately after 2 identical actions"
+                })
+                
+            elif "Pattern breaking" in suggestion:
+                changes.append({
+                    "type": "add_rule",
+                    "content": "- PATTERN_BREAK: Try all 4 directions systematically when stuck"
+                })
+                
+            elif "Interaction testing" in suggestion:
+                changes.append({
+                    "type": "add_rule",
+                    "content": "- INTERACTION: Press A/B buttons when movement repeatedly fails"
+                })
+                
+            elif "Accessibility awareness" in suggestion:
+                changes.append({
+                    "type": "add_rule",
+                    "content": "- ACCESSIBILITY: Skip areas requiring special abilities when early game"
                 })
         
         return changes

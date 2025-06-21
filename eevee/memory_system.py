@@ -493,6 +493,58 @@ class MemorySystem:
                 "learned_at": row[3]
             } for row in cursor.fetchall()]
     
+    def get_recent_gameplay_summary(self, limit: int = 5) -> str:
+        """
+        Get a summary of recent gameplay for AI context
+        
+        Args:
+            limit: Number of recent entries to include
+            
+        Returns:
+            Formatted string summary of recent gameplay
+        """
+        summary_parts = []
+        
+        with sqlite3.connect(self.db_path) as conn:
+            # Get recent game states
+            cursor = conn.execute("""
+                SELECT timestamp, location, pokemon_party, screenshot_hash
+                FROM game_states
+                ORDER BY timestamp DESC
+                LIMIT ?
+            """, (limit,))
+            
+            game_states = cursor.fetchall()
+            if game_states:
+                latest_state = game_states[0]
+                if latest_state[1]:  # location
+                    summary_parts.append(f"Current location: {latest_state[1]}")
+                
+                if latest_state[2]:  # pokemon_party
+                    try:
+                        party = json.loads(latest_state[2])
+                        if party:
+                            summary_parts.append(f"Pokemon in party: {len(party)}")
+                    except:
+                        pass
+            
+            # Get recent tasks
+            cursor = conn.execute("""
+                SELECT task_description, success, timestamp
+                FROM task_history
+                ORDER BY timestamp DESC
+                LIMIT ?
+            """, (limit,))
+            
+            recent_tasks = cursor.fetchall()
+            if recent_tasks:
+                summary_parts.append(f"Recent tasks: {len(recent_tasks)} completed")
+                for task in recent_tasks[:3]:  # Show last 3 tasks
+                    status = "✓" if task[1] else "✗"
+                    summary_parts.append(f"  {status} {task[0][:50]}...")
+        
+        return "\n".join(summary_parts) if summary_parts else "No recent gameplay data"
+    
     def get_location_history(self, limit: int = 20) -> List[Dict[str, Any]]:
         """
         Get history of visited locations
@@ -700,9 +752,12 @@ class MemorySystem:
         except Exception as e:
             return {"summary": f"Memory summary error: {str(e)}"}
     
-    def store_gameplay_turn(self, turn_data: Dict[str, Any]) -> str:
+    def store_gameplay_turn(self, turn_number: int = None, analysis: str = "", actions: List = None, success: bool = False, reasoning: str = "") -> str:
         """Store gameplay turn data for continuous play sessions"""
         turn_id = str(uuid.uuid4())
+        
+        if actions is None:
+            actions = []
         
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -713,17 +768,17 @@ class MemorySystem:
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, (
                     turn_id,
-                    turn_data.get("timestamp", datetime.now().isoformat()),
-                    f"Gameplay Turn {turn_data.get('turn', 'Unknown')}: {turn_data.get('goal', 'Continuous play')}",
+                    datetime.now().isoformat(),
+                    f"Gameplay Turn {turn_number}: Continuous play",
                     json.dumps({
-                        "ai_analysis": turn_data.get("ai_analysis", ""),
-                        "button_presses": turn_data.get("button_presses", []),
-                        "action_result": turn_data.get("action_result", ""),
-                        "screenshot_path": turn_data.get("screenshot_path")
+                        "ai_analysis": analysis,
+                        "button_presses": actions,
+                        "action_result": "success" if success else "failed",
+                        "reasoning": reasoning
                     }),
-                    len(turn_data.get("button_presses", [])) > 0,  # Success if buttons were pressed
-                    len(turn_data.get("button_presses", [])),
-                    turn_data.get("execution_time", 0.0)
+                    success,
+                    len(actions),
+                    0.0
                 ))
                 conn.commit()
                 

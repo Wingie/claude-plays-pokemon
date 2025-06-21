@@ -320,8 +320,8 @@ Be specific about moves, types, and strategic recommendations.""",
             template_source += f" + playbook/{include_playbook}"
         
         # Log usage for debugging
+        self._log_usage(prompt_type, template_source)
         if verbose:
-            self._log_usage(prompt_type, template_source)
             print(f"📖 Using prompt template: {template_source}")
         
         # Format template with variables
@@ -384,6 +384,38 @@ Be specific about moves, types, and strategic recommendations.""",
         # Reload playbooks
         self.playbooks = self._load_playbooks()
     
+    def reload_templates(self):
+        """Reload all templates and playbooks from disk"""
+        print("🔄 RELOADING PROMPT TEMPLATES...")
+        old_versions = self.get_template_versions()
+        
+        # Reload base prompts and playbooks
+        self.base_prompts = self._load_base_prompts()
+        self.playbooks = self._load_playbooks()
+        
+        new_versions = self.get_template_versions()
+        
+        # Show what changed
+        changes = []
+        for template, old_version in old_versions.items():
+            if template in new_versions and new_versions[template] != old_version:
+                changes.append(f"{template} {old_version} → {new_versions[template]}")
+        
+        if changes:
+            print(f"✅ TEMPLATE UPDATES LOADED: {', '.join(changes)}")
+        else:
+            print("ℹ️ No template version changes detected")
+            
+        print("🔄 RELOADED PROMPT TEMPLATES - AI will now use improved versions")
+    
+    def get_template_versions(self) -> Dict[str, str]:
+        """Get current versions of all templates"""
+        versions = {}
+        for template_name, template_data in self.base_prompts.items():
+            if isinstance(template_data, dict):
+                versions[template_name] = template_data.get('version', '1.0')
+        return versions
+    
     def get_usage_summary(self) -> str:
         """
         Get a summary of prompt usage for debugging
@@ -409,6 +441,18 @@ Be specific about moves, types, and strategic recommendations.""",
         self.base_prompts = self._load_base_prompts()
         self.playbooks = self._load_playbooks()
         print("🔄 Reloaded all prompt templates and playbooks")
+    
+    def get_template_versions(self) -> Dict[str, str]:
+        """
+        Get current versions of all loaded templates
+        
+        Returns:
+            Dictionary mapping template names to their versions
+        """
+        versions = {}
+        for template_name, template_data in self.base_prompts.items():
+            versions[template_name] = template_data.get("version", "unknown")
+        return versions
     
     def set_active_template(self, template_name: str) -> bool:
         """
@@ -714,13 +758,14 @@ Be specific about moves, types, and strategic recommendations.""",
         if self.active_template:
             template_name = self.active_template
         else:
+            # Map AI-directed contexts to actual existing templates
             context_mapping = {
-                "navigation": "ai_navigation_with_memory_control",
-                "battle": "ai_battle_with_context_loading", 
-                "maze": "ai_maze_with_solution_memory",
-                "emergency": "ai_emergency_recovery_with_escalation"
+                "navigation": "exploration_strategy",
+                "battle": "battle_analysis", 
+                "maze": "exploration_strategy",
+                "emergency": "stuck_recovery"
             }
-            template_name = context_mapping.get(context_type, "ai_navigation_with_memory_control")
+            template_name = context_mapping.get(context_type, "exploration_strategy")
         
         if template_name not in self.base_prompts:
             # Fallback to basic navigation if template not found
@@ -744,13 +789,30 @@ Be specific about moves, types, and strategic recommendations.""",
         if "emergency" in template_name:
             variables["escalation_level"] = escalation_level
         
-        # Get and format the template
+        # Determine which playbook to include based on context
+        playbook_mapping = {
+            "navigation": "navigation",
+            "battle": "battle",
+            "maze": "navigation",
+            "emergency": "navigation"
+        }
+        playbook_to_include = playbook_mapping.get(context_type, None)
+        
+        # Get and format the template with playbook
         template = self.base_prompts[template_name]["template"]
         
-        if verbose:
-            print(f"🧠 AI-Directed Prompt: {template_name}")
-            if self.active_template:
-                print(f"   (AI requested: {self.active_template})")
+        # Add playbook content if available
+        if playbook_to_include and playbook_to_include in self.playbooks:
+            playbook_content = self.playbooks[playbook_to_include]
+            template = f"{playbook_content}\n\n{template}"
+            if verbose:
+                print(f"🧠 AI-Directed Prompt: {template_name} + playbook/{playbook_to_include}")
+        else:
+            if verbose:
+                print(f"🧠 AI-Directed Prompt: {template_name} (no playbook)")
+        
+        if self.active_template and verbose:
+            print(f"   (AI requested: {self.active_template})")
         
         try:
             formatted_prompt = template.format(**variables)
@@ -758,5 +820,5 @@ Be specific about moves, types, and strategic recommendations.""",
         except KeyError as e:
             if verbose:
                 print(f"⚠️ Template formatting error: {e}")
-            # Fallback to basic template
-            return self.get_prompt("exploration_strategy", variables, verbose=verbose)
+            # Fallback to basic template with playbook
+            return self.get_prompt("exploration_strategy", variables, include_playbook=playbook_to_include, verbose=verbose)

@@ -45,7 +45,7 @@ task_analysis:
   - task
   - context_summary
   - memory_context
-  version: '1.6'
+  version: '2.0'
 stuck_recovery:
   name: Simple Stuck Recovery
   description: Quick recovery when AI is stuck in movement loops
@@ -109,7 +109,7 @@ battle_analysis:
   variables:
   - task
   - recent_actions
-  version: '3.6'
+  version: '4.0'
 pokemon_party_analysis:
   name: Pokemon Party Analysis Base
   description: Analyzes Pokemon party status, levels, moves, and condition

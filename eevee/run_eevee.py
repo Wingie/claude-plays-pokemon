@@ -216,6 +216,8 @@ class ContinuousGameplay:
                 
                 # Step 1: Capture current game state
                 game_context = self._capture_game_context()
+                # Store for navigation analysis
+                self._last_game_context = game_context
                 
                 # Step 2: Get AI analysis and decision
                 ai_result = self._get_ai_decision(game_context, turn_count)
@@ -387,7 +389,9 @@ class ContinuousGameplay:
             
             # ENHANCED: Add navigation analysis after action execution
             reasoning_text = ai_result.get("reasoning", "No reasoning provided")
-            nav_analysis = self._analyze_navigation_progress(turn_number, validated_actions, reasoning_text)
+            # Pass the screenshot path from last game_context
+            screenshot_path = self._last_game_context.get("screenshot_path") if hasattr(self, '_last_game_context') else None
+            nav_analysis = self._analyze_navigation_progress(turn_number, validated_actions, reasoning_text, screenshot_path)
             
             return {
                 "success": success,
@@ -1000,8 +1004,8 @@ class ContinuousGameplay:
                         verbose=True
                     )
                     
-                    if self.eevee.verbose:
-                        print(f"🧠 Using AI-directed prompt system: {context_type}")
+                    # AI-directed system is working - skip the confusing fallback logging
+                    using_ai_directed = True
                 
                 else:
                     # Fallback to original prompt system
@@ -1012,13 +1016,14 @@ class ContinuousGameplay:
                         include_playbook=playbooks[0] if playbooks else None,
                         verbose=True
                     )
+                    using_ai_directed = False
                 
-                # Add additional playbook context if multiple playbooks are relevant
-                if len(playbooks) > 1:
-                    for additional_playbook in playbooks[1:]:
-                        if additional_playbook in prompt_manager.playbooks:
-                            prompt += f"\n\n## Additional Knowledge from {additional_playbook.title()}:\n"
-                            prompt += prompt_manager.playbooks[additional_playbook]
+                    # Add additional playbook context if multiple playbooks are relevant
+                    if len(playbooks) > 1:
+                        for additional_playbook in playbooks[1:]:
+                            if additional_playbook in prompt_manager.playbooks:
+                                prompt += f"\n\n## Additional Knowledge from {additional_playbook.title()}:\n"
+                                prompt += prompt_manager.playbooks[additional_playbook]
                 
                 # Add OKR context if enabled
                 okr_context = ""
@@ -1043,15 +1048,23 @@ class ContinuousGameplay:
 
 Use the pokemon_controller tool with your chosen button sequence."""
                 
-                # Always show prompt information for debugging
-                playbook_list = ", ".join(playbooks) if playbooks else "none"
-                print(f"📖 Using {prompt_type} with playbooks: {playbook_list}")
+                # Only show fallback logging when not using AI-directed prompts
+                if not using_ai_directed:
+                    playbook_list = ", ".join(playbooks) if playbooks else "none"
+                    print(f"📖 Using template: {prompt_type} with playbooks: {playbook_list}")
+                    
+                    # Show template version if available
+                    if hasattr(prompt_manager, 'base_prompts') and prompt_type in prompt_manager.base_prompts:
+                        version = prompt_manager.base_prompts[prompt_type].get('version', 'unknown')
+                        print(f"   📌 Template version: {version}")
                 
             except Exception as e:
                 if self.eevee.verbose:
                     print(f"⚠️ Prompt manager failed, using fallback: {e}")
+                print(f"📖 Using fallback prompt (no template)")
                 prompt = self._build_fallback_prompt(turn_number, memory_context, recent_task)
         else:
+            print(f"📖 Using fallback prompt (no prompt manager)")
             prompt = self._build_fallback_prompt(turn_number, memory_context, recent_task)
         
         # Clear processed user tasks
@@ -1148,6 +1161,16 @@ Use the pokemon_controller tool with a list of button presses."""
                         if update_result.get("git_committed"):
                             print(f"   📦 Changes committed to git with full tracking")
                         
+                        # CRITICAL: Reload prompt templates to use the updates immediately
+                        if hasattr(self.eevee, 'prompt_manager') and self.eevee.prompt_manager:
+                            self.eevee.prompt_manager.reload_templates()
+                            print(f"   🔄 RELOADED PROMPT TEMPLATES - AI will now use improved versions")
+                            
+                            # Verify templates were reloaded by checking versions
+                            if hasattr(self.eevee.prompt_manager, 'get_template_versions'):
+                                versions = self.eevee.prompt_manager.get_template_versions()
+                                print(f"   📌 Active template versions: {versions}")
+                        
                         # Save detailed periodic review
                         review_file = latest_session / f"periodic_review_turn_{current_turn}.md"
                         report = reviewer.generate_episode_report(latest_session)
@@ -1206,7 +1229,7 @@ Use the pokemon_controller tool with a list of button presses."""
         except Exception as e:
             print(f"⚠️ Failed to log learning event: {e}")
     
-    def _analyze_navigation_progress(self, turn_number: int, buttons_pressed: List[str], ai_reasoning: str) -> Dict[str, Any]:
+    def _analyze_navigation_progress(self, turn_number: int, buttons_pressed: List[str], ai_reasoning: str, screenshot_path: str = None) -> Dict[str, Any]:
         """
         Analyze navigation progress using screenshot comparison and loop detection
         
@@ -1214,18 +1237,19 @@ Use the pokemon_controller tool with a list of button presses."""
             turn_number: Current turn number
             buttons_pressed: Buttons pressed this turn
             ai_reasoning: AI's reasoning for this action
+            screenshot_path: Path to the screenshot for this turn
             
         Returns:
             Navigation analysis with stuck detection and recovery suggestions
         """
-        # Get current screenshot path (assuming it was just captured)
-        screenshot_path = None
-        try:
-            # Get the most recent screenshot from the eevee controller
-            screenshot_path = self.eevee.controller.capture_screen()
-        except Exception as e:
-            print(f"⚠️ Navigation analysis: Screenshot capture failed: {e}")
-            return {"error": "Screenshot capture failed", "navigation_status": "unknown"}
+        # Use provided screenshot path or capture new one
+        if not screenshot_path:
+            try:
+                # Fallback: Get the most recent screenshot from the eevee controller
+                screenshot_path = self.eevee.controller.capture_screen()
+            except Exception as e:
+                print(f"⚠️ Navigation analysis: Screenshot capture failed: {e}")
+                return {"error": "Screenshot capture failed", "navigation_status": "unknown"}
         
         # Process with navigation enhancer
         nav_analysis = self.nav_enhancer.add_turn_data(
@@ -1767,6 +1791,15 @@ def main():
                                 for improvement in improvements[:3]:  # Show top 3
                                     print(f"   • {improvement.prompt_name} ({improvement.priority} priority)")
                                     print(f"     {improvement.reasoning}")
+                                
+                                # Apply template updates if enabled
+                                print(f"\n📝 Applying template updates from episode review...")
+                                update_result = reviewer.update_yaml_templates(latest_session, apply_changes=True)
+                                if update_result["success"] and update_result["changes_applied"] > 0:
+                                    # Reload templates after final review
+                                    if eevee.prompt_manager:
+                                        eevee.prompt_manager.reload_templates()
+                                        print(f"🔄 Templates reloaded with improvements for next session")
                             else:
                                 print(f"\n✅ No prompt improvements needed - excellent performance!")
                         else:

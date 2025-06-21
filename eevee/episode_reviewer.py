@@ -393,67 +393,108 @@ Found {len(improvements)} potential improvements:
         return failures
     
     def _suggest_navigation_improvements(self, metrics: EpisodeMetrics) -> str:
-        """Suggest navigation prompt improvements"""
-        return f"""
-**Enhanced Navigation Template**:
-1. Add explicit stuck detection: "If I've used the same action 3+ times, try a completely different direction"
-2. Include area memory: "Remember visited locations to avoid backtracking"
-3. Add goal-oriented pathfinding: "Prioritize movement toward known objectives (gyms, Pokemon Centers)"
-4. Implement exploration strategy: "Systematically explore new areas before revisiting known ones"
-
-**Specific Changes**:
-- Add "STUCK_DETECTION: If repeating actions, change strategy immediately"
-- Include "PATH_MEMORY: Track visited areas to prevent loops"
-- Add "OBJECTIVE_NAVIGATION: Move toward closest known goal when lost"
-"""
+        """Suggest navigation prompt improvements based on actual performance issues"""
+        current_template = self.prompt_templates.get("exploration_strategy", {}).get("template", "")
+        suggestions = []
+        
+        # Focus on the specific navigation problems observed
+        if metrics.navigation_efficiency < 0.3:
+            suggestions.append("Critical stuck recovery: Immediate alternative when blocked 3+ times")
+            
+        if metrics.stuck_patterns > 0:
+            suggestions.append("Pattern detection: Recognize and break repetitive movement cycles")
+            
+        if metrics.items_collected == 0:
+            suggestions.append("Item accessibility: Some visible items require HM moves (Cut, Surf) - skip inaccessible ones")
+            suggestions.append("Path recognition: If blocked by trees/water repeatedly, try different areas")
+            suggestions.append("Item prioritization: Focus on items that are actually reachable without special abilities")
+            
+        # If efficiency is moderate, suggest refinements
+        if 0.3 <= metrics.navigation_efficiency < 0.7:
+            suggestions.append("Path optimization: Choose most direct routes to visible objectives")
+            suggestions.append("Boundary detection: Recognize walls and obstacles more quickly")
+        
+        # If template already has good content but performance is poor, suggest debugging
+        if len(suggestions) == 0 and metrics.navigation_efficiency < 0.8:
+            suggestions.append("Enhanced debugging: More detailed reasoning about movement choices")
+            suggestions.append("Context awareness: Better interpretation of visual game elements")
+        
+        return "\n".join(f"- {suggestion}" for suggestion in suggestions)
     
     def _suggest_battle_improvements(self, metrics: EpisodeMetrics) -> str:
-        """Suggest battle prompt improvements"""
-        return f"""
-**Enhanced Battle Strategy**:
-1. Type effectiveness emphasis: "Always consider type advantages before selecting moves"
-2. HP management: "Switch Pokemon or use items when HP is below 30%"
-3. Status effect awareness: "Prioritize healing status conditions that prevent action"
-4. Move selection strategy: "Use strongest effective moves, save PP for important battles"
-
-**Specific Changes**:
-- Add type effectiveness chart reference
-- Include HP threshold decision making
-- Add status condition priority matrix
-- Include move power and accuracy considerations
-"""
+        """Suggest battle prompt improvements based on actual performance"""
+        current_template = self.prompt_templates.get("battle_analysis", {}).get("template", "")
+        suggestions = []
+        
+        # Only suggest improvements that aren't already present
+        if "TYPE EFFECTIVENESS" not in current_template:
+            suggestions.append("Type effectiveness emphasis: Always check type advantages before selecting moves")
+        
+        if metrics.battles_lost > 0 and "HP" not in current_template:
+            suggestions.append("HP management: Monitor Pokemon health and switch when necessary")
+            
+        if "PHASE" not in current_template:
+            suggestions.append("Battle phase detection: Better identification of battle menu vs move selection")
+            
+        # If template already has good content, suggest advanced improvements
+        if len(suggestions) == 0:
+            suggestions.append("Advanced battle AI: Predict opponent moves and counter-strategies")
+            suggestions.append("Battle efficiency: Faster menu navigation and move selection")
+        
+        return "\n".join(f"- {suggestion}" for suggestion in suggestions)
     
     def _suggest_goal_oriented_improvements(self, metrics: EpisodeMetrics) -> str:
-        """Suggest goal-oriented prompt improvements"""
-        return f"""
-**Goal-Oriented Behavior Enhancement**:
-1. OKR integration: "Always consider current objectives when making decisions"
-2. Priority system: "Gym badges > Team building > Exploration > Item collection"
-3. Progress tracking: "Acknowledge steps toward objectives in reasoning"
-4. Milestone recognition: "Celebrate achieving sub-goals (reaching new areas, leveling up)"
-
-**Specific Changes**:
-- Add OKR reference in every prompt template
-- Include priority decision matrix
-- Add progress acknowledgment requirements
-- Include milestone celebration triggers
-"""
+        """Suggest goal-oriented prompt improvements based on actual progress"""
+        current_template = self.prompt_templates.get("task_analysis", {}).get("template", "")
+        suggestions = []
+        
+        # Only suggest improvements that aren't already present
+        if "OBJECTIVE FOCUS" not in current_template:
+            suggestions.append("OKR integration: Always consider current objectives when making decisions")
+            suggestions.append("Priority system: Gym badges > Team building > Exploration > Item collection")
+        
+        # Analyze specific goal deficiencies
+        if metrics.progress_toward_okrs.get("gym_badges", 0) == 0:
+            if "gym" not in current_template.lower():
+                suggestions.append("Gym focus: Prioritize finding and challenging gym leaders")
+                
+        if metrics.items_collected == 0 and "item" not in current_template.lower():
+            suggestions.append("Item collection: Notice and collect visible items like Pokeballs")
+            
+        if metrics.new_areas_discovered < 2:
+            suggestions.append("Exploration strategy: Systematic area discovery and mapping")
+        
+        # If template already has good content, suggest advanced improvements
+        if len(suggestions) == 0:
+            suggestions.append("Advanced goal tracking: Sub-objective decomposition and milestone planning")
+            suggestions.append("Efficiency optimization: Shortest path planning to objectives")
+        
+        return "\n".join(f"- {suggestion}" for suggestion in suggestions)
     
     def _suggest_stuck_recovery_improvements(self, metrics: EpisodeMetrics) -> str:
-        """Suggest stuck recovery improvements"""
-        return f"""
-**Advanced Stuck Recovery**:
-1. Pattern detection: "If same action repeated 2+ times, immediately change strategy"
-2. Escalation system: "Try opposite direction → Try menu → Try random exploration"
-3. Context switching: "When stuck, completely change objectives temporarily"
-4. Memory reset: "Clear recent action memory to avoid decision loops"
-
-**Specific Changes**:
-- Reduce stuck detection threshold from 3 to 2 repeated actions
-- Add escalation ladder with specific recovery strategies
-- Include "emergency exploration mode" for severe stuck situations
-- Add memory clearing mechanisms for loop breaking
-"""
+        """Suggest stuck recovery improvements based on actual stuck patterns"""
+        current_template = self.prompt_templates.get("stuck_recovery", {}).get("template", "")
+        suggestions = []
+        
+        # Analyze specific stuck patterns
+        if metrics.stuck_patterns > 20:
+            suggestions.append("Emergency recovery: Immediate direction change after 2 identical actions")
+            suggestions.append("Pattern breaking: Systematic exploration when stuck (try all 4 directions)")
+            
+        if metrics.stuck_patterns > 10:
+            suggestions.append("Interaction testing: Press A/B buttons when movement fails")
+            suggestions.append("Context switching: Change goals when repeatedly blocked")
+            
+        if metrics.navigation_efficiency < 0.3:
+            suggestions.append("Visual analysis: Better recognition of blocked vs open paths")
+            suggestions.append("Accessibility awareness: Skip areas requiring special abilities")
+        
+        # If template already has good content, suggest advanced improvements
+        if len(suggestions) == 0:
+            suggestions.append("Advanced recovery: Multi-step unstuck sequences")
+            suggestions.append("Learning integration: Remember successful recovery strategies")
+        
+        return "\n".join(f"- {suggestion}" for suggestion in suggestions)
     
     def update_yaml_templates(self, session_dir: Path, apply_changes: bool = True) -> Dict[str, Any]:
         """
