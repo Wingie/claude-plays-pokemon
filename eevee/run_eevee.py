@@ -293,7 +293,8 @@ class ContinuousGameplay:
         
         # Build context-aware prompt
         memory_context = self._get_memory_context()
-        prompt = self._build_ai_prompt(turn_number, memory_context)
+        prompt_data = self._build_ai_prompt(turn_number, memory_context)
+        prompt = prompt_data.get("prompt", prompt_data) if isinstance(prompt_data, dict) else prompt_data
         
         # Call Gemini API
         try:
@@ -325,11 +326,19 @@ class ContinuousGameplay:
             # Always show enhanced analysis logging for better debugging
             self._log_enhanced_analysis(turn_number, analysis_text, button_sequence)
             
-            return {
+            # Add template metadata if available
+            result = {
                 "analysis": analysis_text,
                 "action": button_sequence,
                 "reasoning": analysis_text
             }
+            
+            # Include template metadata if we got it from prompt building
+            if isinstance(prompt_data, dict) and "template_used" in prompt_data:
+                result["template_used"] = prompt_data["template_used"]
+                result["template_version"] = prompt_data.get("template_version", "unknown")
+            
+            return result
             
         except Exception as e:
             return {
@@ -445,7 +454,10 @@ class ContinuousGameplay:
                 "button_presses": ai_result.get("action", []),
                 "action_result": execution_result.get("success", False),
                 "screenshot_path": f"screenshot_{turn_number}.png",
-                "execution_time": execution_result.get("execution_time", 0.0)
+                "execution_time": execution_result.get("execution_time", 0.0),
+                # Add template tracking information
+                "template_used": ai_result.get("template_used", "unknown"),
+                "template_version": ai_result.get("template_version", "unknown")
             }
             
             # Add to session turns list
@@ -961,8 +973,12 @@ class ContinuousGameplay:
         
         return ""
     
-    def _build_ai_prompt(self, turn_number: int, memory_context: str) -> str:
-        """Build context-aware AI prompt with playbook integration"""
+    def _build_ai_prompt(self, turn_number: int, memory_context: str) -> Dict[str, Any]:
+        """Build context-aware AI prompt with playbook integration
+        
+        Returns:
+            Dict with 'prompt' key and metadata about template selection
+        """
         user_tasks = getattr(self, '_user_tasks', [])
         recent_task = user_tasks[-1] if user_tasks else ""
         
@@ -990,6 +1006,8 @@ class ContinuousGameplay:
                 # Initialize variables to avoid UnboundLocalError
                 playbooks = []
                 prompt_type = "fallback"
+                template_used = "fallback"
+                template_version = "unknown"
                 
                 # Try AI-directed prompt system first
                 if hasattr(prompt_manager, 'get_ai_directed_prompt'):
@@ -1006,6 +1024,8 @@ class ContinuousGameplay:
                     
                     # AI-directed system is working - skip the confusing fallback logging
                     using_ai_directed = True
+                    template_used = f"ai_directed_{context_type}"
+                    template_version = "ai_directed"
                 
                 else:
                     # Fallback to original prompt system
@@ -1017,6 +1037,10 @@ class ContinuousGameplay:
                         verbose=True
                     )
                     using_ai_directed = False
+                    template_used = prompt_type
+                    # Get template version if available
+                    if hasattr(prompt_manager, 'base_prompts') and prompt_type in prompt_manager.base_prompts:
+                        template_version = prompt_manager.base_prompts[prompt_type].get('version', 'unknown')
                 
                     # Add additional playbook context if multiple playbooks are relevant
                     if len(playbooks) > 1:
@@ -1063,15 +1087,25 @@ Use the pokemon_controller tool with your chosen button sequence."""
                     print(f"⚠️ Prompt manager failed, using fallback: {e}")
                 print(f"📖 Using fallback prompt (no template)")
                 prompt = self._build_fallback_prompt(turn_number, memory_context, recent_task)
+                template_used = "fallback_exception"
+                template_version = "fallback"
         else:
             print(f"📖 Using fallback prompt (no prompt manager)")
             prompt = self._build_fallback_prompt(turn_number, memory_context, recent_task)
+            template_used = "fallback_no_manager"
+            template_version = "fallback"
         
         # Clear processed user tasks
         if hasattr(self, '_user_tasks'):
             self._user_tasks.clear()
         
-        return prompt
+        # Return prompt with metadata about template selection
+        return {
+            "prompt": prompt,
+            "template_used": template_used,
+            "template_version": template_version,
+            "playbooks_used": playbooks if 'playbooks' in locals() else []
+        }
     
     def _build_fallback_prompt(self, turn_number: int, memory_context: str, recent_task: str) -> str:
         """Build fallback prompt when prompt manager is unavailable"""
@@ -1119,85 +1153,544 @@ Use the pokemon_controller tool with a list of button presses."""
         }
     
     def _run_periodic_episode_review(self, current_turn: int):
-        """Run periodic episode review and apply prompt improvements automatically"""
+        """Run AI-powered periodic episode review and apply prompt improvements automatically"""
         try:
-            from episode_reviewer import EpisodeReviewer
-            from pathlib import Path
+            print(f"🔍 PERIODIC EPISODE REVIEW (Turn {current_turn}): Analyzing last {self.episode_review_frequency} turns...")
             
-            # Get current eevee directory
-            eevee_dir = Path(__file__).parent
-            reviewer = EpisodeReviewer(eevee_dir)
+            # Get recent turns for analysis
+            recent_turns = self.session_turns[-self.episode_review_frequency:] if hasattr(self, 'session_turns') else []
             
-            # Find the most recent session directory
-            runs_dir = eevee_dir / "runs"
-            recent_sessions = sorted(runs_dir.glob("session_*"), key=lambda x: x.stat().st_mtime, reverse=True)
+            if not recent_turns:
+                print("⚠️ No recent turns available for analysis")
+                return
             
-            # Filter to only directories with session_data.json
-            valid_sessions = [s for s in recent_sessions if s.is_dir() and (s / "session_data.json").exists()]
+            # Run AI-powered analysis and template improvement
+            improvement_result = self._run_ai_powered_review(recent_turns, current_turn)
             
-            if valid_sessions:
-                latest_session = valid_sessions[0]
+            if improvement_result["success"]:
+                changes_applied = improvement_result["changes_applied"]
                 
-                print(f"🔍 PERIODIC EPISODE REVIEW (Turn {current_turn}): Analyzing last {self.episode_review_frequency} turns...")
-                
-                # NEW: Apply actual YAML template updates based on performance
-                update_result = reviewer.update_yaml_templates(latest_session, apply_changes=True)
-                
-                if update_result["success"]:
-                    changes_applied = update_result["changes_applied"]
-                    metrics = update_result["metrics"]
+                if changes_applied > 0:
+                    print(f"\n🔧 AI-POWERED PROMPT LEARNING: Applied {changes_applied} improvements")
                     
-                    print(f"📊 PERFORMANCE METRICS:")
-                    print(f"   Navigation Efficiency: {metrics['navigation_efficiency']:.2f}")
-                    print(f"   Battle Win Rate: {metrics['battle_win_rate']:.2f}")
-                    print(f"   Stuck Patterns: {metrics['stuck_patterns']}")
+                    for change in improvement_result.get("changes", []):
+                        print(f"   📝 {change['template']} v{change['old_version']} → v{change['new_version']}")
+                        print(f"      Reason: {change['reasoning']}")
                     
-                    if changes_applied > 0:
-                        print(f"\n🔧 AUTOMATIC PROMPT LEARNING: Applied {changes_applied} improvements")
+                    # CRITICAL: Reload prompt templates to use the updates immediately
+                    if hasattr(self.eevee, 'prompt_manager') and self.eevee.prompt_manager:
+                        self.eevee.prompt_manager.reload_templates()
+                        print(f"   🔄 RELOADED PROMPT TEMPLATES - AI will now use improved versions")
+                    
+                    # Save detailed periodic review
+                    self._save_periodic_review(current_turn, improvement_result, recent_turns)
                         
-                        for change in update_result.get("changes", []):
-                            print(f"   📝 {change['template']} {change['version']}: {change['reasoning']}")
-                        
-                        if update_result.get("git_committed"):
-                            print(f"   📦 Changes committed to git with full tracking")
-                        
-                        # CRITICAL: Reload prompt templates to use the updates immediately
-                        if hasattr(self.eevee, 'prompt_manager') and self.eevee.prompt_manager:
-                            self.eevee.prompt_manager.reload_templates()
-                            print(f"   🔄 RELOADED PROMPT TEMPLATES - AI will now use improved versions")
-                            
-                            # Verify templates were reloaded by checking versions
-                            if hasattr(self.eevee.prompt_manager, 'get_template_versions'):
-                                versions = self.eevee.prompt_manager.get_template_versions()
-                                print(f"   📌 Active template versions: {versions}")
-                        
-                        # Save detailed periodic review
-                        review_file = latest_session / f"periodic_review_turn_{current_turn}.md"
-                        report = reviewer.generate_episode_report(latest_session)
-                        with open(review_file, 'w') as f:
-                            f.write(f"# Periodic Review - Turn {current_turn}\n\n{report}")
-                        print(f"   📋 Detailed review saved: {review_file}")
-                        
-                        # Log the learning event
-                        self._log_learning_event(current_turn, update_result)
-                        
-                    else:
-                        print(f"\n✅ EXCELLENT PERFORMANCE: No prompt improvements needed")
-                        print(f"   Current templates are performing optimally")
                 else:
-                    print(f"\n❌ TEMPLATE UPDATE FAILED: {update_result.get('message', 'Unknown error')}")
-                    if update_result.get('error'):
-                        print(f"   Error details: {update_result['error']}")
+                    print(f"\n✅ EXCELLENT PERFORMANCE: No prompt improvements needed")
+                    print(f"   Current templates are performing optimally")
             else:
-                print(f"\n⚠️ PERIODIC EPISODE REVIEW: No valid session directories found")
-                print(f"   Searched in: {runs_dir}")
-                print(f"   Looking for directories matching 'session_*' with session_data.json")
+                print(f"\n❌ AI REVIEW FAILED: {improvement_result.get('message', 'Unknown error')}")
+                if improvement_result.get('error'):
+                    print(f"   Error details: {improvement_result['error']}")
                 
         except Exception as e:
             print(f"⚠️ Periodic episode review failed: {e}")
             if hasattr(self.eevee, 'debug') and self.eevee.debug:
                 import traceback
                 traceback.print_exc()
+                
+    def _run_ai_powered_review(self, recent_turns: List[Dict], current_turn: int) -> Dict[str, Any]:
+        """Use AI to analyze recent turns and identify templates that need improvement"""
+        try:
+            # Step 1: Analyze which templates were used and their performance
+            template_usage = self._analyze_template_usage(recent_turns)
+            
+            # Step 2: Ask Gemini to identify which templates need improvement
+            templates_to_improve = self._identify_templates_needing_improvement(recent_turns, template_usage)
+            
+            if not templates_to_improve:
+                return {
+                    "success": True,
+                    "changes_applied": 0,
+                    "message": "No templates identified for improvement"
+                }
+            
+            # Step 3: Improve each identified template using AI
+            changes_applied = []
+            for template_info in templates_to_improve:
+                template_name = template_info["template_name"]
+                failure_examples = template_info["failure_examples"]
+                improvement_reasoning = template_info["reasoning"]
+                
+                # Get current template content
+                current_template = self._get_current_template_content(template_name)
+                if not current_template:
+                    continue
+                
+                # Use AI to improve the template
+                improved_template = self._improve_template_with_ai(
+                    template_name, current_template, failure_examples, improvement_reasoning
+                )
+                
+                if improved_template and improved_template != current_template["template"]:
+                    # Save the improved template
+                    change_result = self._save_improved_template(template_name, improved_template, improvement_reasoning)
+                    if change_result:
+                        changes_applied.append(change_result)
+            
+            return {
+                "success": True,
+                "changes_applied": len(changes_applied),
+                "changes": changes_applied,
+                "message": f"Applied {len(changes_applied)} template improvements"
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "changes_applied": 0,
+                "error": str(e),
+                "message": "AI-powered review failed"
+            }
+    
+    def _analyze_template_usage(self, recent_turns: List[Dict]) -> Dict[str, Any]:
+        """Analyze which templates were used and their success/failure patterns"""
+        template_stats = {}
+        
+        # Detect stuck patterns in recent turns
+        stuck_patterns = self._detect_stuck_patterns_in_turns(recent_turns)
+        
+        for i, turn in enumerate(recent_turns):
+            template_used = turn.get("template_used", "unknown")
+            template_version = turn.get("template_version", "unknown")
+            
+            # Enhanced failure detection: not just action_result, but also stuck patterns
+            action_result = turn.get("action_result", False)
+            is_stuck_turn = i in stuck_patterns  # This turn is part of a stuck pattern
+            
+            # A turn is considered a "failure" if:
+            # 1. The action didn't succeed, OR
+            # 2. It's part of a stuck/loop pattern (repeated actions with no progress)
+            is_failure = not action_result or is_stuck_turn
+            
+            if template_used not in template_stats:
+                template_stats[template_used] = {
+                    "usage_count": 0,
+                    "success_count": 0,
+                    "failure_count": 0,
+                    "version": template_version,
+                    "failure_turns": [],
+                    "success_turns": [],
+                    "stuck_turns": 0
+                }
+            
+            template_stats[template_used]["usage_count"] += 1
+            
+            if is_failure:
+                template_stats[template_used]["failure_count"] += 1
+                template_stats[template_used]["failure_turns"].append(turn)
+                if is_stuck_turn:
+                    template_stats[template_used]["stuck_turns"] += 1
+            else:
+                template_stats[template_used]["success_count"] += 1
+                template_stats[template_used]["success_turns"].append(turn)
+        
+        # Calculate success rates
+        for template_name, stats in template_stats.items():
+            if stats["usage_count"] > 0:
+                stats["success_rate"] = stats["success_count"] / stats["usage_count"]
+            else:
+                stats["success_rate"] = 0.0
+        
+        return template_stats
+    
+    def _detect_stuck_patterns_in_turns(self, recent_turns: List[Dict]) -> List[int]:
+        """Detect which turn indices are part of stuck/loop patterns"""
+        stuck_turn_indices = []
+        
+        if len(recent_turns) < 3:
+            return stuck_turn_indices
+        
+        # Look for consecutive identical actions (like the ['a'] repeated 3 times we saw)
+        for i in range(len(recent_turns) - 2):
+            current_action = recent_turns[i].get("button_presses", [])
+            next_action = recent_turns[i + 1].get("button_presses", [])
+            third_action = recent_turns[i + 2].get("button_presses", [])
+            
+            # If 3 consecutive turns have the same action, mark them as stuck
+            if current_action == next_action == third_action and current_action:
+                stuck_turn_indices.extend([i, i + 1, i + 2])
+        
+        return list(set(stuck_turn_indices))  # Remove duplicates
+    
+    def _identify_templates_needing_improvement(self, recent_turns: List[Dict], template_stats: Dict[str, Any]) -> List[Dict]:
+        """Use AI to identify which templates need improvement based on performance patterns"""
+        
+        # Only consider templates that are actually used in template selection
+        # Get the list of valid template names from _determine_prompt_context
+        valid_templates = {
+            "battle_analysis", "exploration_strategy", "stuck_recovery", 
+            "pokemon_party_analysis", "inventory_analysis", "task_analysis"
+        }
+        
+        # Filter to only templates that have poor performance and are in our valid set
+        candidates = []
+        for template_name, stats in template_stats.items():
+            # Skip templates that aren't in our selection system or have no failures
+            if template_name not in valid_templates or stats["failure_count"] == 0:
+                continue
+                
+            # Consider templates with success rate below 70% or multiple failures
+            if stats["success_rate"] < 0.7 or stats["failure_count"] >= 2:
+                candidates.append({
+                    "template_name": template_name,
+                    "stats": stats,
+                    "failure_turns": stats["failure_turns"][:3]  # Last 3 failures
+                })
+        
+        if not candidates:
+            return []
+        
+        # Format the analysis data for Gemini
+        analysis_prompt = self._build_template_analysis_prompt(candidates, recent_turns)
+        
+        try:
+            # Call Gemini to analyze the failures and identify improvements needed
+            api_result = self.eevee._call_gemini_api(
+                prompt=analysis_prompt,
+                image_data=None,  # Text-only analysis
+                use_tools=False,
+                max_tokens=2000
+            )
+            
+            if api_result["error"]:
+                print(f"⚠️ AI analysis failed: {api_result['error']}")
+                return []
+            
+            # Parse the AI response to extract template improvement recommendations
+            analysis_text = api_result.get("text", "")
+            return self._parse_template_analysis_response(analysis_text, candidates)
+            
+        except Exception as e:
+            print(f"⚠️ Template analysis failed: {e}")
+            return []
+    
+    def _build_template_analysis_prompt(self, candidates: List[Dict], recent_turns: List[Dict]) -> str:
+        """Build prompt for AI to analyze template performance and identify improvements"""
+        
+        prompt = """# Pokemon AI Template Performance Analysis
+
+You are analyzing Pokemon gameplay templates that have shown poor performance. Your job is to identify which templates need improvement and why.
+
+## Recent Gameplay Context
+Goal: Find and win Pokemon battles
+Turns analyzed: {}
+
+## Template Performance Issues
+
+""".format(len(recent_turns))
+        
+        for candidate in candidates:
+            template_name = candidate["template_name"]
+            stats = candidate["stats"]
+            failure_turns = candidate["failure_turns"]
+            
+            prompt += f"""### Template: {template_name}
+- Success rate: {stats['success_rate']:.2f} ({stats['success_count']}/{stats['usage_count']})
+- Version: {stats['version']}
+- Recent failures: {stats['failure_count']}
+
+**Failure Examples:**
+"""
+            
+            for i, turn in enumerate(failure_turns[:2], 1):  # Show 2 failure examples
+                ai_analysis = turn.get("ai_analysis", "No analysis")[:200] + "..."
+                button_presses = turn.get("button_presses", [])
+                prompt += f"""
+Failure {i}:
+- AI Analysis: {ai_analysis}
+- AI Decision: {button_presses}
+- Result: Failed/No progress
+"""
+        
+        prompt += """
+
+## Your Analysis Task
+
+For each template above, determine:
+1. Is this template causing actual failures that hurt Pokemon gameplay?
+2. What specific reasoning patterns or instructions are leading to poor decisions?
+3. Should this template be improved? 
+
+**Response Format:**
+For each template that needs improvement, provide:
+
+TEMPLATE: [template_name]
+NEEDS_IMPROVEMENT: [yes/no]
+REASONING: [specific failure pattern analysis]
+PRIORITY: [high/medium/low]
+
+Focus on templates that are actively causing Pokemon game failures, not just low success rates.
+"""
+        
+        return prompt
+    
+    def _parse_template_analysis_response(self, analysis_text: str, candidates: List[Dict]) -> List[Dict]:
+        """Parse AI response to extract templates that need improvement"""
+        improvements_needed = []
+        
+        # Split response into sections by TEMPLATE:
+        sections = analysis_text.split("TEMPLATE:")
+        
+        for section in sections[1:]:  # Skip first empty section
+            try:
+                lines = section.strip().split('\n')
+                if not lines:
+                    continue
+                
+                # Extract template name (first line)
+                template_name = lines[0].strip()
+                
+                # Look for NEEDS_IMPROVEMENT field
+                needs_improvement = False
+                reasoning = ""
+                priority = "medium"
+                
+                for line in lines:
+                    line = line.strip()
+                    if line.startswith("NEEDS_IMPROVEMENT:"):
+                        needs_improvement = "yes" in line.lower()
+                    elif line.startswith("REASONING:"):
+                        reasoning = line.replace("REASONING:", "").strip()
+                    elif line.startswith("PRIORITY:"):
+                        priority = line.replace("PRIORITY:", "").strip().lower()
+                
+                # Only include templates that need improvement
+                if needs_improvement and template_name and reasoning:
+                    # Find the failure examples for this template
+                    failure_examples = []
+                    for candidate in candidates:
+                        if candidate["template_name"] == template_name:
+                            failure_examples = candidate["failure_turns"]
+                            break
+                    
+                    improvements_needed.append({
+                        "template_name": template_name,
+                        "reasoning": reasoning,
+                        "priority": priority,
+                        "failure_examples": failure_examples
+                    })
+                    
+            except Exception as e:
+                print(f"⚠️ Failed to parse template analysis section: {e}")
+                continue
+        
+        return improvements_needed
+    
+    def _improve_template_with_ai(self, template_name: str, current_template: Dict, failure_examples: List[Dict], improvement_reasoning: str) -> str:
+        """Use Gemini 2.0 Flash to improve a template based on failure analysis"""
+        
+        # Build the template improvement prompt
+        improvement_prompt = f"""# Pokemon AI Template Improvement Task
+
+You are a prompt engineering expert tasked with improving a Pokemon AI template that has shown poor performance.
+
+## Current Template Information
+**Template Name:** {template_name}
+**Current Version:** {current_template.get('version', 'unknown')}
+**Template Purpose:** {current_template.get('description', 'Pokemon gameplay guidance')}
+
+## Current Template Content:
+```
+{current_template.get('template', '')}
+```
+
+## Performance Issues Identified:
+{improvement_reasoning}
+
+## Specific Failure Examples:
+"""
+        
+        # Add failure examples with details
+        for i, failure in enumerate(failure_examples[:2], 1):
+            ai_analysis = failure.get("ai_analysis", "No analysis")
+            button_presses = failure.get("button_presses", [])
+            improvement_prompt += f"""
+**Failure {i}:**
+- AI Reasoning: {ai_analysis[:300]}...
+- AI Action: {button_presses}
+- Result: Failed to make progress
+
+"""
+        
+        improvement_prompt += f"""
+## Your Task
+Generate an improved version of this template that:
+1. Fixes the specific reasoning patterns causing failures
+2. Maintains the same structure and variables: {current_template.get('variables', [])}
+3. Provides clearer, more actionable guidance for Pokemon gameplay
+4. Addresses the performance issues identified above
+
+## Requirements:
+- Keep the same template format and variable placeholders
+- Focus on practical Pokemon game mechanics 
+- Make instructions more specific and actionable
+- Ensure the template guides better decision-making
+
+## Output Format:
+Return ONLY the improved template content, ready to replace the current template.
+"""
+        
+        try:
+            # Call Gemini 2.0 Flash for template improvement
+            api_result = self.eevee._call_gemini_api(
+                prompt=improvement_prompt,
+                image_data=None,
+                use_tools=False,
+                max_tokens=3000,
+                model="gemini-2.0-flash"  # Use the more powerful model
+            )
+            
+            if api_result["error"]:
+                print(f"⚠️ Template improvement failed: {api_result['error']}")
+                return ""
+            
+            improved_content = api_result.get("text", "").strip()
+            
+            # Basic validation - ensure the improved template is different and substantial
+            if len(improved_content) < 100:
+                print(f"⚠️ Improved template too short: {len(improved_content)} chars")
+                return ""
+            
+            if improved_content == current_template.get('template', ''):
+                print(f"⚠️ Improved template identical to original")
+                return ""
+            
+            return improved_content
+            
+        except Exception as e:
+            print(f"⚠️ Template improvement with AI failed: {e}")
+            return ""
+    
+    def _get_current_template_content(self, template_name: str) -> Dict[str, Any]:
+        """Get current template content from the prompt manager"""
+        try:
+            if hasattr(self.eevee, 'prompt_manager') and self.eevee.prompt_manager:
+                if hasattr(self.eevee.prompt_manager, 'base_prompts'):
+                    return self.eevee.prompt_manager.base_prompts.get(template_name, {})
+            return {}
+        except Exception as e:
+            print(f"⚠️ Failed to get template content for {template_name}: {e}")
+            return {}
+    
+    def _save_improved_template(self, template_name: str, improved_content: str, reasoning: str) -> Dict[str, Any]:
+        """Save improved template to YAML file"""
+        try:
+            # Get current template info
+            current_template = self._get_current_template_content(template_name)
+            if not current_template:
+                return None
+            
+            old_version = current_template.get('version', '1.0')
+            new_version = self._increment_template_version(old_version)
+            
+            # Update the template
+            current_template['template'] = improved_content
+            current_template['version'] = new_version
+            
+            # Save to YAML file
+            prompts_file = Path(__file__).parent / "prompts" / "base" / "base_prompts.yaml"
+            if prompts_file.exists():
+                import yaml
+                
+                # Load current YAML
+                with open(prompts_file, 'r') as f:
+                    all_templates = yaml.safe_load(f) or {}
+                
+                # Update the specific template
+                all_templates[template_name] = current_template
+                
+                # Save back to file
+                with open(prompts_file, 'w') as f:
+                    yaml.dump(all_templates, f, default_flow_style=False, indent=2, sort_keys=False)
+                
+                print(f"📝 Saved {template_name} v{old_version} → v{new_version} to {prompts_file}")
+                
+                return {
+                    "template": template_name,
+                    "old_version": old_version,
+                    "new_version": new_version,
+                    "reasoning": reasoning
+                }
+            
+        except Exception as e:
+            print(f"⚠️ Failed to save improved template {template_name}: {e}")
+        
+        return None
+    
+    def _increment_template_version(self, version: str) -> str:
+        """Increment template version (e.g., '1.0' -> '1.1')"""
+        try:
+            parts = version.split('.')
+            if len(parts) >= 2:
+                major, minor = int(parts[0]), int(parts[1])
+                return f"{major}.{minor + 1}"
+            else:
+                return f"{version}.1"
+        except:
+            return f"{version}.updated"
+    
+    def _save_periodic_review(self, current_turn: int, improvement_result: Dict, recent_turns: List[Dict]):
+        """Save detailed periodic review report"""
+        try:
+            if hasattr(self, 'session_dir'):
+                review_file = self.session_dir / f"periodic_review_turn_{current_turn}.md"
+                
+                # Create detailed review report
+                report = f"""# Periodic Review - Turn {current_turn}
+
+## Analysis Summary
+- Templates analyzed: {len(improvement_result.get('changes', []))}
+- Changes applied: {improvement_result['changes_applied']}
+- Recent turns reviewed: {len(recent_turns)}
+
+## Template Changes
+
+"""
+                
+                for change in improvement_result.get('changes', []):
+                    report += f"""### {change['template']} v{change['old_version']} → v{change['new_version']}
+
+**Reasoning:** {change['reasoning']}
+
+---
+
+"""
+                
+                report += f"""
+## Recent Gameplay Data
+
+"""
+                
+                # Include summary of recent turns
+                for turn in recent_turns[-3:]:  # Last 3 turns
+                    turn_num = turn.get('turn', '?')
+                    template = turn.get('template_used', 'unknown')
+                    success = turn.get('action_result', False)
+                    analysis = turn.get('ai_analysis', '')[:100] + "..."
+                    
+                    report += f"""**Turn {turn_num}** (Template: {template}, Result: {'✅' if success else '❌'})
+{analysis}
+
+"""
+                
+                with open(review_file, 'w') as f:
+                    f.write(report)
+                
+                print(f"   📋 Detailed review saved: {review_file}")
+                
+        except Exception as e:
+            print(f"⚠️ Failed to save periodic review: {e}")
     
     def _log_learning_event(self, turn_number: int, update_result: Dict[str, Any]):
         """Log automatic learning events to runs directory"""
