@@ -5,12 +5,15 @@ Tests the new AI self-management capabilities and 20-turn critique updates
 """
 
 import sys
+
+# Add paths for importing from the main project (from tests/ directory)
+project_root = Path(__file__).parent.parent.parent  # tests/ -> eevee/ -> claude-plays-pokemon/
+eevee_root = Path(__file__).parent.parent            # tests/ -> eevee/
+sys.path.append(str(eevee_root))
+sys.path.append(str(project_root / "gemini-multimodal-playground" / "standalone"))
 from pathlib import Path
 
-# Add paths for importing
 project_root = Path(__file__).parent
-sys.path.append(str(project_root))
-
 def test_ai_directed_prompt_system():
     """Test the AI-directed prompt control system"""
     print("🧠 Testing AI-Directed Prompt Control System")

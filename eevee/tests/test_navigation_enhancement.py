@@ -9,6 +9,12 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+
+# Add paths for importing from the main project (from tests/ directory)
+project_root = Path(__file__).parent.parent.parent  # tests/ -> eevee/ -> claude-plays-pokemon/
+eevee_root = Path(__file__).parent.parent            # tests/ -> eevee/
+sys.path.append(str(eevee_root))
+sys.path.append(str(project_root / "gemini-multimodal-playground" / "standalone"))
 from PIL import Image
 import numpy as np
 

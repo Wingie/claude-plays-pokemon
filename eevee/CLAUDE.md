@@ -108,49 +108,131 @@ valid_templates = {
 
 ## 📁 File Structure
 
-### **Core Files**
+### **Complete Project Architecture**
 ```
-eevee/
-├── run_eevee.py              # Main execution and learning system
-├── eevee_agent.py             # SkyEmu integration
-├── prompt_manager.py          # AI-directed template system
-├── memory_system.py           # Persistent storage
-├── task_executor.py           # Task decomposition
-└── run_learn_fix.sh          # Automated learning script
+claude-plays-pokemon/eevee/
+├── 📋 **Core System Files**
+│   ├── run_eevee.py              # Main execution & learning system
+│   ├── eevee_agent.py            # SkyEmu integration & game control
+│   ├── prompt_manager.py         # AI-directed template system
+│   ├── llm_api.py               # Centralized LLM API (Gemini + Mistral)
+│   ├── memory_system.py         # Persistent SQLite storage
+│   ├── task_executor.py         # Task decomposition & execution
+│   ├── provider_config.py       # Environment-based configuration
+│   ├── skyemu_controller.py     # Game Boy emulator interface
+│   ├── episode_reviewer.py      # Legacy review system
+│   ├── diary_generator.py       # Session documentation
+│   └── neo4j_memory.py         # Graph-based memory (experimental)
+│
+├── 🧪 **tests/** (32 test files - ORGANIZED)
+│   ├── 👁️ **Vision & Screenshot Tests:**
+│   │   ├── test_grid_overlay_vision.py     # Grid overlay research ✅
+│   │   ├── test_pixtral_vision.py          # Vision verification tests
+│   │   ├── test_prompt_variations.py       # Prompt hallucination testing
+│   │   ├── test_vision_deep_research.py    # Progressive prompt research
+│   │   └── test_overworld_scene_detection.py # Scene classification
+│   │
+│   ├── 🤖 **LLM API & Provider Tests:**
+│   │   ├── test_llm_api.py                 # Multi-provider testing ✅
+│   │   ├── test_provider_config.py         # Configuration validation
+│   │   ├── test_eevee_migration.py         # Migration testing
+│   │   ├── test_mistral_function_calling.py
+│   │   └── test_mistral_prompt_styles.py
+│   │
+│   ├── 🧠 **Core System Tests:**
+│   │   ├── test_prompt_manager_migration.py
+│   │   ├── test_task_executor_migration.py
+│   │   ├── test_template_hotswap.py
+│   │   ├── test_template_improvement_pipeline.py
+│   │   ├── test_learning_system.py
+│   │   ├── test_enhanced_stuck_detection.py
+│   │   └── test_ai_directed_prompts.py
+│   │
+│   ├── 🎮 **Gameplay & Navigation Tests:**
+│   │   ├── test_actual_gameplay_prompt.py
+│   │   ├── test_navigation_enhancement.py
+│   │   ├── test_enhanced_prompts.py
+│   │   └── test_logging.py
+│   │
+│   ├── 📊 **Test Results & Outputs:**
+│   │   ├── grid_overlay_output.txt         # Latest test output
+│   │   ├── grid_overlay_results_*.json     # Test result data
+│   │   ├── overlay_images_*/               # Generated overlay images
+│   │   │   ├── original_no_overlay.png
+│   │   │   ├── coordinate_grid_overlay.png
+│   │   │   ├── game_boy_tile_overlay.png
+│   │   │   └── coordinate_questions_overlay.png
+│   │   ├── vision_test_results_v2.txt      # **CRITICAL VISION ISSUE**
+│   │   └── pixtral_vision_test_*.json      # Vision test data
+│   │
+│   └── 📝 **Standardized Import Pattern:**
+│       ```python
+│       # Standard for ALL test files:
+│       from pathlib import Path
+│       import sys
+│       
+│       # Navigate from tests/ to project directories
+│       project_root = Path(__file__).parent.parent.parent  # tests/ -> eevee/ -> claude-plays-pokemon/
+│       eevee_root = Path(__file__).parent.parent            # tests/ -> eevee/
+│       sys.path.append(str(eevee_root))                    # For eevee modules
+│       sys.path.append(str(project_root))                  # For root-level modules
+│       sys.path.append(str(project_root / "gemini-multimodal-playground" / "standalone"))
+│       ```
+│
+├── 🎯 **prompts/** (Template System)
+│   ├── base/
+│   │   └── base_prompts.yaml     # Auto-updated AI templates
+│   ├── playbooks/               # Knowledge repositories
+│   │   ├── battle.yaml          # Battle strategies & type effectiveness
+│   │   ├── navigation.yaml      # Movement & pathfinding knowledge
+│   │   ├── services.yaml        # Pokemon Centers, shops, facilities
+│   │   └── gyms.yaml           # Gym-specific puzzle solutions
+│   └── providers/
+│       └── mistral/
+│           └── base_prompts.yaml # Mistral-specific prompts
+│
+├── 💾 **memory/** (Persistent Storage)
+│   ├── eevee_memory_*.db        # SQLite session databases
+│   └── neo4j_data/             # Graph memory (experimental)
+│
+├── 📊 **runs/** (Session Data)
+│   └── session_TIMESTAMP/
+│       ├── session_data.json         # Turn-by-turn gameplay data
+│       ├── periodic_review_turn_N.md # AI analysis & improvements
+│       └── screenshots/              # Visual game state evidence
+│
+├── 📸 **analysis/** (Debug Images)
+│   ├── skyemu_screenshot_*.png       # Game state captures
+│   ├── eevee_context_*.png          # AI decision contexts
+│   └── before_*/after_* button analysis
+│
+├── 📋 **specs/** (Technical Documentation)
+│   ├── user_spec_testing_notes.md
+│   └── pokemon_character_dataset_spec.md
+│
+├── 🎓 **Fine-Tuning/** (Model Training)
+│   ├── Phi3-Vision-Finetune/
+│   ├── environment.yml
+│   └── fine_tuning_notes.md
+│
+├── 🔧 **test_runs/** (Legacy Test Data)
+│   └── test_session_*/
+│
+└── 📝 **Configuration Files**
+    ├── .env                     # API keys & provider settings
+    ├── .env.example            # Configuration template
+    ├── CLAUDE.md               # This comprehensive documentation
+    ├── README.md               # Project overview
+    ├── run_learn_fix.sh        # Automated learning script
+    └── switch_provider.py      # Provider switching utility
 ```
 
-### **Template System**
+### **External Dependencies**
 ```
-eevee/prompts/
-├── base/
-│   └── base_prompts.yaml     # Auto-updated templates
-└── playbooks/
-    ├── battle.yaml           # Battle knowledge  
-    ├── navigation.yaml       # Movement strategies
-    ├── services.yaml         # Pokemon Centers, shops
-    └── gyms.yaml            # Gym-specific strategies
-```
-
-### **Session Data**
-```
-eevee/runs/session_TIMESTAMP/
-├── session_data.json         # Turn-by-turn data with template usage
-├── periodic_review_turn_N.md # AI analysis and improvements
-└── screenshots/              # Visual game state evidence
-```
-
-### **LLM API System**
-```
-eevee/
-├── llm_api.py                # Centralized LLM API with provider abstraction
-├── provider_config.py        # Environment-based configuration management
-├── .env                      # Provider API keys and configuration
-├── .env.example             # Configuration template and examples
-├── switch_provider.py        # Provider switching demonstration script
-└── tests/
-    ├── test_llm_api.py       # LLM API system tests
-    ├── test_provider_config.py # Configuration system tests
-    └── test_*_migration.py   # Migration validation tests
+../gemini-multimodal-playground/standalone/
+├── skyemu_controller.py      # SkyEmu HTTP interface
+├── pokemon_controller.py     # Legacy mGBA interface  
+└── screen_*.py              # Screen processing utilities
 ```
 
 ## 🎮 Execution Modes
@@ -235,6 +317,212 @@ ls -la runs/session_*/session_data.json
 3. **Turn 50+**: Sophisticated context-aware gameplay with minimal errors
 
 This architecture enables true AI self-improvement through dynamic template selection and continuous learning from gameplay experience.
+
+## 🧪 Testing & Development System
+
+### **Test Organization & Execution**
+
+#### **Running Tests from tests/ Directory**
+```bash
+# Navigate to tests directory
+cd tests
+
+# Run specific test categories
+python test_grid_overlay_vision.py          # Vision research
+python test_llm_api.py                      # LLM API validation  
+python test_prompt_variations.py            # Hallucination testing
+python test_pixtral_vision.py              # Vision verification
+
+# Monitor test outputs
+tail -f grid_overlay_output.txt
+ls -la overlay_images_*/                   # Generated overlay images
+```
+
+#### **Test Categories & Purposes**
+
+**🔍 Vision & Screenshot Tests:**
+- **Purpose**: Debug Pixtral vision hallucinations, test grid overlays
+- **Key Files**: `test_grid_overlay_vision.py`, `test_prompt_variations.py`
+- **Outputs**: Overlay images, vision analysis reports, hallucination detection
+
+**🤖 LLM API & Provider Tests:**
+- **Purpose**: Validate multi-provider system, test failover, configuration
+- **Key Files**: `test_llm_api.py`, `test_provider_config.py`
+- **Outputs**: API response validation, provider performance metrics
+
+**🧠 Core System Tests:**
+- **Purpose**: Test prompt management, template learning, memory systems
+- **Key Files**: `test_template_*.py`, `test_learning_*.py`
+- **Outputs**: Template validation, learning performance analysis
+
+**🎮 Gameplay Tests:**
+- **Purpose**: Test actual Pokemon gameplay, navigation, battle detection
+- **Key Files**: `test_actual_gameplay_prompt.py`, `test_navigation_*.py`
+- **Outputs**: Gameplay session data, AI decision analysis
+
+### **Import Pattern Standards**
+
+All test files use the standardized import pattern:
+```python
+from pathlib import Path
+import sys
+
+# Navigate from tests/ to project directories  
+project_root = Path(__file__).parent.parent.parent  # tests/ -> eevee/ -> claude-plays-pokemon/
+eevee_root = Path(__file__).parent.parent            # tests/ -> eevee/
+sys.path.append(str(eevee_root))                    # For eevee modules
+sys.path.append(str(project_root))                  # For root-level modules
+sys.path.append(str(project_root / "gemini-multimodal-playground" / "standalone"))
+
+# Then import project modules
+from llm_api import call_llm
+from skyemu_controller import SkyEmuController  
+from prompt_manager import PromptManager
+```
+
+### **Test Output Management**
+
+**📊 Automatic Output Saving:**
+- All tests save results to both timestamped files AND persistent filenames
+- Grid overlay tests save overlay images for visual inspection
+- Vision tests save hallucination analysis in readable format
+
+**📁 Output File Patterns:**
+```bash
+tests/
+├── grid_overlay_output.txt              # Always current results
+├── grid_overlay_results_TIMESTAMP.json  # Timestamped data
+├── overlay_images_TIMESTAMP/            # Visual test artifacts
+│   ├── original_no_overlay.png
+│   ├── coordinate_grid_overlay.png  
+│   ├── game_boy_tile_overlay.png
+│   └── coordinate_questions_overlay.png
+└── vision_test_results_v2.txt          # Vision verification results
+```
+
+### **Development Workflow**
+
+1. **Adding New Tests:**
+   ```bash
+   # Use standardized naming: test_[category]_[specific_feature].py
+   # Follow import pattern from existing tests
+   # Save outputs to both persistent and timestamped files
+   ```
+
+2. **Debugging Import Issues:**
+   ```bash
+   # Check import paths
+   python -c "import sys; from pathlib import Path; print([p for p in sys.path if 'eevee' in p])"
+   
+   # Test specific imports
+   cd tests && python -c "from llm_api import call_llm; print('✅ LLM API import works')"
+   ```
+
+3. **Running Comprehensive Tests:**
+   ```bash
+   # Run vision research pipeline
+   bash ../run_learn_fix.sh
+   
+   # Test all LLM providers
+   python test_llm_api.py && python test_provider_config.py
+   ```
+
+## 🔍 Vision System & Hallucination Issues
+
+### **🚨 Critical Vision Problem Identified**
+
+**Issue**: Pixtral hallucinates battle elements in overworld scenes
+**Evidence**: From `vision_test_results_v2.txt`:
+```
+❤️ TEST 4: HP Bar Detection
+✅ Pixtral Response: "Yes, I see health/HP bars in the image."
+⚔️ TEST 6: Simple Battle Detection  
+✅ Pixtral Response: "Yes, this is a Pokemon battle scene."
+```
+
+**Reality**: User confirmed NO HP bars exist in overworld navigation scenes.
+
+### **Research Findings from Grid Overlay Tests**
+
+#### **Grid Overlay Approach** (`test_grid_overlay_vision.py`)
+Based on videogamebench methodology - adding coordinate grids to help vision models understand spatial layout:
+
+**✅ Positive Results:**
+- Coordinate grids help Pixtral use spatial references
+- AI provides coordinate-based descriptions when prompted
+- Original images (no overlay) show NO false battle detection
+
+**⚠️ Persistent Issues:**
+- Adding coordinate grids TRIGGERS hallucinations
+- Game Boy tile grids cause extensive false battle claims
+- Direct coordinate questions produce invented health bars and menus
+
+#### **Test Results Summary:**
+```bash
+# From latest test run:
+🔍 BATTLE ELEMENT DETECTION:
+   ✅ no_overlay (none): No false battle detection
+   ⚠️ coordinate_grid (coordinate_grid): Claims to see battle elements  
+   ⚠️ game_boy_tiles (tile_grid): Claims to see battle elements
+   ⚠️ coordinate_questions (coordinate_grid): Claims to see battle elements
+
+🎯 ASSESSMENT:
+⚠️ PARTIAL SUCCESS: Grid overlays provide spatial context but trigger hallucinations
+✅ SPATIAL IMPROVEMENT: Pixtral uses coordinate references when available
+```
+
+### **Root Cause Analysis**
+
+1. **Context-Induced Hallucination**: Game-specific prompts trigger Pokemon battle assumptions
+2. **Spatial Overlay Confusion**: Grids may be interpreted as game UI elements  
+3. **Template Selection Impact**: False battle detection → wrong template → poor gameplay
+
+### **Solution Approaches**
+
+#### **Immediate Fixes:**
+```bash
+# Use completely neutral prompts for template selection
+"Describe what you see in this image."  # ✅ No game context
+"Is this a Pokemon battle scene?"       # ❌ Induces hallucination
+```
+
+#### **Grid Overlay Improvements:**
+- Use simpler coordinate grids with clear labeling
+- Test higher resolution overlays for better spatial understanding
+- Experiment with different overlay colors and styles
+
+#### **Template Selection Rework:**
+- Separate visual analysis from game context detection
+- Use non-gaming prompts for initial scene classification  
+- Implement confidence scoring for template selection
+
+### **Testing & Validation**
+
+**Run Grid Overlay Research:**
+```bash
+cd tests
+python test_grid_overlay_vision.py    # Test coordinate grid approach
+python test_prompt_variations.py      # Test neutral vs game prompts  
+python test_vision_deep_research.py   # Progressive prompt testing
+```
+
+**Monitor Vision Issues:**
+```bash
+# Check latest vision test results
+cat vision_test_results_v2.txt
+
+# Review grid overlay findings  
+cat grid_overlay_output.txt
+
+# Examine overlay images
+ls overlay_images_*/
+```
+
+**Expected Research Outcomes:**
+- Document exactly which prompts cause hallucinations
+- Identify optimal grid overlay configurations
+- Develop neutral template selection prompts
+- Improve spatial understanding without false detection
 
 ## 🤖 Multi-Provider LLM API System
 

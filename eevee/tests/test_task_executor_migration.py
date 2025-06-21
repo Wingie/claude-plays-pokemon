@@ -5,14 +5,17 @@ Test script to verify TaskExecutor migration to centralized LLM API
 
 import os
 import sys
+
+# Add paths for importing from the main project (from tests/ directory)
+project_root = Path(__file__).parent.parent.parent  # tests/ -> eevee/ -> claude-plays-pokemon/
+eevee_root = Path(__file__).parent.parent            # tests/ -> eevee/
+sys.path.append(str(eevee_root))
+sys.path.append(str(project_root / "gemini-multimodal-playground" / "standalone"))
 import json
 from pathlib import Path
 from unittest.mock import Mock, MagicMock
 
-# Add project root to path
-eevee_root = Path(__file__).parent.parent
 project_root = eevee_root.parent
-sys.path.append(str(project_root))
 sys.path.append(str(eevee_root))
 
 from dotenv import load_dotenv

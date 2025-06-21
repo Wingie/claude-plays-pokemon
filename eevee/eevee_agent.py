@@ -188,6 +188,25 @@ class EeveeAgent:
                 print(f"🖼️ Has Image Data: {'✅' if image_data else '❌'}")
                 if image_data:
                     print(f"📊 Image Data Length: {len(image_data)} chars")
+                    
+                    # Enhanced image data validation
+                    try:
+                        import base64
+                        # Validate base64 encoding
+                        decoded_bytes = base64.b64decode(image_data)
+                        print(f"🔍 Image Validation: ✅ Valid base64, {len(decoded_bytes)} decoded bytes")
+                        
+                        # Check if it looks like a valid image (PNG/JPEG headers)
+                        if decoded_bytes.startswith(b'\x89PNG'):
+                            print(f"📸 Image Format: PNG detected")
+                        elif decoded_bytes.startswith(b'\xff\xd8\xff'):
+                            print(f"📸 Image Format: JPEG detected")
+                        else:
+                            print(f"⚠️ Image Format: Unknown format (first 8 bytes: {decoded_bytes[:8].hex()})")
+                            
+                    except Exception as e:
+                        print(f"❌ Image Validation Failed: {e}")
+                        print(f"⚠️ This may cause Pixtral vision to fail!")
                 
                 # Log first 500 chars of prompt for debugging (without image data)
                 print("🔍 PROMPT PREVIEW:")

@@ -6,12 +6,16 @@ Tests AI template mapping, improvement criteria, and real-time YAML updates
 
 import json
 import sys
+
+# Add paths for importing from the main project (from tests/ directory)
+project_root = Path(__file__).parent.parent.parent  # tests/ -> eevee/ -> claude-plays-pokemon/
+eevee_root = Path(__file__).parent.parent            # tests/ -> eevee/
+sys.path.append(str(eevee_root))
+sys.path.append(str(project_root / "gemini-multimodal-playground" / "standalone"))
 import yaml
 from pathlib import Path
 from datetime import datetime
 
-# Add the eevee directory to path
-eevee_dir = Path(__file__).parent
 sys.path.append(str(eevee_dir))
 
 from run_eevee import ContinuousGameplay

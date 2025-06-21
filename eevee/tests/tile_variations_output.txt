@@ -1,0 +1,93 @@
+🎮 Game Boy Tile Overlay Variation Results
+============================================================
+
+OVERLAY IMAGES SAVED TO: /Users/wingston/code/claude-plays-pokemon/eevee/tests/tile_variations_1750542541
+------------------------------------------------------------
+
+TEST: Original Green 8x8
+CONFIG: {'name': 'Original Green 8x8', 'grid_size': 8, 'color': 'green', 'line_width': 1, 'add_labels': True}
+HEALTH BAR MENTIONS: 0
+ENVIRONMENT FOCUS: 10
+RESPONSE: Certainly! Let's break down the analysis of the Pokemon overworld scene based on the provided image.
+
+### 1. Scene Type:
+This appears to be a forest area. The presence of numerous trees and the dense green foliage suggest that the player is in a wooded region.
+
+### 2. Player Location:
+The player cha...
+----------------------------------------
+
+TEST: Subtle Blue 8x8
+CONFIG: {'name': 'Subtle Blue 8x8', 'grid_size': 8, 'color': '#4444FF', 'line_width': 1, 'add_labels': True}
+HEALTH BAR MENTIONS: 0
+ENVIRONMENT FOCUS: 11
+RESPONSE: ### Analysis of Pokemon Overworld Scene
+
+#### 1. Scene Type:
+This appears to be a forest or wooded area in the Pokemon world. The presence of numerous trees and dense foliage suggests a natural, outdoor environment.
+
+#### 2. Player Location:
+The player character is positioned in the center of the sc...
+----------------------------------------
+
+TEST: Light Gray 8x8
+CONFIG: {'name': 'Light Gray 8x8', 'grid_size': 8, 'color': '#CCCCCC', 'line_width': 1, 'add_labels': True}
+HEALTH BAR MENTIONS: 0
+ENVIRONMENT FOCUS: 10
+RESPONSE: ### Analysis of Pokemon Overworld Scene
+
+#### 1. Scene Type:
+This appears to be a forest or wooded area. The presence of numerous trees and the dense greenery suggest that it is not a town or a building interior.
+
+#### 2. Player Location:
+The player character is located in the center of the grid, su...
+----------------------------------------
+
+TEST: Thin Purple 8x8
+CONFIG: {'name': 'Thin Purple 8x8', 'grid_size': 8, 'color': '#8844FF', 'line_width': 1, 'add_labels': False}
+HEALTH BAR MENTIONS: 0
+ENVIRONMENT FOCUS: 9
+RESPONSE: Certainly! Let's break down the Pokemon overworld scene based on the provided image and the critical understanding guidelines.
+
+### 1. Scene Type:
+This appears to be a route or a path area in the Pokemon world. The environment is relatively open, and there are no immediate signs of buildings or dens...
+----------------------------------------
+
+TEST: Large Yellow 4x4
+CONFIG: {'name': 'Large Yellow 4x4', 'grid_size': 4, 'color': '#FFDD00', 'line_width': 2, 'add_labels': True}
+HEALTH BAR MENTIONS: 0
+ENVIRONMENT FOCUS: 8
+RESPONSE: Certainly! Let's analyze the Pokemon overworld scene step-by-step.
+
+### 1. Scene Type:
+The scene appears to be a forest or wooded area. The presence of numerous trees and the dense vegetation suggests this.
+
+### 2. Player Location:
+The player character is positioned in the center of the screen. The ...
+----------------------------------------
+
+TEST: Fine Orange 16x16
+CONFIG: {'name': 'Fine Orange 16x16', 'grid_size': 16, 'color': '#FF8800', 'line_width': 1, 'add_labels': False}
+HEALTH BAR MENTIONS: 0
+ENVIRONMENT FOCUS: 10
+RESPONSE: Certainly! Let's analyze the Pokemon overworld scene step-by-step.
+
+### 1. Scene Type:
+The scene appears to be a **forest** area. The dense presence of trees and the overall green coloration suggest that this is a wooded region.
+
+### 2. Player Location:
+The player character is positioned near the ce...
+----------------------------------------
+
+TEST: No Labels Red 8x8
+CONFIG: {'name': 'No Labels Red 8x8', 'grid_size': 8, 'color': 'red', 'line_width': 1, 'add_labels': False}
+HEALTH BAR MENTIONS: 0
+ENVIRONMENT FOCUS: 9
+RESPONSE: Certainly! Let's break down the analysis of the Pokemon overworld scene based on the provided image.
+
+### 1. Scene Type:
+- **Type:** This appears to be a **forest** or **wooded area**. The presence of numerous trees and dense foliage suggests it is a natural, forested environment.
+
+### 2. Player Loc...
+----------------------------------------
+

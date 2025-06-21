@@ -298,9 +298,9 @@ class ContinuousGameplay:
                 "reasoning": "Screenshot capture failed, using default action"
             }
         
-        # Build context-aware prompt
+        # Build context-aware prompt with image data for template selection
         memory_context = self._get_memory_context()
-        prompt_data = self._build_ai_prompt(turn_number, memory_context)
+        prompt_data = self._build_ai_prompt(turn_number, memory_context, game_context.get("screenshot_data"))
         prompt = prompt_data.get("prompt", prompt_data) if isinstance(prompt_data, dict) else prompt_data
         
         # Call Gemini API
@@ -1068,7 +1068,7 @@ class ContinuousGameplay:
         
         return ""
     
-    def _build_ai_prompt(self, turn_number: int, memory_context: str) -> Dict[str, Any]:
+    def _build_ai_prompt(self, turn_number: int, memory_context: str, image_data: str = None) -> Dict[str, Any]:
         """Build context-aware AI prompt with playbook integration
         
         Returns:
@@ -1115,6 +1115,7 @@ class ContinuousGameplay:
                         maze_context=context_data.get('maze_context'),
                         escalation_level=self._get_escalation_level(),
                         memory_context=memory_context,  # Pass memory context for AI template selection
+                        image_data=image_data,  # Pass screenshot for visual template selection
                         verbose=True
                     )
                     

@@ -1,83 +1,71 @@
 battle_analysis:
-  name: Ash's Battle Strategy (Vision-Focused v2.0)
-  description: Enhanced vision analysis for Mistral/Pixtral with accurate battle observation
+  name: Verified Battle Analysis (Anti-False-Positive v4.0)
+  description: Only triggers for confirmed battle scenes with actual HP bars
   template: |
-    I am Ash Ketchum! I'm looking at my Game Boy Advance screen right now and I need to see exactly what's happening in this Pokemon battle!
-
-    My mission: {task}
-    What I just pressed: {recent_actions}
-
-    CRITICAL: I must describe EXACTLY what I see on the screen - no guessing!
-
-    WHAT I SEE RIGHT NOW:
-    - Background colors and setting: [describe actual background]
-    - Pokemon on screen: [describe what Pokemon are actually visible, if any]
-    - Menu options: [list any visible menu text or options]
-    - HP bars or status: [describe any health bars or status indicators]
-    - Text messages: [any battle text currently displayed]
-    - Cursor position: [where is the selection cursor, if visible]
-
-    BUTTON CONTROLS:
-    - UP/DOWN/LEFT/RIGHT = navigate menus and select options
-    - A = confirm selection, advance text
-    - B = cancel, go back
-
-    Based on what I actually see, my next action: ['button']
-
-    RESPONSE RULES:
-    - Only describe what is actually visible on screen
-    - No Pokemon names unless clearly shown in text
-    - One button press only
-    - Stay in character as Ash
+    You are analyzing a Game Boy Advance screenshot. VERIFY this is actually a battle scene first.
+    
+    TASK: {task}
+    RECENT ACTIONS: {recent_actions}
+    
+    **BATTLE VERIFICATION REQUIRED:**
+    This template should ONLY be used if you see ALL of these:
+    - Large Pokemon sprites (not small character sprites)
+    - Actual HP bars with health meters
+    - Battle menu text (FIGHT, BAG, POKEMON, RUN)
+    
+    **IF THIS IS NOT A BATTLE:**
+    If you see small character sprites on terrain instead of large Pokemon sprites with HP bars, 
+    this is an overworld scene, not a battle. Press a directional button to move.
+    
+    **BATTLE ACTIONS (only if confirmed battle):**
+    1. Battle menu visible → Press A to select FIGHT
+    2. Move selection screen → Choose offensive move with A
+    3. Battle text showing → Press A to continue
+    
+    **RESPONSE FORMAT:**
+    Battle verification: [YES if you see HP bars and large Pokemon sprites, NO if terrain/small sprites]
+    Action: [button press based on verification]
+    Reasoning: [explain what you actually see]
   variables:
   - task
   - recent_actions
-  version: '1.0'
+  version: '3.0'
   provider: 'mistral'
 
 exploration_strategy:
-  name: Ash's Exploration (Vision-Focused v2.0)
-  description: Enhanced area analysis for accurate navigation
+  name: Pure Visual Navigation (Anti-Hallucination v4.0)
+  description: Prevents Pixtral from hallucinating battle elements in overworld scenes
   template: |
-    I'm Ash Ketchum exploring on my Game Boy Advance! Let me look carefully at what's actually on my screen.
-
-    My adventure goal: {task}
-    My recent button presses: {recent_actions}
-
-    WHAT I SEE ON MY SCREEN RIGHT NOW:
-    - Character sprite position: [where is my character located]
-    - Terrain and paths: [describe grass, trees, rocks, paths, buildings]
-    - Available directions: [which directions look walkable]
-    - NPCs or trainers: [any people visible on screen]  
-    - Trainer status: [are any trainers facing away = already defeated?]
-    - Objects or items: [anything interactive visible]
-    - Screen boundaries: [edges, walls, obstacles]
-
-    EXPLORATION STRATEGY:
-    - If I see a trainer facing me = new battle opportunity
-    - If I see a trainer facing away = already defeated, can walk past
-    - If just finished battle = continue exploring in new direction
-    - If stuck on trainer = they're defeated, try walking around or past them
-    - Look for unexplored paths and new areas
-
-    MOVEMENT CONTROLS:
-    - UP arrow = move character up
-    - DOWN arrow = move character down  
-    - LEFT arrow = move character left
-    - RIGHT arrow = move character right
-    - A = interact with objects/people (only if not defeated trainer)
-    - B = cancel or menu
-
-    Based on what I can actually see and my exploration strategy: ['direction']
-
-    RULES:
-    - Only describe what's actually visible
-    - Choose direction based on real paths
-    - One button press only
+    You are analyzing a Game Boy Advance screenshot. DO NOT assume this is a Pokemon battle.
+    
+    TASK: {task}
+    RECENT ACTIONS: {recent_actions}
+    
+    **CRITICAL: ONLY DESCRIBE WHAT YOU ACTUALLY SEE**
+    This is NOT a battle scene unless you see large Pokemon sprites facing each other with HP bars.
+    
+    **VISUAL ELEMENTS TO IDENTIFY:**
+    - Character sprites (small figures)
+    - Terrain patterns (bushes, paths, buildings)
+    - Background colors and textures
+    - Any UI elements in corners (but don't assume they're HP bars)
+    
+    **MOVEMENT DECISION:**
+    Based purely on the visual terrain, choose a direction to move:
+    - UP, DOWN, LEFT, or RIGHT
+    - Avoid obstacles like trees or walls
+    - Move toward open paths or new areas
+    
+    **RESPONSE FORMAT:**
+    First describe what you actually see, then choose a direction.
+    
+    Visual observation: [what you see without assumptions]
+    Movement choice: [UP/DOWN/LEFT/RIGHT]
+    Reasoning: [why this direction based on terrain]
   variables:
-  - task
-  - recent_actions  
-  version: '1.0'
+  - task  
+  - recent_actions
+  version: '3.0'
   provider: 'mistral'
 
 stuck_recovery:

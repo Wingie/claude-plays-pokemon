@@ -860,6 +860,7 @@ Be specific about moves, types, and strategic recommendations.""",
         maze_context: Dict = None,
         escalation_level: str = "level_1",
         memory_context: str = "",
+        image_data: str = None,
         verbose: bool = False
     ) -> str:
         """
@@ -873,6 +874,8 @@ Be specific about moves, types, and strategic recommendations.""",
             battle_context: Battle-specific context information
             maze_context: Maze-specific context information  
             escalation_level: Emergency escalation level
+            memory_context: Current memory context string
+            image_data: Base64 encoded screenshot for visual template selection
             verbose: Enable verbose logging
             
         Returns:
@@ -896,9 +899,9 @@ Be specific about moves, types, and strategic recommendations.""",
         else:
             # Handle AI auto-selection based on memory context
             if context_type == "auto_select":
-                # Use retry logic for AI template selection
+                # Use retry logic for AI template selection with image data
                 template_name, playbook_to_include = self._ai_select_template_and_playbook_with_retry(
-                    memory_context, escalation_level, verbose
+                    memory_context, escalation_level, verbose, image_data
                 )
             else:
                 # Map AI-directed contexts to actual existing templates
@@ -963,7 +966,7 @@ Be specific about moves, types, and strategic recommendations.""",
             # Fallback to basic template with playbook
             return self.get_prompt("exploration_strategy", variables, include_playbook=playbook_to_include, verbose=verbose)
     
-    def _ai_select_template_and_playbook_with_retry(self, memory_context: str, escalation_level: str, verbose: bool = False) -> tuple[str, str]:
+    def _ai_select_template_and_playbook_with_retry(self, memory_context: str, escalation_level: str, verbose: bool = False, image_data: str = None) -> tuple[str, str]:
         """
         AI template selection with retry logic and exponential backoff
         """
@@ -977,7 +980,7 @@ Be specific about moves, types, and strategic recommendations.""",
                 if verbose and attempt > 0:
                     print(f"🔄 AI template selection retry {attempt + 1}/{max_retries}")
                 
-                return self._ai_select_template_and_playbook(memory_context, escalation_level, verbose)
+                return self._ai_select_template_and_playbook(memory_context, escalation_level, verbose, image_data)
                 
             except Exception as e:
                 if verbose:
@@ -1002,7 +1005,7 @@ Be specific about moves, types, and strategic recommendations.""",
         # This should never be reached, but safety fallback
         return "exploration_strategy", "navigation"
 
-    def _ai_select_template_and_playbook(self, memory_context: str, escalation_level: str, verbose: bool = False) -> tuple[str, str]:
+    def _ai_select_template_and_playbook(self, memory_context: str, escalation_level: str, verbose: bool = False, image_data: str = None) -> tuple[str, str]:
         """
         Let AI choose the best template and playbook combination based on game context
         
@@ -1020,38 +1023,42 @@ Be specific about moves, types, and strategic recommendations.""",
         
         # Create selection prompt for AI
         selection_prompt = f"""
-# POKEMON AI TEMPLATE & PLAYBOOK SELECTION
+# POKEMON FIRE RED TEMPLATE SELECTION - VISUAL IDENTIFICATION
 
-## Visual Analysis Instructions
-**PRIMARY FOCUS**: Analyze what you can SEE on the game screen to choose the correct template.
+## CRITICAL VISUAL IDENTIFICATION RULE
+**BATTLE SCENE**: Look for a BIG MENU BAR with 4 items and a triangle pointer in the foreground
+**NAVIGATION SCENE**: If you DON'T see the big menu bar with 4 items, it's navigation
 
-**What to Look For**:
-- **Battle Screen**: HP bars, Pokemon sprites, move selection menu, battle text
-- **Overworld Screen**: Character sprite, map/terrain, NPCs, buildings, grass patches  
-- **Menu Screen**: Lists, options, inventory, Pokemon party view
-- **Stuck Pattern**: Same screen as previous turns (escalation: {escalation_level})
+## What You're Actually Looking For
+- **BATTLE = Big menu bar with 4 options (FIGHT/BAG/POKEMON/RUN) + triangle cursor**
+- **NAVIGATION = Small character sprite on terrain, NO big menu bar**
+- **STUCK = Same visual pattern as previous context (escalation: {escalation_level})**
+
+## DO NOT LOOK FOR (these cause false positives):
+- "HP bars" (not always visible in Pokemon Fire Red)
+- "Pokemon sprites" (character sprites exist in navigation too)
+- Generic Pokemon assumptions
 
 ## Recent Context (for reference only)
 {memory_context[:300]}...
 
-## Available Templates (Choose Based on What You See)
+## Templates Available
 {self._format_template_descriptions(available_templates)}
 
-## Available Playbooks (Choose Based on Screen Context)
+## Playbooks Available  
 {self._format_playbook_descriptions(available_playbooks)}
 
-## Selection Criteria
-1. **IF you see battle elements** (HP bars, Pokemon, moves) → Use `battle_analysis` + `battle`
-2. **IF you see overworld/map** (character walking, terrain) → Use `exploration_strategy` + `navigation`  
-3. **IF stuck pattern detected** (escalation ≠ level_1) → Use `stuck_recovery` + `navigation`
-4. **IF menu/inventory visible** → Use appropriate analysis template
+## Selection Logic
+1. **See big menu with 4 items + triangle?** → `battle_analysis` + `battle`
+2. **See small character on terrain, no big menu?** → `exploration_strategy` + `navigation`
+3. **Stuck pattern (escalation ≠ level_1)?** → `stuck_recovery` + `navigation`
 
-**CRITICAL**: Base your decision on VISUAL ELEMENTS you can see, not text keywords.
+**FOCUS**: Look for the menu bar with 4 items. If absent, choose navigation.
 
 Respond ONLY with this format:
 TEMPLATE: template_name
-PLAYBOOK: playbook_name
-REASONING: what visual elements you see that led to this choice
+PLAYBOOK: playbook_name  
+REASONING: describe what you actually see (menu bar presence/absence)
 """
         
         try:
@@ -1069,7 +1076,8 @@ REASONING: what visual elements you see that led to this choice
             provider = get_provider_for_task("template_selection")
             
             llm_response = call_llm(
-                prompt=selection_prompt, 
+                prompt=selection_prompt,
+                image_data=image_data,  # NOW PASSING IMAGE DATA FOR VISUAL ANALYSIS
                 model=model,
                 provider=provider,
                 max_tokens=500

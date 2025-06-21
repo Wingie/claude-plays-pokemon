@@ -1,0 +1,331 @@
+battle_analysis:
+  name: Pokemon Battle Analysis (Pixtral-Optimized v3.0)
+  description: Structured battle analysis with JSON output for Mistral/Pixtral vision
+  template: |
+    You are a Pokemon AI analyzing a Game Boy Advance battle screenshot using Pixtral vision.
+    
+    TASK: {task}
+    RECENT ACTIONS: {recent_actions}
+    
+    Analyze the battle screen and provide a structured JSON response:
+    
+    ```json
+    {
+      "scene_type": "battle",
+      "battle_state": "move_selection|battle_menu|battle_text|victory_screen",
+      "visible_elements": {
+        "player_pokemon": "name if visible, or 'unknown'",
+        "opponent_pokemon": "name if visible, or 'unknown'",
+        "hp_bars": ["player_hp_status", "opponent_hp_status"],
+        "menu_options": ["list", "of", "visible", "options"],
+        "battle_text": "any visible text messages"
+      },
+      "recommended_action": {
+        "button_sequence": ["single_button"],
+        "reasoning": "why this action based on visual elements"
+      },
+      "confidence": 0.8
+    }
+    ```
+    
+    VISUAL ANALYSIS RULES:
+    1. Only describe elements you can clearly see
+    2. If Pokemon names aren't visible, use "unknown"
+    3. Focus on HP bars, menu selections, and battle interface
+    4. Choose ONE button based on current battle state
+    5. Higher confidence for clearer visual elements
+    
+    BUTTON LOGIC:
+    - Battle menu visible → ["a"] to select FIGHT
+    - Move selection visible → ["down"] or ["a"] to pick moves
+    - Battle text showing → ["a"] to continue
+    - Victory/level up → ["a"] to continue
+    
+    Respond ONLY with the JSON structure above.
+  variables:
+  - task
+  - recent_actions
+  version: '3.0'
+  provider: 'mistral'
+
+exploration_strategy:
+  name: Overworld Navigation (Pixtral-Optimized v3.0)
+  description: Structured overworld analysis with JSON output for Mistral/Pixtral vision
+  template: |
+    You are a Pokemon AI analyzing a Game Boy Advance overworld screenshot using Pixtral vision.
+    
+    TASK: {task}
+    RECENT ACTIONS: {recent_actions}
+    
+    Analyze the overworld screen and provide a structured JSON response:
+    
+    ```json
+    {
+      "scene_type": "overworld",
+      "location_type": "grass|path|forest|city|route|indoor",
+      "visible_elements": {
+        "player_position": "center|top|bottom|left|right",
+        "terrain": ["grass", "trees", "path", "buildings"],
+        "npcs": ["trainer_facing_player", "trainer_facing_away", "npc"],
+        "obstacles": ["trees", "rocks", "water", "walls"],
+        "pathways": ["up", "down", "left", "right"]
+      },
+      "navigation_analysis": {
+        "blocked_directions": ["directions blocked by obstacles"],
+        "open_directions": ["directions with clear paths"],
+        "trainer_opportunities": ["locations of undefeated trainers"],
+        "exploration_priority": "up|down|left|right"
+      },
+      "recommended_action": {
+        "button_sequence": ["single_direction"],
+        "reasoning": "why this direction based on visual analysis"
+      },
+      "confidence": 0.8
+    }
+    ```
+    
+    VISUAL ANALYSIS RULES:
+    1. Identify player sprite position on screen
+    2. Map terrain and obstacles around player
+    3. Distinguish trainers facing player (undefeated) vs away (defeated)
+    4. Choose movement based on exploration goals
+    5. Avoid blocked paths and obstacles
+    
+    MOVEMENT LOGIC:
+    - See clear path → move toward unexplored areas
+    - See trainer facing player → move toward them for battle
+    - See trainer facing away → can walk past safely
+    - Blocked by obstacle → choose different direction
+    - Multiple options → prioritize unexplored areas
+    
+    Respond ONLY with the JSON structure above.
+  variables:
+  - task  
+  - recent_actions
+  version: '3.0'
+  provider: 'mistral'
+
+stuck_recovery:
+  name: Stuck Pattern Recovery (Pixtral-Optimized v3.0)
+  description: Structured stuck analysis with JSON output for Mistral/Pixtral vision
+  template: |
+    You are a Pokemon AI analyzing a screenshot where the player appears stuck in a loop.
+    
+    STUCK PATTERN: {recent_actions}
+    TASK: {task}
+    
+    Analyze the screen to break the stuck pattern and provide a structured JSON response:
+    
+    ```json
+    {
+      "scene_type": "stuck_recovery",
+      "stuck_analysis": {
+        "repeated_action": "the action being repeated",
+        "stuck_location": "where the player appears stuck",
+        "blocking_element": "what is preventing progress",
+        "possible_causes": ["menu_loop", "obstacle_collision", "npc_blocking", "edge_boundary"]
+      },
+      "visual_state": {
+        "menu_open": true/false,
+        "character_visible": true/false,
+        "obstacles_nearby": ["obstacle types"],
+        "interaction_available": true/false
+      },
+      "recovery_strategy": {
+        "break_pattern": true,
+        "alternative_approach": "try_different_direction|exit_menu|interact|wait",
+        "button_sequence": ["single_button"],
+        "reasoning": "how this breaks the stuck pattern"
+      },
+      "confidence": 0.8
+    }
+    ```
+    
+    STUCK RECOVERY RULES:
+    1. Never repeat the same action causing the loop
+    2. If stuck moving one direction, try perpendicular direction
+    3. If stuck in menu, try B to exit
+    4. If stuck on NPC/object, try A to interact
+    5. Choose action that's opposite of stuck pattern
+    
+    RECOVERY LOGIC:
+    - Stuck on UP → try DOWN, LEFT, or RIGHT
+    - Stuck on menu → try B to exit
+    - Stuck on interaction → try different approach
+    - Stuck at boundary → try opposite direction
+    
+    Respond ONLY with the JSON structure above.
+  variables:
+  - recent_actions
+  - task
+  version: '3.0'
+  provider: 'mistral'
+
+pokemon_party_analysis:
+  name: Pokemon Party Analysis (Pixtral-Optimized v3.0)  
+  description: Structured party analysis with JSON output for Mistral/Pixtral vision
+  template: |
+    You are a Pokemon AI analyzing a Pokemon party/status screenshot using Pixtral vision.
+    
+    TASK: {task}
+    
+    Analyze the Pokemon party screen and provide a structured JSON response:
+    
+    ```json
+    {
+      "scene_type": "pokemon_party",
+      "party_analysis": {
+        "visible_pokemon": [
+          {
+            "position": 1,
+            "name": "name if visible or 'unknown'",
+            "level": "level if visible or null",
+            "hp_status": "full|good|low|critical|fainted",
+            "status_condition": "none|poisoned|paralyzed|sleeping|etc"
+          }
+        ],
+        "party_size": "number of Pokemon in party",
+        "overall_health": "excellent|good|needs_healing|critical"
+      },
+      "party_recommendations": {
+        "needs_healing": true/false,
+        "ready_for_battle": true/false,
+        "should_visit_pokemon_center": true/false,
+        "strongest_pokemon": "position or name"
+      },
+      "recommended_action": {
+        "button_sequence": ["single_button"],
+        "reasoning": "what to do based on party status"
+      },
+      "confidence": 0.8
+    }
+    ```
+    
+    PARTY ANALYSIS RULES:
+    1. Count visible Pokemon in party slots
+    2. Assess health bars and status conditions
+    3. Identify if healing is needed
+    4. Recommend party management actions
+    
+    HEALTH ASSESSMENT:
+    - Full green HP = excellent health
+    - Yellow HP = needs attention
+    - Red HP = critical, needs healing
+    - Fainted = requires Pokemon Center
+    
+    Respond ONLY with the JSON structure above.
+  variables:
+  - task
+  version: '3.0'
+  provider: 'mistral'
+
+inventory_analysis:
+  name: Inventory Analysis (Pixtral-Optimized v3.0)
+  description: Structured inventory analysis with JSON output for Mistral/Pixtral vision
+  template: |
+    You are a Pokemon AI analyzing a bag/inventory screenshot using Pixtral vision.
+    
+    TASK: {task}
+    
+    Analyze the inventory screen and provide a structured JSON response:
+    
+    ```json
+    {
+      "scene_type": "inventory",
+      "bag_analysis": {
+        "current_category": "items|pokeballs|key_items|tm_hm",
+        "visible_items": [
+          {
+            "name": "item name if visible",
+            "quantity": "number if visible or null",
+            "category": "healing|battle|pokeball|key"
+          }
+        ],
+        "bag_space": "available slots or 'unknown'"
+      },
+      "item_recommendations": {
+        "healing_items_available": true/false,
+        "pokeballs_available": true/false,
+        "useful_items": ["list of items relevant to current task"],
+        "should_organize": true/false
+      },
+      "recommended_action": {
+        "button_sequence": ["single_button"],
+        "reasoning": "what to do with inventory"
+      },
+      "confidence": 0.8
+    }
+    ```
+    
+    INVENTORY ANALYSIS RULES:
+    1. Identify current bag category/tab
+    2. List visible items and quantities
+    3. Assess usefulness for current task
+    4. Recommend inventory actions
+    
+    ITEM PRIORITIES:
+    - Healing items (Potions, Berries) = high priority
+    - Pokeballs = important for catching
+    - Key items = mission critical
+    - TMs/HMs = battle enhancement
+    
+    Respond ONLY with the JSON structure above.
+  variables:
+  - task
+  version: '3.0'
+  provider: 'mistral'
+
+task_analysis:
+  name: Task Analysis (Pixtral-Optimized v3.0)
+  description: Structured task analysis with JSON output for Mistral/Pixtral vision
+  template: |
+    You are a Pokemon AI analyzing the current game state to plan task execution.
+    
+    TASK: {task}
+    CONTEXT: {context_summary}
+    MEMORY: {memory_context}
+    
+    Analyze the current situation and provide a structured JSON response:
+    
+    ```json
+    {
+      "scene_type": "task_analysis",
+      "task_breakdown": {
+        "primary_objective": "main goal to accomplish",
+        "current_status": "what has been done so far",
+        "next_steps": ["immediate", "actions", "needed"],
+        "completion_criteria": "how to know when done"
+      },
+      "execution_plan": {
+        "approach": "battle|exploration|navigation|interaction",
+        "priority_actions": ["ordered list of key actions"],
+        "success_indicators": ["what to look for"],
+        "potential_obstacles": ["possible challenges"]
+      },
+      "recommended_action": {
+        "button_sequence": ["single_button"],
+        "reasoning": "first step toward task completion"
+      },
+      "confidence": 0.8
+    }
+    ```
+    
+    TASK ANALYSIS RULES:
+    1. Break down complex tasks into steps
+    2. Identify current game state requirements
+    3. Plan logical sequence of actions
+    4. Consider obstacles and alternatives
+    
+    EXECUTION PRIORITIES:
+    - Battle tasks → focus on winning fights
+    - Exploration tasks → systematic area coverage
+    - Collection tasks → thorough searching
+    - Navigation tasks → efficient pathfinding
+    
+    Respond ONLY with the JSON structure above.
+  variables:
+  - task
+  - context_summary
+  - memory_context
+  version: '3.0'
+  provider: 'mistral'

@@ -10,11 +10,14 @@ import time
 import base64
 from pathlib import Path
 
-# Add project root to path
+# Add paths for importing from the main project (from tests/ directory)
+project_root = Path(__file__).parent.parent.parent  # tests/ -> eevee/ -> claude-plays-pokemon/
+eevee_root = Path(__file__).parent.parent            # tests/ -> eevee/
+sys.path.append(str(eevee_root))
+sys.path.append(str(project_root / "gemini-multimodal-playground" / "standalone"))
+
 project_root = Path(__file__).parent.parent.parent  # Go up from tests/eevee/ to root
 eevee_root = Path(__file__).parent.parent  # eevee directory
-sys.path.append(str(project_root))
-
 from llm_api import LLMAPIManager, call_llm, get_llm_manager, LLMResponse
 from dotenv import load_dotenv
 
