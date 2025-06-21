@@ -64,10 +64,11 @@ class EeveeAgent:
         self.enable_neo4j = enable_neo4j
         self.enable_okr = enable_okr
         
-        # Model fallback system for rate limiting
-        self.available_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"]
+        # Model fallback system for rate limiting - prioritize models with available quota
+        self.available_models = ["gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-1.5-flash"]
         self.rate_limited_models = set()
-        self.current_model = model
+        # Start with the first available model (should be one with quota)
+        self.current_model = self.available_models[0] if self.available_models else model
         
         # Initialize core components
         self._init_ai_components()
@@ -332,11 +333,17 @@ class EeveeAgent:
                 
                 # Handle 429 rate limit errors with model switching
                 if "429" in error_msg or "rate limit" in error_msg or "quota" in error_msg:
+                    # Enhanced rate limit detection
+                    if self.verbose:
+                        print(f"🔄 Rate limit detected for {self.current_model}")
+                    
                     # Mark current model as rate limited and try to switch
                     self.rate_limited_models.add(self.current_model)
                     
                     if self._switch_to_next_model():
                         # Successfully switched models, retry immediately with new model
+                        if self.verbose:
+                            print(f"✅ Switched to {self.current_model} - retrying request")
                         continue
                     else:
                         # All models rate limited, fall back to waiting
