@@ -45,6 +45,7 @@ try:
     from prompt_manager import PromptManager
     from task_executor import TaskExecutor
     from utils.navigation_enhancement import NavigationEnhancer
+    from diary_generator import PokemonEpisodeDiary
 except ImportError as e:
     print(f"⚠️  Core Eevee components not available: {e}")
     print("Starting with basic implementation...")
@@ -1121,19 +1122,59 @@ Analyze the screenshot and decide your next action to progress toward the goal.
 Use the pokemon_controller tool with a list of button presses."""
     
     def _get_session_summary(self) -> Dict[str, Any]:
-        """Get comprehensive session summary"""
-        return {
+        """Get comprehensive session summary and generate Pokemon episode diary"""
+        end_time = datetime.now().isoformat()
+        
+        # Generate Pokemon episode diary
+        diary_path = None
+        try:
+            print("\n🎬 Generating Pokemon episode diary...")
+            
+            # Create diary generator
+            diary_gen = PokemonEpisodeDiary()
+            
+            # Determine day number
+            day_number = diary_gen.get_next_day_number(str(self.eevee.runs_dir))
+            
+            # Load session data from file for complete diary generation
+            session_data = {}
+            if hasattr(self, 'session_data_file') and self.session_data_file.exists():
+                with open(self.session_data_file, 'r') as f:
+                    session_data = json.load(f)
+            
+            # Generate and save diary
+            if session_data.get("turns"):
+                diary_path = diary_gen.save_episode_diary(
+                    session_data, 
+                    str(self.eevee.runs_dir),
+                    day_number
+                )
+                print(f"📖 Pokemon episode diary saved: {diary_path}")
+                print(f"🎬 Episode #{day_number}: {session_data.get('goal', 'Pokemon Adventure')} completed!")
+            else:
+                print("⚠️  No turn data available for diary generation")
+                
+        except Exception as e:
+            print(f"⚠️  Failed to generate Pokemon episode diary: {e}")
+            if hasattr(self.eevee, 'debug') and self.eevee.debug:
+                import traceback
+                traceback.print_exc()
+        
+        summary = {
             "session_id": self.session.session_id,
             "status": self.session.status,
             "goal": self.session.goal,
             "turns_completed": self.session.turns_completed,
             "max_turns": self.session.max_turns,
             "start_time": self.session.start_time,
-            "end_time": datetime.now().isoformat(),
+            "end_time": end_time,
             "user_interactions": len(self.session.user_interactions),
             "last_analysis": self.session.last_analysis,
-            "last_action": self.session.last_action
+            "last_action": self.session.last_action,
+            "diary_path": diary_path
         }
+        
+        return summary
     
     def _run_periodic_episode_review(self, current_turn: int):
         """Run AI-powered periodic episode review and apply prompt improvements automatically"""
