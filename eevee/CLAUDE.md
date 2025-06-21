@@ -212,3 +212,153 @@ ls -la runs/session_*/session_data.json
 3. **Turn 50+**: Sophisticated context-aware gameplay with minimal errors
 
 This architecture enables true AI self-improvement through dynamic template selection and continuous learning from gameplay experience.
+
+---
+
+# 🔧 DEBUGGING & IMPROVEMENT WORKFLOW
+
+This section documents the collaborative debugging process for improving the Eevee AI system based on real session analysis.
+
+## 📊 **Session Analysis & Issue Detection**
+
+### **Step 1: Monitor Active Sessions**
+```bash
+# Check for current running sessions
+ls -la /Users/wingston/code/claude-plays-pokemon/eevee/runs/session_*
+
+# Monitor the latest session in real-time
+tail -f runs/session_LATEST/session_data.json
+```
+
+### **Step 2: Identify Performance Issues**
+Look for these warning signs in session data:
+- **Template Degradation**: `"ai_directed_auto_select"` → `"fallback_exception"`
+- **Button Spam**: `"button_presses"` with 4+ buttons in single turn
+- **Empty Analysis**: `"ai_analysis": ""` indicates API failures
+- **Stuck Patterns**: Repeated identical actions across turns
+
+### **Example Issue Detection**
+```json
+// GOOD (Turn 20)
+"template_used": "ai_directed_auto_select"
+"ai_analysis": "Observation: The player is in a forest area..."
+
+// BAD (Turn 21) 
+"template_used": "fallback_exception"
+"ai_analysis": ""
+"button_presses": ["down", "down", "down", "down", "down"]
+```
+
+## 🛠️ **Root Cause Analysis Process**
+
+### **Step 3: Trace System Failures**
+1. **AI Template Selection Crash**: Check for `"playbook_to_include referenced before assignment"`
+2. **Gemini API Issues**: Empty responses, rate limiting, timeout errors  
+3. **Button Validation Missing**: 4+ buttons reaching game controller
+4. **Error Propagation**: Single failure cascading to all subsequent turns
+
+### **Step 4: Systematic Fix Implementation**
+
+#### **🔴 Critical Fix 1: Variable Assignment Error**
+```python
+# BEFORE (causes crash)
+if context_type == "auto_select":
+    template_name, playbook_to_include = ai_select_function()
+# playbook_to_include not defined for other contexts!
+
+# AFTER (safe initialization)
+playbook_to_include = "navigation"  # Safe default
+if context_type == "auto_select":
+    template_name, playbook_to_include = ai_select_function()
+```
+
+#### **🔴 Critical Fix 2: Button Press Validation**
+```python
+# Add to eevee_agent.py after button extraction
+if len(result["button_presses"]) > 3:
+    original_count = len(result["button_presses"])
+    result["button_presses"] = result["button_presses"][:3]
+    print(f"⚠️ BUTTON LIMIT ENFORCED: {original_count} → 3")
+```
+
+#### **🟠 High Priority Fix 3: Retry Logic with Exponential Backoff**
+```python
+def ai_select_with_retry(memory_context, escalation_level, verbose=False):
+    for attempt in range(3):
+        try:
+            return ai_select_template(memory_context, escalation_level, verbose)
+        except Exception as e:
+            if attempt == 2:  # Last attempt
+                return "exploration_strategy", "navigation"
+            time.sleep(2 ** attempt)  # Exponential backoff
+```
+
+#### **🟡 Medium Priority Fix 4: Enhanced Error Logging**
+```python
+# Add detailed logging for debugging
+if verbose:
+    print(f"🔍 Memory Context Length: {len(memory_context)}")
+    print(f"📤 Sending selection prompt to Gemini...")
+    print(f"📥 Response Length: {len(response)}")
+```
+
+## 🔄 **Testing & Validation Cycle**
+
+### **Step 5: Real-time Testing**
+```bash
+# Run controlled test session
+python run_eevee.py --goal "explore and win pokemon battles" \
+    --episode-review-frequency 4 --max-turns 12 --verbose
+
+# Monitor for improvements
+tail -f runs/session_LATEST/session_data.json | grep -E "(template_used|button_presses)"
+```
+
+### **Step 6: Validate Fixes**
+- **Button Validation**: Confirm no turns have >3 buttons in JSON
+- **Template Selection**: Verify AI selection working (not fallback_exception)
+- **Error Recovery**: Check retry logic activates on failures
+- **Performance**: Monitor navigation efficiency and success rates
+
+### **Expected Results After Fixes**
+```json
+// FIXED: Proper AI template selection
+"template_used": "ai_directed_auto_select"
+"ai_analysis": "OBSERVATION: I see battle elements..."
+
+// FIXED: Button enforcement working
+"button_presses": ["up", "up", "up"]  // Truncated from 7 to 3
+```
+
+## 📈 **Continuous Improvement Process**
+
+### **Step 7: Automated Analysis Script**
+Use the enhanced `run_learn_fix.sh` to automate the full cycle:
+```bash
+bash run_learn_fix.sh  # Runs sessions + generates analysis prompt + launches Claude Code
+```
+
+### **Step 8: Documentation Updates**
+After each major fix:
+1. Update CLAUDE.md with new architecture details
+2. Document error patterns and their solutions  
+3. Add new testing procedures and validation checks
+4. Record performance improvements and metrics
+
+## 🎯 **Key Success Metrics**
+
+- **Template Selection Reliability**: >95% using AI selection (not fallback)
+- **Button Validation**: 0% of turns with >3 buttons  
+- **API Resilience**: <5% empty analysis responses
+- **Session Completion**: Sessions reach intended turn limits without crashes
+- **Performance Trends**: Navigation efficiency and battle win rates improving
+
+## 💡 **Lessons Learned**
+
+1. **Real-time Monitoring**: Watch active sessions to catch issues immediately
+2. **Progressive Debugging**: Fix critical crashes before optimizing performance  
+3. **Defensive Programming**: Initialize variables, validate inputs, handle errors gracefully
+4. **Collaborative Analysis**: Human insight + AI code analysis = effective debugging
+5. **Systematic Testing**: Test each fix in isolation before combining
+
+This workflow ensures robust, reliable AI Pokemon gameplay with continuous improvement capabilities.

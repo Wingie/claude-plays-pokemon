@@ -240,6 +240,13 @@ class EeveeAgent:
                             for item, button_list in part.function_call.args.items():
                                 for button in button_list:
                                     result["button_presses"].append(button.lower())
+                            
+                            # EMERGENCY: Enforce 2-button maximum for Pokemon navigation
+                            if len(result["button_presses"]) > 2:
+                                original_count = len(result["button_presses"])
+                                result["button_presses"] = result["button_presses"][:2]
+                                print(f"🚨 EMERGENCY BUTTON LIMIT: {original_count} buttons reduced to 2: {result['button_presses']}")
+                                print(f"   Pokemon navigation requires simple movements - complex button sequences indicate template failure")
                 else:
                     # Handle text-only response
                     result["text"] = response.text if response.text else ""

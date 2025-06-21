@@ -231,10 +231,16 @@ class ContinuousGameplay:
                 # Step 4.1: Update session data file for episode reviewer
                 self._update_session_data_file(turn_count, ai_result, execution_result)
                 
-                # Step 4.5: Periodic episode review check
+                # Step 4.5: Emergency/Periodic episode review check
                 if hasattr(self, 'episode_review_frequency') and self.episode_review_frequency > 0:
-                    if turn_count % self.episode_review_frequency == 0:
-                        print(f"\n🔍 PERIODIC EPISODE REVIEW: Analyzing last {self.episode_review_frequency} turns...")
+                    # EMERGENCY: Check for catastrophic performance needing immediate intervention
+                    emergency_review_needed = self._check_emergency_review_needed(turn_count)
+                    
+                    if emergency_review_needed or turn_count % self.episode_review_frequency == 0:
+                        if emergency_review_needed:
+                            print(f"\n🚨 EMERGENCY REVIEW TRIGGERED: Catastrophic performance detected at turn {turn_count}")
+                        else:
+                            print(f"\n🔍 PERIODIC EPISODE REVIEW: Analyzing last {self.episode_review_frequency} turns...")
                         self._run_periodic_episode_review(turn_count)
                 
                 # Step 5: Wait before next turn
@@ -1163,18 +1169,32 @@ Use the pokemon_controller tool with a list of button presses."""
                     self._save_periodic_review(current_turn, improvement_result, recent_turns)
                         
                 else:
-                    # Check if this is actually excellent performance by running basic metrics
-                    quick_metrics = self._get_quick_performance_metrics(recent_turns)
+                    # Use AI-powered performance analysis instead of primitive metrics
+                    ai_performance_result = self._ai_evaluate_performance(recent_turns, current_turn)
                     
-                    if quick_metrics['navigation_efficiency'] > 0.7 and quick_metrics['stuck_patterns'] < 5:
-                        print(f"\n✅ GOOD PERFORMANCE: No prompt improvements needed")
-                        print(f"   Navigation efficiency: {quick_metrics['navigation_efficiency']:.2f}")
-                        print(f"   Stuck patterns: {quick_metrics['stuck_patterns']}")
+                    if ai_performance_result["success"]:
+                        performance_score = ai_performance_result["performance_score"] 
+                        issues = ai_performance_result["issues"]
+                        
+                        if performance_score >= 0.7 and not issues:
+                            print(f"\n✅ AI PERFORMANCE ANALYSIS: Excellent gameplay detected")
+                            print(f"   AI Performance Score: {performance_score:.2f}")
+                            print(f"   Assessment: {ai_performance_result.get('assessment', 'No major issues detected')}")
+                        else:
+                            print(f"\n🔍 AI PERFORMANCE ANALYSIS: Issues identified but no template improvements generated")
+                            print(f"   AI Performance Score: {performance_score:.2f}")
+                            if issues:
+                                print(f"   Issues Detected: {', '.join(issues)}")
+                            print(f"   Assessment: {ai_performance_result.get('assessment', 'Complex patterns require further observation')}")
                     else:
-                        print(f"\n🔍 PERFORMANCE REVIEW: No specific improvements identified by AI")
-                        print(f"   Navigation efficiency: {quick_metrics['navigation_efficiency']:.2f}")
-                        print(f"   Stuck patterns: {quick_metrics['stuck_patterns']}")
-                        print(f"   AI may need longer observation period for improvements")
+                        # Fallback to enhanced statistical analysis if AI analysis fails
+                        enhanced_metrics = self._get_enhanced_performance_metrics(recent_turns)
+                        
+                        print(f"\n🔍 ENHANCED PERFORMANCE REVIEW: AI analysis unavailable, using enhanced metrics")
+                        print(f"   Navigation efficiency: {enhanced_metrics['navigation_efficiency']:.2f}")
+                        print(f"   Complex stuck patterns: {enhanced_metrics['stuck_patterns']}")
+                        print(f"   Oscillation patterns: {enhanced_metrics['oscillations']}")
+                        print(f"   Directional bias: {enhanced_metrics['directional_bias']:.2f}")
             else:
                 print(f"\n❌ AI REVIEW FAILED: {improvement_result.get('message', 'Unknown error')}")
                 if improvement_result.get('error'):
@@ -1216,6 +1236,221 @@ Use the pokemon_controller tool with a list of button presses."""
         return {
             'navigation_efficiency': navigation_efficiency,
             'stuck_patterns': stuck_patterns
+        }
+    
+    def _ai_evaluate_performance(self, recent_turns: List[Dict], current_turn: int) -> Dict[str, Any]:
+        """Use Gemini 2.0 Flash Thinking to analyze Pokemon gameplay performance"""
+        try:
+            # Use enhanced stuck detection for analysis context
+            stuck_turn_indices = self._detect_stuck_patterns_in_turns(recent_turns)
+            
+            # Build comprehensive analysis prompt for Gemini
+            analysis_prompt = self._build_ai_performance_analysis_prompt(recent_turns, stuck_turn_indices, current_turn)
+            
+            # Call Gemini for intelligent performance analysis
+            api_result = self.eevee._call_gemini_api(
+                prompt=analysis_prompt,
+                image_data=None,  # Text-only analysis for now
+                use_tools=False,
+                max_tokens=1500
+            )
+            
+            if api_result["error"]:
+                return {
+                    "success": False,
+                    "error": f"Gemini API failed: {api_result['error']}"
+                }
+            
+            # Parse Gemini's response for performance assessment
+            analysis_text = api_result.get("text", "")
+            return self._parse_ai_performance_response(analysis_text, stuck_turn_indices)
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"AI performance evaluation failed: {e}"
+            }
+    
+    def _build_ai_performance_analysis_prompt(self, recent_turns: List[Dict], stuck_indices: List[int], current_turn: int) -> str:
+        """Build comprehensive prompt for AI performance analysis"""
+        
+        # Extract key gameplay patterns
+        button_summary = []
+        analysis_summary = []
+        
+        for i, turn in enumerate(recent_turns[-10:]):  # Last 10 turns for context
+            turn_num = current_turn - len(recent_turns) + i + 1
+            buttons = turn.get("button_presses", [])
+            analysis = turn.get("ai_analysis", "")[:100]  # First 100 chars
+            
+            stuck_marker = " [STUCK]" if i in stuck_indices else ""
+            button_summary.append(f"Turn {turn_num}: {buttons}{stuck_marker}")
+            
+            if analysis:
+                analysis_summary.append(f"Turn {turn_num}: {analysis}...")
+        
+        # Count pattern types detected by enhanced system
+        pattern_summary = {
+            "exact_repetitions": len(self._detect_exact_repetition_patterns(recent_turns)),
+            "oscillations": len(self._detect_oscillation_patterns(recent_turns)),
+            "multibutton_reps": len(self._detect_multibutton_repetitions(recent_turns)),
+            "directional_bias": len(self._detect_directional_bias_patterns(recent_turns))
+        }
+        
+        return f"""POKEMON GAMEPLAY PERFORMANCE ANALYSIS
+
+You are analyzing a Pokemon AI gameplay session to determine performance quality and identify potential issues.
+
+GAMEPLAY DATA (Last {len(recent_turns)} turns):
+{chr(10).join(button_summary)}
+
+AI REASONING SAMPLES:
+{chr(10).join(analysis_summary[:5])}  
+
+DETECTED PATTERNS:
+- Exact repetitions: {pattern_summary['exact_repetitions']} stuck turns
+- Oscillations (A→B→A→B): {pattern_summary['oscillations']} stuck turns  
+- Multi-button repetitions: {pattern_summary['multibutton_reps']} stuck turns
+- Directional bias: {pattern_summary['directional_bias']} stuck turns
+- Total stuck patterns: {len(stuck_indices)} turns
+
+ANALYSIS REQUIREMENTS:
+
+1. **POKEMON-SPECIFIC ASSESSMENT**:
+   - Corner traps: AI hitting invisible collision boundaries repeatedly
+   - Trainer fixation: Obsessing over unreachable trainers
+   - Oscillation patterns: up→right→up→right cycles indicating spatial confusion  
+   - Progress evaluation: Is the AI making meaningful spatial progress?
+
+2. **TEMPLATE EFFECTIVENESS**:
+   - Are the AI's decisions logical for Pokemon gameplay?
+   - Does the AI understand Pokemon collision mechanics?
+   - Is the AI getting stuck in complex patterns the templates don't handle?
+
+3. **PERFORMANCE SCORING** (0.0 = terrible, 1.0 = excellent):
+   - 0.8-1.0: Efficient navigation, minimal stuck patterns, good progress
+   - 0.5-0.7: Some issues but generally functional
+   - 0.0-0.4: Severely stuck, no meaningful progress
+
+REQUIRED OUTPUT FORMAT:
+PERFORMANCE_SCORE: [0.0-1.0]
+ISSUES: [comma-separated list of specific problems, or "none"]
+ASSESSMENT: [2-3 sentence summary of gameplay quality]
+RECOMMENDATIONS: [specific suggestions for improvement]
+
+Focus on Pokemon-specific gameplay understanding. A score of 0.75 means "good performance with minor issues".
+"""
+    
+    def _parse_ai_performance_response(self, analysis_text: str, stuck_indices: List[int]) -> Dict[str, Any]:
+        """Parse Gemini's performance analysis response"""
+        try:
+            # Extract performance score
+            performance_score = 0.0
+            if "PERFORMANCE_SCORE:" in analysis_text:
+                score_line = analysis_text.split("PERFORMANCE_SCORE:")[1].split("\n")[0].strip()
+                try:
+                    performance_score = float(score_line.replace("[", "").replace("]", ""))
+                    performance_score = max(0.0, min(1.0, performance_score))  # Clamp to 0-1
+                except ValueError:
+                    performance_score = 0.3  # Conservative default
+            
+            # Extract issues
+            issues = []
+            if "ISSUES:" in analysis_text:
+                issues_line = analysis_text.split("ISSUES:")[1].split("\n")[0].strip()
+                if issues_line.lower() not in ["none", "[]", "[none]"]:
+                    issues = [issue.strip() for issue in issues_line.replace("[", "").replace("]", "").split(",")]
+            
+            # Extract assessment
+            assessment = ""
+            if "ASSESSMENT:" in analysis_text:
+                assessment_line = analysis_text.split("ASSESSMENT:")[1].split("RECOMMENDATIONS:")[0].strip()
+                assessment = assessment_line
+            
+            # Extract recommendations
+            recommendations = ""
+            if "RECOMMENDATIONS:" in analysis_text:
+                recommendations = analysis_text.split("RECOMMENDATIONS:")[1].strip()
+            
+            return {
+                "success": True,
+                "performance_score": performance_score,
+                "issues": issues,
+                "assessment": assessment,
+                "recommendations": recommendations,
+                "stuck_patterns_detected": len(stuck_indices),
+                "analysis_text": analysis_text
+            }
+            
+        except Exception as e:
+            # Fallback: if parsing fails, assume poor performance due to complexity
+            return {
+                "success": True,
+                "performance_score": 0.2,  # Conservative - if we can't parse, likely problems
+                "issues": ["analysis_parsing_failed", "complex_patterns_detected"],
+                "assessment": f"Performance analysis parsing failed. Detected {len(stuck_indices)} stuck patterns.",
+                "recommendations": "Improve template handling for complex stuck patterns.",
+                "stuck_patterns_detected": len(stuck_indices),
+                "parse_error": str(e)
+            }
+    
+    def _get_enhanced_performance_metrics(self, recent_turns: List[Dict]) -> Dict[str, Any]:
+        """Enhanced statistical analysis using comprehensive stuck detection (fallback for AI failure)"""
+        if not recent_turns:
+            return {
+                'navigation_efficiency': 0.0, 
+                'stuck_patterns': 0,
+                'oscillations': 0,
+                'directional_bias': 0.0
+            }
+        
+        # Use the new comprehensive stuck detection
+        stuck_indices = self._detect_stuck_patterns_in_turns(recent_turns)
+        
+        # Count different pattern types
+        exact_reps = len(self._detect_exact_repetition_patterns(recent_turns))
+        oscillations = len(self._detect_oscillation_patterns(recent_turns))
+        multibutton_reps = len(self._detect_multibutton_repetitions(recent_turns))
+        directional_bias_turns = len(self._detect_directional_bias_patterns(recent_turns))
+        
+        # Calculate enhanced navigation efficiency
+        total_turns = len(recent_turns)
+        stuck_ratio = len(stuck_indices) / max(1, total_turns)
+        
+        # Diversity of actions (non-stuck turns only)
+        non_stuck_turns = [turn for i, turn in enumerate(recent_turns) if i not in stuck_indices]
+        if non_stuck_turns:
+            unique_actions = len(set(str(turn.get('button_presses', [])) for turn in non_stuck_turns))
+            action_diversity = unique_actions / len(non_stuck_turns)
+        else:
+            action_diversity = 0.0
+        
+        # Enhanced efficiency calculation
+        navigation_efficiency = (1 - stuck_ratio) * 0.7 + action_diversity * 0.3
+        
+        # Directional bias calculation
+        direction_counts = {"up": 0, "down": 0, "left": 0, "right": 0}
+        total_directions = 0
+        
+        for turn in recent_turns:
+            for button in turn.get("button_presses", []):
+                if button in direction_counts:
+                    direction_counts[button] += 1
+                    total_directions += 1
+        
+        max_direction_ratio = max(direction_counts.values()) / max(1, total_directions)
+        
+        return {
+            'navigation_efficiency': navigation_efficiency,
+            'stuck_patterns': len(stuck_indices),
+            'oscillations': oscillations,
+            'directional_bias': max_direction_ratio,
+            'pattern_breakdown': {
+                'exact_repetitions': exact_reps,
+                'oscillations': oscillations,
+                'multibutton_repetitions': multibutton_reps,
+                'directional_bias_turns': directional_bias_turns
+            }
         }
                 
     def _run_ai_powered_review(self, recent_turns: List[Dict], current_turn: int) -> Dict[str, Any]:
@@ -1324,13 +1559,30 @@ Use the pokemon_controller tool with a list of button presses."""
         return template_stats
     
     def _detect_stuck_patterns_in_turns(self, recent_turns: List[Dict]) -> List[int]:
-        """Detect which turn indices are part of stuck/loop patterns"""
+        """Enhanced stuck pattern detection for complex Pokemon movement patterns"""
         stuck_turn_indices = []
         
         if len(recent_turns) < 3:
             return stuck_turn_indices
         
-        # Look for consecutive identical actions (like the ['a'] repeated 3 times we saw)
+        # TYPE 1: Exact consecutive identical button sequences (original detection)
+        stuck_turn_indices.extend(self._detect_exact_repetition_patterns(recent_turns))
+        
+        # TYPE 2: Oscillating patterns (A→B→A→B cycles)
+        stuck_turn_indices.extend(self._detect_oscillation_patterns(recent_turns))
+        
+        # TYPE 3: Multi-button combination repetitions
+        stuck_turn_indices.extend(self._detect_multibutton_repetitions(recent_turns))
+        
+        # TYPE 4: High directional frequency (same direction dominance)
+        stuck_turn_indices.extend(self._detect_directional_bias_patterns(recent_turns))
+        
+        return list(set(stuck_turn_indices))  # Remove duplicates
+    
+    def _detect_exact_repetition_patterns(self, recent_turns: List[Dict]) -> List[int]:
+        """Detect exact consecutive identical button sequences"""
+        stuck_indices = []
+        
         for i in range(len(recent_turns) - 2):
             current_action = recent_turns[i].get("button_presses", [])
             next_action = recent_turns[i + 1].get("button_presses", [])
@@ -1338,9 +1590,78 @@ Use the pokemon_controller tool with a list of button presses."""
             
             # If 3 consecutive turns have the same action, mark them as stuck
             if current_action == next_action == third_action and current_action:
-                stuck_turn_indices.extend([i, i + 1, i + 2])
+                stuck_indices.extend([i, i + 1, i + 2])
         
-        return list(set(stuck_turn_indices))  # Remove duplicates
+        return stuck_indices
+    
+    def _detect_oscillation_patterns(self, recent_turns: List[Dict]) -> List[int]:
+        """Detect A→B→A→B oscillating movement patterns"""
+        stuck_indices = []
+        
+        if len(recent_turns) < 4:
+            return stuck_indices
+        
+        for i in range(len(recent_turns) - 3):
+            actions = []
+            for j in range(4):
+                action = recent_turns[i + j].get("button_presses", [])
+                if action:  # Only consider non-empty actions
+                    actions.append(tuple(action))  # Convert to tuple for comparison
+            
+            # Check for A→B→A→B pattern
+            if len(actions) == 4 and actions[0] == actions[2] and actions[1] == actions[3] and actions[0] != actions[1]:
+                stuck_indices.extend([i, i + 1, i + 2, i + 3])
+        
+        return stuck_indices
+    
+    def _detect_multibutton_repetitions(self, recent_turns: List[Dict]) -> List[int]:
+        """Detect repeated multi-button combinations like ['down', 'right'] * 3"""
+        stuck_indices = []
+        
+        if len(recent_turns) < 3:
+            return stuck_indices
+        
+        for i in range(len(recent_turns) - 2):
+            actions = []
+            for j in range(3):
+                action = recent_turns[i + j].get("button_presses", [])
+                actions.append(tuple(action))  # Convert to tuple for comparison
+            
+            # Check if all three actions are identical and multi-button
+            if len(set(actions)) == 1 and len(actions[0]) >= 2:  # Same action, 2+ buttons
+                stuck_indices.extend([i, i + 1, i + 2])
+        
+        return stuck_indices
+    
+    def _detect_directional_bias_patterns(self, recent_turns: List[Dict]) -> List[int]:
+        """Detect when same direction appears too frequently (directional obsession)"""
+        stuck_indices = []
+        
+        if len(recent_turns) < 6:  # Need at least 6 turns to detect bias
+            return stuck_indices
+        
+        # Count direction frequency in recent turns
+        direction_counts = {"up": 0, "down": 0, "left": 0, "right": 0}
+        total_directional_actions = 0
+        
+        for i, turn in enumerate(recent_turns[-6:]):  # Look at last 6 turns
+            buttons = turn.get("button_presses", [])
+            for button in buttons:
+                if button in direction_counts:
+                    direction_counts[button] += 1
+                    total_directional_actions += 1
+        
+        # If any direction appears >50% of the time, mark recent turns as stuck
+        if total_directional_actions >= 4:  # Need minimum directional actions
+            for direction, count in direction_counts.items():
+                frequency = count / total_directional_actions
+                if frequency > 0.5:  # More than 50% bias toward one direction
+                    # Mark the last 4 turns as stuck due to directional bias
+                    start_idx = max(0, len(recent_turns) - 4)
+                    stuck_indices.extend(range(start_idx, len(recent_turns)))
+                    break
+        
+        return stuck_indices
     
     def _identify_templates_needing_improvement(self, recent_turns: List[Dict], template_stats: Dict[str, Any]) -> List[Dict]:
         """Use AI to identify which templates need improvement based on performance patterns"""
@@ -1369,8 +1690,17 @@ Use the pokemon_controller tool with a list of button presses."""
             if template_name not in valid_templates or stats["failure_count"] == 0:
                 continue
                 
-            # Consider templates with success rate below 70% or multiple failures
-            if stats["success_rate"] < 0.7 or stats["failure_count"] >= 2:
+            # Enhanced criteria: More sensitive to stuck patterns and complex failures
+            # Since we now detect oscillations, directional bias, and multi-button repetitions,
+            # we should lower thresholds to catch subtler performance issues
+            stuck_turns = stats.get("stuck_turns", 0)
+            stuck_ratio = stuck_turns / max(1, stats["usage_count"])
+            
+            # Trigger improvements for:
+            # 1. Success rate below 80% (raised from 70% to be more sensitive)
+            # 2. Any failures detected (lowered from 2 to 1)  
+            # 3. High stuck pattern ratio (>30% of turns)
+            if stats["success_rate"] < 0.8 or stats["failure_count"] >= 1 or stuck_ratio > 0.3:
                 # Map AI-directed template to its base template for improvement
                 base_template = ai_template_mapping.get(template_name, template_name)
                 
@@ -1724,6 +2054,27 @@ Return ONLY the improved template content, ready to replace the current template
                 
         except Exception as e:
             print(f"⚠️ Failed to save periodic review: {e}")
+    
+    def _check_emergency_review_needed(self, current_turn: int) -> bool:
+        """Check if emergency review needed due to catastrophic performance"""
+        # Only check every 6 turns to avoid excessive overhead
+        if current_turn % 6 != 0:
+            return False
+        
+        # Need at least 12 turns to detect patterns
+        if len(self.session_data["turns"]) < 12:
+            return False
+        
+        recent_turns = self.session_data["turns"][-12:]  # Last 12 turns
+        stuck_patterns = self._detect_stuck_patterns_in_turns(recent_turns)
+        stuck_ratio = len(stuck_patterns) / len(recent_turns)
+        
+        # Emergency review if >50% stuck ratio
+        if stuck_ratio > 0.5:
+            print(f"🚨 EMERGENCY REVIEW TRIGGERED: {stuck_ratio:.1%} stuck ratio detected")
+            return True
+        
+        return False
     
     def _log_learning_event(self, turn_number: int, update_result: Dict[str, Any]):
         """Log automatic learning events to runs directory"""

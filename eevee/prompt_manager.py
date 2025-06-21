@@ -763,14 +763,17 @@ Be specific about moves, types, and strategic recommendations.""",
             "escalation_level": escalation_level
         }
         
+        # Initialize playbook_to_include with safe default
+        playbook_to_include = "navigation"
+        
         # Use active template if set, otherwise select based on context
         if self.active_template:
             template_name = self.active_template
         else:
             # Handle AI auto-selection based on memory context
             if context_type == "auto_select":
-                # Let AI choose template and playbook combination
-                template_name, playbook_to_include = self._ai_select_template_and_playbook(
+                # Use retry logic for AI template selection
+                template_name, playbook_to_include = self._ai_select_template_and_playbook_with_retry(
                     memory_context, escalation_level, verbose
                 )
             else:
@@ -836,6 +839,45 @@ Be specific about moves, types, and strategic recommendations.""",
             # Fallback to basic template with playbook
             return self.get_prompt("exploration_strategy", variables, include_playbook=playbook_to_include, verbose=verbose)
     
+    def _ai_select_template_and_playbook_with_retry(self, memory_context: str, escalation_level: str, verbose: bool = False) -> tuple[str, str]:
+        """
+        AI template selection with retry logic and exponential backoff
+        """
+        import time
+        
+        max_retries = 3
+        base_delay = 1.0  # Base delay in seconds
+        
+        for attempt in range(max_retries):
+            try:
+                if verbose and attempt > 0:
+                    print(f"🔄 AI template selection retry {attempt + 1}/{max_retries}")
+                
+                return self._ai_select_template_and_playbook(memory_context, escalation_level, verbose)
+                
+            except Exception as e:
+                if verbose:
+                    print(f"⚠️ AI template selection attempt {attempt + 1} failed: {e}")
+                
+                # If this is the last attempt, return fallback
+                if attempt == max_retries - 1:
+                    if verbose:
+                        print("🚨 All AI template selection attempts failed, using fallback")
+                    # Determine fallback based on escalation level
+                    if escalation_level != "level_1":
+                        return "stuck_recovery", "navigation"
+                    else:
+                        return "exploration_strategy", "navigation"
+                
+                # Exponential backoff delay
+                delay = base_delay * (2 ** attempt)
+                if verbose:
+                    print(f"⏳ Waiting {delay}s before retry...")
+                time.sleep(delay)
+        
+        # This should never be reached, but safety fallback
+        return "exploration_strategy", "navigation"
+
     def _ai_select_template_and_playbook(self, memory_context: str, escalation_level: str, verbose: bool = False) -> tuple[str, str]:
         """
         Let AI choose the best template and playbook combination based on game context
@@ -892,7 +934,17 @@ REASONING: what visual elements you see that led to this choice
             # Use Gemini to select template and playbook
             from gemini_api import send_gemini_request
             
+            if verbose:
+                print(f"🔍 AI Selection Request - Memory Context Length: {len(memory_context)}")
+                print(f"📤 Sending selection prompt to Gemini...")
+            
             response = send_gemini_request(selection_prompt, model="gemini-2.0-flash-exp")
+            
+            if verbose:
+                print(f"📥 Gemini Response Length: {len(response) if response else 0}")
+            
+            if not response or len(response.strip()) < 10:
+                raise ValueError(f"Empty or too short Gemini response: '{response}'")
             
             # Parse AI response
             template_name = self._extract_selection(response, "TEMPLATE:", available_templates, "exploration_strategy")
@@ -902,6 +954,7 @@ REASONING: what visual elements you see that led to this choice
             if verbose:
                 print(f"🤖 AI TEMPLATE SELECTION: {template_name} + playbook/{playbook_name}")
                 print(f"   Reasoning: {reasoning}")
+                print(f"✅ AI template selection successful")
             
             return template_name, playbook_name
             

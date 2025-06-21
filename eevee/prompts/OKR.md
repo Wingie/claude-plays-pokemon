@@ -94,3 +94,17 @@ Ready for Pokemon AI guidance with human-in-the-loop control! 🎮✨
 - 🎯 [08:24:59] 20-turn checkpoint: Excellent navigation - making consistent progress → checkpoint | Progress ratio: 1.00, Issues: 0
 - 🎯 [08:28:21] 20-turn checkpoint: Excellent navigation - making consistent progress → checkpoint | Progress ratio: 1.00, Issues: 0
 - 🎯 [08:57:29] 20-turn checkpoint: Excellent navigation - making consistent progress → checkpoint | Progress ratio: 0.80, Issues: 0
+- 🎯 [09:34:12] 20-turn checkpoint: Moderate navigation - some stuck patterns detected → checkpoint | Progress ratio: 0.35, Issues: 0
+- 🎯 [09:35:44] 20-turn checkpoint: Moderate navigation - some stuck patterns detected → checkpoint | Progress ratio: 0.50, Issues: 0
+- 🎯 [09:37:34] 20-turn checkpoint: Good navigation with minor issues → checkpoint | Progress ratio: 0.65, Issues: 1
+- 🎯 [09:39:07] 20-turn checkpoint: Poor navigation - significant intervention needed → checkpoint | Progress ratio: 0.30, Issues: 1
+- 🎯 [09:40:56] 20-turn checkpoint: Moderate navigation - some stuck patterns detected → checkpoint | Progress ratio: 0.50, Issues: 0
+- 🎯 [09:42:34] 20-turn checkpoint: Moderate navigation - some stuck patterns detected → checkpoint | Progress ratio: 0.50, Issues: 1
+- 🎯 [09:44:08] 20-turn checkpoint: Moderate navigation - some stuck patterns detected → checkpoint | Progress ratio: 0.50, Issues: 1
+- 🎯 [09:45:43] 20-turn checkpoint: Good navigation with minor issues → checkpoint | Progress ratio: 0.70, Issues: 0
+- 🎯 [09:47:25] 20-turn checkpoint: Good navigation with minor issues → checkpoint | Progress ratio: 0.70, Issues: 1
+- 🎯 [10:03:52] 20-turn checkpoint: Good navigation with minor issues → checkpoint | Progress ratio: 0.60, Issues: 0
+- 🎯 [10:05:59] 20-turn checkpoint: Moderate navigation - some stuck patterns detected → checkpoint | Progress ratio: 0.45, Issues: 0
+- 🎯 [10:07:51] 20-turn checkpoint: Good navigation with minor issues → checkpoint | Progress ratio: 0.55, Issues: 0
+- 🎯 [10:09:41] 20-turn checkpoint: Excellent navigation - making consistent progress → checkpoint | Progress ratio: 0.90, Issues: 0
+- 🎯 [10:11:27] 20-turn checkpoint: Good navigation with minor issues → checkpoint | Progress ratio: 0.55, Issues: 1
