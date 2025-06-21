@@ -2492,9 +2492,9 @@ Examples:
     parser.add_argument(
         "--model",
         type=str,
-        default="gemini-1.5-flash",
-        choices=["gemini-pro", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"],
-        help="AI model to use (default: gemini-1.5-flash)"
+        default="gemini-2.0-flash-exp",
+        choices=["gemini-2.0-flash-exp"],
+        help="AI model to use (default: gemini-2.0-flash-exp)"
     )
     
     # Memory and Session Management

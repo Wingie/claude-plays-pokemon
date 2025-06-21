@@ -48,7 +48,7 @@ class EeveeAgent:
     def __init__(
         self, 
         window_title: str = "mGBA - 0.10.5",
-        model: str = "gemini-1.5-flash",
+        model: str = "gemini-2.0-flash-exp",
         memory_session: str = "default",
         verbose: bool = False,
         debug: bool = False,
@@ -65,7 +65,7 @@ class EeveeAgent:
         self.enable_okr = enable_okr
         
         # Model fallback system for rate limiting - prioritize models with available quota
-        self.available_models = ["gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-1.5-flash"]
+        self.available_models = ["gemini-2.0-flash-exp",]# "gemini-1.5-pro", "gemini-1.5-flash"]
         self.rate_limited_models = set()
         # Start with the first available model (should be one with quota)
         self.current_model = self.available_models[0] if self.available_models else model

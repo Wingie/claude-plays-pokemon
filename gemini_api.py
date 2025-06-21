@@ -15,8 +15,8 @@ class GeminiAPI:
         genai.configure(api_key=api_key)
         
         # Available models
-        self.text_model = genai.GenerativeModel('gemini-1.5-flash')
-        self.vision_model = genai.GenerativeModel('gemini-1.5-flash')
+        self.text_model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        self.vision_model = genai.GenerativeModel('gemini-2.0-flash-exp')
         
         # Create messages API
         self.messages = MessageAPI(self)
@@ -202,11 +202,11 @@ def send_gemini_request(prompt: str, model: str = "gemini-2.0-flash-exp") -> str
         # Map model names to actual Gemini models
         model_mapping = {
             "gemini-2.0-flash-exp": "gemini-2.0-flash-exp",
-            "gemini-1.5-flash": "gemini-1.5-flash",
-            "gemini-1.5-pro": "gemini-1.5-pro"
+            # "gemini-1.5-flash": "gemini-1.5-flash",
+            # "gemini-1.5-pro": "gemini-1.5-pro"
         }
         
-        actual_model = model_mapping.get(model, "gemini-1.5-flash")
+        actual_model = model_mapping.get(model, "gemini-2.0-flash-exp")
         
         # Create model and generate response
         gemini_model = genai.GenerativeModel(actual_model)

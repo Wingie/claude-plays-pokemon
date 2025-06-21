@@ -184,7 +184,7 @@ pokemon_function_declaration = FunctionDeclaration(
 ```
 
 4. **Corrected Model Names:**
-- ❌ `"gemini-flash-2.0-exp"` (invalid)
+- ❌ `"gemini-2.0-flash-exp"` (valid)
 - ✅ `"gemini-1.5-flash"` (valid, multimodal support)
 
 **Live Demo Results:**
