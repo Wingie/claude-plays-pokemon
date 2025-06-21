@@ -856,25 +856,36 @@ Be specific about moves, types, and strategic recommendations.""",
         selection_prompt = f"""
 # POKEMON AI TEMPLATE & PLAYBOOK SELECTION
 
-## Current Game Context
-{memory_context[:500]}...
+## Visual Analysis Instructions
+**PRIMARY FOCUS**: Analyze what you can SEE on the game screen to choose the correct template.
 
-## Escalation Level
-{escalation_level}
+**What to Look For**:
+- **Battle Screen**: HP bars, Pokemon sprites, move selection menu, battle text
+- **Overworld Screen**: Character sprite, map/terrain, NPCs, buildings, grass patches  
+- **Menu Screen**: Lists, options, inventory, Pokemon party view
+- **Stuck Pattern**: Same screen as previous turns (escalation: {escalation_level})
 
-## Available Templates
+## Recent Context (for reference only)
+{memory_context[:300]}...
+
+## Available Templates (Choose Based on What You See)
 {self._format_template_descriptions(available_templates)}
 
-## Available Playbooks  
+## Available Playbooks (Choose Based on Screen Context)
 {self._format_playbook_descriptions(available_playbooks)}
 
-## Your Task
-Analyze the game context and choose the BEST template + playbook combination.
+## Selection Criteria
+1. **IF you see battle elements** (HP bars, Pokemon, moves) → Use `battle_analysis` + `battle`
+2. **IF you see overworld/map** (character walking, terrain) → Use `exploration_strategy` + `navigation`  
+3. **IF stuck pattern detected** (escalation ≠ level_1) → Use `stuck_recovery` + `navigation`
+4. **IF menu/inventory visible** → Use appropriate analysis template
+
+**CRITICAL**: Base your decision on VISUAL ELEMENTS you can see, not text keywords.
 
 Respond ONLY with this format:
 TEMPLATE: template_name
 PLAYBOOK: playbook_name
-REASONING: brief explanation
+REASONING: what visual elements you see that led to this choice
 """
         
         try:
@@ -896,15 +907,10 @@ REASONING: brief explanation
             
         except Exception as e:
             if verbose:
-                print(f"⚠️ AI selection failed: {e}, using fallback")
+                print(f"⚠️ AI selection failed: {e}, using neutral fallback")
             
-            # Fallback to keyword-based selection
-            memory_lower = memory_context.lower()
-            if any(keyword in memory_lower for keyword in [
-                "wild", "trainer", "battle", "fight", "hp", "pp", "effective"
-            ]):
-                return "battle_analysis", "battle"
-            elif escalation_level != "level_1":
+            # Pure AI fallback - no keyword detection, just neutral defaults
+            if escalation_level != "level_1":
                 return "stuck_recovery", "navigation"
             else:
                 return "exploration_strategy", "navigation"
