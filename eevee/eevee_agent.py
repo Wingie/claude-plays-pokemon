@@ -184,6 +184,17 @@ class EeveeAgent:
             if self.verbose:
                 print(f"🎯 Task Type: {task_type}")
                 print(f"🤖 Using Model: {model} (Provider: {provider})")
+                print(f"📝 Prompt Length: {len(prompt)} chars")
+                print(f"🖼️ Has Image Data: {'✅' if image_data else '❌'}")
+                if image_data:
+                    print(f"📊 Image Data Length: {len(image_data)} chars")
+                
+                # Log first 500 chars of prompt for debugging (without image data)
+                print("🔍 PROMPT PREVIEW:")
+                print("-" * 60)
+                preview = prompt[:500] + "..." if len(prompt) > 500 else prompt
+                print(preview)
+                print("-" * 60)
             
             response = call_llm(
                 prompt=prompt,

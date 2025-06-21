@@ -1,4 +1,4 @@
-# Pokemon Battle Expert Playbook
+# Ash's Pokemon Battle Knowledge
 
 ## 🎮 **CRITICAL: HOW BATTLES START**
 
@@ -83,7 +83,7 @@
 - **Psychic** → Dark
 - **Normal/Fighting** → Ghost
 
-**SMART MOVE SELECTION ALGORITHM:**
+**ASH'S MOVE SELECTION STRATEGY:**
 
 1. **Identify Move Types**: 
    - Thundershock = Electric
@@ -103,7 +103,7 @@
    - Psyduck = Water
    - Machop = Fighting
 
-3. **Priority System**:
+3. **Priority Order**:
    - **First Priority**: Super effective moves (2x damage)
    - **Second Priority**: Neutral offensive moves  
    - **Third Priority**: Not very effective moves (still damage)

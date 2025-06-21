@@ -5,7 +5,7 @@
 ### How Service Memory Works
 - Tracks locations of all service facilities
 - Remembers shop inventories and prices
-- Learns NPC locations and their functions
+- Learns NPC locations and what they do
 - Maps out optimal routes between services
 
 ### Using Service Memory Effectively
@@ -21,7 +21,7 @@
 
 ## 🏥 POKEMON CENTERS
 
-### Core Functions
+### Main Services
 - **Healing**: Fully restores HP and status of all Pokemon
 - **PC Access**: Manage Pokemon storage and items
 - **Nurse Joy**: Provides healing and sometimes special services

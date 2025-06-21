@@ -15,7 +15,7 @@
 - **Grass areas**: Dark green/textured areas that trigger random encounters
 - **Your job**: Walk through grass areas to level up and catch Pokemon
 
-## 🧠 **DIRECTION MEMORY SYSTEM**
+## 🧠 **ASH'S DIRECTION MEMORY**
 
 ### **How Direction Memory Works**
 - Tracks your last 10 movements to detect patterns
@@ -39,7 +39,7 @@
    - Prefer directions that led to progress before
    - If all else fails, try interacting with the environment
 
-## 🗺️ **SYSTEMATIC AREA EXPLORATION**
+## 🗺️ **ASH'S EXPLORATION APPROACH**
 
 ### **The Pokemon Exploration Loop**
 1. **Enter a new area** (Route, Forest, Cave, etc.)
@@ -52,7 +52,7 @@
 ### **Depth-First Exploration Rules**
 - **Rule 1**: Always follow a path to its end before trying alternatives
 - **Rule 2**: When you hit a dead end, backtrack to the last fork
-- **Rule 3**: Try each branch systematically (up, right, down, left)
+- **Rule 3**: Try each branch carefully (up, right, down, left)
 - **Rule 4**: Don't leave an area until you've tried every possible path
 
 ## 🚫 **COMMON MISTAKES TO AVOID**
@@ -61,11 +61,11 @@
 - ❌ **Try to initiate battles** (they happen automatically)
 - ❌ **Press A to start trainer battles** (battles start when you get close)
 - ❌ **Get stuck in loops** (if direction doesn't work after 2 tries, try different direction)
-- ❌ **Rush to specific locations** (systematic exploration finds everything)
+- ❌ **Rush to specific locations** (thorough exploration finds everything)
 - ❌ **Ignore side paths** (side paths often have trainers and items)
 
 ### **DO**:
-- ✅ **Explore systematically** (visit every possible area)
+- ✅ **Explore thoroughly** (visit every possible area)
 - ✅ **Try different directions** when stuck
 - ✅ **Walk toward trainers** (battles start automatically when close)
 - ✅ **Backtrack when blocked** (find alternative routes)
@@ -110,7 +110,7 @@
 ## 📍 **AREA TYPES & STRATEGIES**
 
 ### **Forests (like Viridian Forest)**
-# 🧭 Advanced Navigation System
+# 🧭 Ash's Advanced Navigation
 
 ## 🔄 Core Navigation Loop
 1. **Assess** current position and surroundings
@@ -135,7 +135,7 @@
 - **Layout**: Linear with branching side paths
 - **Efficient Exploration**:
   - Follow main path first
-  - Explore side branches systematically
+  - Explore side branches thoroughly
   - Use landmarks for orientation
 - **Progression Markers**:
   - Route signs
@@ -153,7 +153,7 @@
   - Watch for ladders/stairs
   - Listen for echo changes
 
-## 🧠 Smart Movement System
+## 🧠 Ash's Smart Movement
 
 ### Direction Memory
 - Tracks last 10 movements
@@ -183,4 +183,4 @@
 - Trainer encounter rate
 - Item discovery rate
 - Time per area
-- The system gets better over time as it learns the game's patterns
+- Ash gets better over time as he learns the game's patterns
