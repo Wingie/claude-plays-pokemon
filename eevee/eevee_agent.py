@@ -102,26 +102,31 @@ class EeveeAgent:
         genai.configure(api_key=api_key)
         self.gemini = genai.GenerativeModel(model_name=self.current_model)
         
-        # Define Pokemon controller tool using Google's format
-        self.pokemon_function_declaration = FunctionDeclaration(
-            name="pokemon_controller",
-            description="Control the Pokémon game using a list of button presses.",
-            parameters={
-                "type": "OBJECT",
-                "properties": {
-                    "button_presses": {
-                        "type": "array",
-                        "items": {
+        # Define Pokemon controller tool - using minimal schema to avoid protobuf issues
+        try:
+            self.pokemon_function_declaration = FunctionDeclaration(
+                name="pokemon_controller",
+                description="Control Pokemon game with button presses",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "buttons": {
                             "type": "string",
-                            "enum": ["up", "down", "left", "right", "a", "b", "start", "select"]
-                        },
-                        "description": "A list of button presses for the GameBoy."
-                    }
-                },
-                "required": ["button_presses"]
-            }
-        )
-        self.pokemon_tool = Tool(function_declarations=[self.pokemon_function_declaration])
+                            "description": "Single button press: up, down, left, right, a, b, start, select"
+                        }
+                    },
+                    "required": ["buttons"]
+                }
+            )
+        except Exception as e:
+            print(f"⚠️  Function declaration failed: {e}")
+            # Fallback: disable tools for this session
+            self.pokemon_function_declaration = None
+        if self.pokemon_function_declaration:
+            self.pokemon_tool = Tool(function_declarations=[self.pokemon_function_declaration])
+        else:
+            self.pokemon_tool = None
+            print("⚠️  Pokemon tool disabled due to function declaration failure")
         
         # Initialize memory system when available
         try:
@@ -211,13 +216,14 @@ class EeveeAgent:
                     })
                 
                 # Call Gemini API with timeout handling
-                if use_tools:
+                if use_tools and self.pokemon_tool:
                     response = self.gemini.generate_content(
                         prompt_parts,
                         generation_config={"max_output_tokens": max_tokens},
                         tools=[self.pokemon_tool]
                     )
                 else:
+                    # Use text-only mode if tools disabled or unavailable
                     response = self.gemini.generate_content(
                         prompt_parts,
                         generation_config={"max_output_tokens": max_tokens}
@@ -230,26 +236,92 @@ class EeveeAgent:
                     "error": None
                 }
                 
+                # DEBUG: Check raw response
+                if self.verbose:
+                    print(f"🔍 DEBUG - Model: {self.current_model}")
+                    print(f"🔍 DEBUG - Prompt Length: {len(prompt)}")
+                    print(f"🔍 DEBUG - Use Tools: {use_tools}")
+                    print(f"🔍 DEBUG - Raw response exists: {bool(response)}")
+                    if response:
+                        print(f"🔍 DEBUG - Response text exists: {bool(response.text)}")
+                        if response.text:
+                            print(f"🔍 DEBUG - Raw response length: {len(response.text)}")
+                            print(f"🔍 DEBUG - First 100 chars: '{response.text[:100]}'")
+                        print(f"🔍 DEBUG - Has candidates: {bool(response.candidates)}")
+                        if response.candidates:
+                            print(f"🔍 DEBUG - Candidate count: {len(response.candidates)}")
+                            if response.candidates[0].content.parts:
+                                print(f"🔍 DEBUG - Parts count: {len(response.candidates[0].content.parts)}")
+                                for i, part in enumerate(response.candidates[0].content.parts):
+                                    print(f"🔍 DEBUG - Part {i}: text={bool(part.text)}, function_call={bool(part.function_call)}")
+                                    if part.text:
+                                        print(f"🔍 DEBUG - Part {i} text length: {len(part.text)}")
+                                    if part.function_call:
+                                        print(f"🔍 DEBUG - Part {i} function: {part.function_call.name}")
+                                        print(f"🔍 DEBUG - Part {i} args: {dict(part.function_call.args)}")
+                
                 if use_tools and response.candidates and response.candidates[0].content.parts:
                     # Handle tool-enabled response
                     for part in response.candidates[0].content.parts:
                         if part.text:
                             result["text"] = part.text
+                            if self.verbose:
+                                print(f"🔍 DEBUG - Tool text part length: {len(part.text)}")
                         elif part.function_call and part.function_call.name == "pokemon_controller":
-                            # Extract button presses
-                            for item, button_list in part.function_call.args.items():
-                                for button in button_list:
-                                    result["button_presses"].append(button.lower())
+                            # Extract single button press from new format
+                            args = dict(part.function_call.args)
+                            if "buttons" in args:
+                                button = args["buttons"].lower().strip()
+                                result["button_presses"].append(button)
                             
-                            # EMERGENCY: Enforce 2-button maximum for Pokemon navigation
-                            if len(result["button_presses"]) > 2:
-                                original_count = len(result["button_presses"])
-                                result["button_presses"] = result["button_presses"][:2]
-                                print(f"🚨 EMERGENCY BUTTON LIMIT: {original_count} buttons reduced to 2: {result['button_presses']}")
-                                print(f"   Pokemon navigation requires simple movements - complex button sequences indicate template failure")
+                            if self.verbose:
+                                print(f"🔍 DEBUG - Function call button: {result['button_presses']}")
+                    
+                    # If we have text but no function calls, parse buttons from text
+                    if result["text"] and not result["button_presses"]:
+                        button_patterns = [
+                            r"press (\w+)", r"button (\w+)", r"use (\w+)",
+                            r"go (\w+)", r"move (\w+)", r"navigate (\w+)"
+                        ]
+                        for pattern in button_patterns:
+                            matches = re.findall(pattern, result["text"].lower())
+                            for match in matches:
+                                if match in ["up", "down", "left", "right", "a", "b", "start", "select"]:
+                                    result["button_presses"].append(match)
+                                    break
+                            if result["button_presses"]:
+                                break
+                        
+                        if self.verbose and result["button_presses"]:
+                            print(f"🔍 DEBUG - Parsed buttons from tools text: {result['button_presses']}")
+                        
+                        # Default fallback if no buttons parsed
+                        if not result["button_presses"]:
+                            result["button_presses"] = ["a"]  # Safe default action
                 else:
-                    # Handle text-only response
+                    # Handle text-only response - parse buttons from text as fallback
                     result["text"] = response.text if response.text else ""
+                    if self.verbose:
+                        print(f"🔍 DEBUG - Text-only response length: {len(result['text'])}")
+                    
+                    # Extract button commands from text response as fallback when tools fail
+                    if result["text"] and not result["button_presses"]:
+                        button_patterns = [
+                            r"press (\w+)", r"button (\w+)", r"use (\w+)",
+                            r"go (\w+)", r"move (\w+)", r"navigate (\w+)"
+                        ]
+                        for pattern in button_patterns:
+                            matches = re.findall(pattern, result["text"].lower())
+                            for match in matches:
+                                if match in ["up", "down", "left", "right", "a", "b", "start", "select"]:
+                                    result["button_presses"].append(match)
+                                    break
+                            if result["button_presses"]:
+                                break
+                        
+                        # Default fallback if no buttons parsed
+                        if not result["button_presses"]:
+                            result["button_presses"] = ["a"]  # Safe default action
                 
                 # Record successful API call
                 self._record_api_success()
@@ -257,6 +329,35 @@ class EeveeAgent:
                 
             except Exception as e:
                 error_msg = str(e).lower()
+                
+                # Enhanced error logging for debugging
+                if self.verbose:
+                    print(f"🚨 API Exception: {e}")
+                    print(f"🔍 Exception type: {type(e)}")
+                    print(f"🔍 Full error message: {str(e)}")
+                
+                # Handle specific error types
+                if "whichoneof" in error_msg:
+                    if self.verbose:
+                        print(f"🚨 Function call parsing error - tools issue detected")
+                    # Return empty result for tools parsing errors
+                    return {
+                        "text": "",
+                        "button_presses": [],
+                        "error": f"Function call parsing error: {e}"
+                    }
+                
+                # Handle image validation errors
+                if "provided image is not valid" in error_msg or "image" in error_msg:
+                    if self.verbose:
+                        print(f"🚨 Image validation error: {e}")
+                        print(f"🔍 Image data provided: {bool(image_data)}")
+                        if image_data:
+                            print(f"🔍 Image data length: {len(image_data)}")
+                    # Try without image for this attempt
+                    if attempt < max_retries - 1:
+                        print(f"⚠️ Retrying without image data...")
+                        return self._call_gemini_api(prompt, image_data=None, use_tools=use_tools, max_tokens=max_tokens)
                 
                 # Handle 429 rate limit errors with model switching
                 if "429" in error_msg or "rate limit" in error_msg or "quota" in error_msg:
