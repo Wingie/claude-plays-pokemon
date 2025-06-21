@@ -35,6 +35,9 @@ try:
     import google.generativeai as genai
     from google.generativeai.types import FunctionDeclaration, Tool
     from dotenv import load_dotenv
+    
+    # Import centralized LLM API
+    from llm_api import call_llm, get_llm_manager
 except ImportError as e:
     print(f"Error importing required modules: {e}")
     sys.exit(1)
@@ -64,11 +67,12 @@ class EeveeAgent:
         self.enable_neo4j = enable_neo4j
         self.enable_okr = enable_okr
         
-        # Model fallback system for rate limiting - prioritize models with available quota
-        self.available_models = ["gemini-2.0-flash-exp",]# "gemini-1.5-pro", "gemini-1.5-flash"]
+        # Use the provided model as the current model
+        self.current_model = model
         self.rate_limited_models = set()
-        # Start with the first available model (should be one with quota)
-        self.current_model = self.available_models[0] if self.available_models else model
+        
+        # Available models will be determined by the LLM provider configuration
+        self.available_models = []  # Will be populated after LLM manager initialization
         
         # Initialize core components
         self._init_ai_components()
@@ -95,39 +99,33 @@ class EeveeAgent:
     
     def _init_ai_components(self):
         """Initialize AI components and APIs"""
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment variables")
-        
-        # Initialize native Gemini API
-        genai.configure(api_key=api_key)
-        self.gemini = genai.GenerativeModel(model_name=self.current_model)
-        
-        # Define Pokemon controller tool - using minimal schema to avoid protobuf issues
+        # Initialize centralized LLM API manager with environment configuration
         try:
-            self.pokemon_function_declaration = FunctionDeclaration(
-                name="pokemon_controller",
-                description="Control Pokemon game with button presses",
-                parameters={
-                    "type": "object",
-                    "properties": {
-                        "buttons": {
-                            "type": "string",
-                            "description": "Single button press: up, down, left, right, a, b, start, select"
-                        }
-                    },
-                    "required": ["buttons"]
-                }
-            )
+            from provider_config import create_llm_manager_with_env_config
+            
+            self.llm_manager = create_llm_manager_with_env_config()
+            if not self.llm_manager:
+                raise ValueError("Failed to create LLM manager with environment configuration")
+            
+            available_providers = self.llm_manager.get_available_providers()
+            current_provider = self.llm_manager.current_provider
+            
+            # Get available models from current provider
+            provider_status = self.llm_manager.get_provider_status()
+            if current_provider in provider_status:
+                self.available_models = provider_status[current_provider]['available_models']
+            
+            if self.verbose:
+                print(f"🤖 LLM API initialized with providers: {available_providers}")
+                print(f"🎯 Using {current_provider.upper()} provider (from .env configuration)")
+                print(f"📋 Available models: {self.available_models}")
+            
+            if not available_providers:
+                raise ValueError("No LLM providers available - check your API keys")
+                
         except Exception as e:
-            print(f"⚠️  Function declaration failed: {e}")
-            # Fallback: disable tools for this session
-            self.pokemon_function_declaration = None
-        if self.pokemon_function_declaration:
-            self.pokemon_tool = Tool(function_declarations=[self.pokemon_function_declaration])
-        else:
-            self.pokemon_tool = None
-            print("⚠️  Pokemon tool disabled due to function declaration failure")
+            print(f"❌ Failed to initialize LLM API: {e}")
+            raise
         
         # Initialize memory system when available
         try:
@@ -180,9 +178,9 @@ class EeveeAgent:
             print("❌ All models are rate limited - waiting for quota reset")
         return False
     
-    def _call_gemini_api(self, prompt: str, image_data: str = None, use_tools: bool = False, max_tokens: int = 1000) -> Dict[str, Any]:
+    def _call_llm_api(self, prompt: str, image_data: str = None, use_tools: bool = False, max_tokens: int = 1000) -> Dict[str, Any]:
         """
-        Unified Gemini API calling method with smart timeout and rate limiting
+        Unified LLM API calling method using centralized API manager
         
         Args:
             prompt: Text prompt to send
@@ -193,195 +191,60 @@ class EeveeAgent:
         Returns:
             Dict with 'text', 'button_presses', and 'error' keys
         """
-        # Check circuit breaker status
-        if self._check_circuit_breaker():
+        try:
+            # Use centralized LLM API
+            response = call_llm(
+                prompt=prompt,
+                image_data=image_data,
+                use_tools=use_tools,
+                max_tokens=max_tokens,
+                model=self.current_model if hasattr(self, 'current_model') else None
+            )
+            
+            # Convert LLMResponse to expected format
+            result = {
+                "text": response.text,
+                "button_presses": response.button_presses,
+                "error": response.error
+            }
+            
+            # Essential API status info only
+            if self.verbose:
+                print(f"📊 API Response: {len(response.text)} chars")
+                print(f"🔧 Provider: {response.provider}")
+                print(f"🔧 Model: {response.model}")
+                if response.response_time:
+                    print(f"⏱️ Response time: {response.response_time:.2f}s")
+                if response.tokens_used:
+                    print(f"📊 Tokens used: {response.tokens_used}")
+            
+            # Enforce button press limits (max 3 buttons)
+            if len(result["button_presses"]) > 3:
+                original_count = len(result["button_presses"])
+                result["button_presses"] = result["button_presses"][:3]
+                if self.verbose:
+                    print(f"⚠️ BUTTON LIMIT ENFORCED: {original_count} → 3")
+            
+            # Default fallback if no buttons
+            if not result["button_presses"] and not result["error"]:
+                result["button_presses"] = ["a"]  # Safe default action
+            
+            return result
+            
+        except Exception as e:
+            if self.verbose:
+                print(f"❌ LLM API call failed: {e}")
+            
             return {
                 "text": "",
-                "button_presses": [],
-                "error": "API circuit breaker is open - too many recent failures"
+                "button_presses": ["a"],  # Safe fallback
+                "error": str(e)
             }
-        
-        max_retries = 3
-        base_delay = 1.0
-        
-        for attempt in range(max_retries):
-            try:
-                # Prepare prompt parts
-                prompt_parts = [prompt]
-                
-                # Add image if provided
-                if image_data:
-                    prompt_parts.append({
-                        "mime_type": "image/jpeg",
-                        "data": base64.b64decode(image_data)
-                    })
-                
-                # Call Gemini API with timeout handling
-                if use_tools and self.pokemon_tool:
-                    response = self.gemini.generate_content(
-                        prompt_parts,
-                        generation_config={"max_output_tokens": max_tokens},
-                        tools=[self.pokemon_tool]
-                    )
-                else:
-                    # Use text-only mode if tools disabled or unavailable
-                    response = self.gemini.generate_content(
-                        prompt_parts,
-                        generation_config={"max_output_tokens": max_tokens}
-                    )
-                
-                # Process response
-                result = {
-                    "text": "",
-                    "button_presses": [],
-                    "error": None
-                }
-                
-                # Essential API status info only
-                if self.verbose:
-                    print(f"📊 API Response: {len(response.text) if response and response.text else 0} chars")
-                    has_tools = bool(response and response.candidates and any(part.function_call for part in response.candidates[0].content.parts if hasattr(part, 'function_call')))
-                    print(f"🔧 Tools used: {'Yes' if has_tools else 'No'}")
-                
-                if use_tools and response.candidates and response.candidates[0].content.parts:
-                    # Handle tool-enabled response
-                    for part in response.candidates[0].content.parts:
-                        if part.text:
-                            result["text"] = part.text
-                        elif part.function_call and part.function_call.name == "pokemon_controller":
-                            # Extract single button press from new format
-                            args = dict(part.function_call.args)
-                            if "buttons" in args:
-                                button = args["buttons"].lower().strip()
-                                result["button_presses"].append(button)
-                    
-                    # If we have text but no function calls, parse buttons from text
-                    if result["text"] and not result["button_presses"]:
-                        button_patterns = [
-                            r"press (\w+)", r"button (\w+)", r"use (\w+)",
-                            r"go (\w+)", r"move (\w+)", r"navigate (\w+)"
-                        ]
-                        for pattern in button_patterns:
-                            matches = re.findall(pattern, result["text"].lower())
-                            for match in matches:
-                                if match in ["up", "down", "left", "right", "a", "b", "start", "select"]:
-                                    result["button_presses"].append(match)
-                                    break
-                            if result["button_presses"]:
-                                break
-                        
-                        
-                        # Default fallback if no buttons parsed
-                        if not result["button_presses"]:
-                            result["button_presses"] = ["a"]  # Safe default action
-                else:
-                    # Handle text-only response - parse buttons from text as fallback
-                    result["text"] = response.text if response.text else ""
-                    
-                    # Extract button commands from text response as fallback when tools fail
-                    if result["text"] and not result["button_presses"]:
-                        button_patterns = [
-                            r"press (\w+)", r"button (\w+)", r"use (\w+)",
-                            r"go (\w+)", r"move (\w+)", r"navigate (\w+)"
-                        ]
-                        for pattern in button_patterns:
-                            matches = re.findall(pattern, result["text"].lower())
-                            for match in matches:
-                                if match in ["up", "down", "left", "right", "a", "b", "start", "select"]:
-                                    result["button_presses"].append(match)
-                                    break
-                            if result["button_presses"]:
-                                break
-                        
-                        # Default fallback if no buttons parsed
-                        if not result["button_presses"]:
-                            result["button_presses"] = ["a"]  # Safe default action
-                
-                # Record successful API call
-                self._record_api_success()
-                return result
-                
-            except Exception as e:
-                error_msg = str(e).lower()
-                
-                # Essential error info
-                if self.verbose:
-                    print(f"🚨 API Exception: {e}")
-                    print(f"🔍 Exception type: {type(e).__name__}")
-                    print(f"🔍 Full error message: {str(e)}")
-                
-                # Handle specific error types
-                if "whichOneof" in error_msg:
-                    if self.verbose:
-                        print(f"🚨 Function call parsing error - tools issue detected")
-                    # Return empty result for tools parsing errors
-                    return {
-                        "text": "",
-                        "button_presses": [],
-                        "error": f"Function call parsing error: {e}"
-                    }
-                
-                # Handle image validation errors
-                if "provided image is not valid" in error_msg or "image" in error_msg:
-                    if self.verbose:
-                        print(f"🚨 Image validation error: {e}")
-                        print(f"📷 Image data: {'Provided' if image_data else 'None'}")
-                    # Try without image for this attempt
-                    if attempt < max_retries - 1:
-                        print(f"⚠️ Retrying without image data...")
-                        return self._call_gemini_api(prompt, image_data=None, use_tools=use_tools, max_tokens=max_tokens)
-                
-                # Handle 429 rate limit errors with model switching
-                if "429" in error_msg or "rate limit" in error_msg or "quota" in error_msg:
-                    # Enhanced rate limit detection
-                    if self.verbose:
-                        print(f"🔄 Rate limit detected for {self.current_model}")
-                    
-                    # Mark current model as rate limited and try to switch
-                    self.rate_limited_models.add(self.current_model)
-                    
-                    if self._switch_to_next_model():
-                        # Successfully switched models, retry immediately with new model
-                        if self.verbose:
-                            print(f"✅ Switched to {self.current_model} - retrying request")
-                        continue
-                    else:
-                        # All models rate limited, fall back to waiting
-                        retry_delay = self._parse_retry_delay(str(e), base_delay * (2 ** attempt))
-                        if self.verbose:
-                            print(f"⚠️ All models rate limited (attempt {attempt + 1}/{max_retries}). Waiting {retry_delay:.1f}s...")
-                        time.sleep(retry_delay)
-                        continue
-                
-                # Handle timeout and connection errors  
-                elif any(keyword in error_msg for keyword in ["timeout", "connection", "network", "temporarily unavailable"]):
-                    if attempt < max_retries - 1:
-                        retry_delay = base_delay * (2 ** attempt)
-                        if self.verbose:
-                            print(f"⚠️ Connection error (attempt {attempt + 1}/{max_retries}). Retrying in {retry_delay:.1f}s...")
-                        time.sleep(retry_delay)
-                        continue
-                
-                # For other errors or final attempt, return error result
-                if self.verbose and attempt == max_retries - 1:
-                    print(f"❌ API call failed after {max_retries} attempts: {e}")
-                
-                # Record API failure for circuit breaker
-                self._record_api_failure()
-                
-                return {
-                    "text": "",
-                    "button_presses": [],
-                    "error": str(e)
-                }
-        
-        # This should never be reached, but included for completeness
-        self._record_api_failure()
-        return {
-            "text": "",
-            "button_presses": [],
-            "error": "Max retries exceeded"
-        }
+    
+    # Keep old method name for backward compatibility
+    def _call_gemini_api(self, prompt: str, image_data: str = None, use_tools: bool = False, max_tokens: int = 1000) -> Dict[str, Any]:
+        """Legacy method - redirects to centralized LLM API"""
+        return self._call_llm_api(prompt, image_data, use_tools, max_tokens)
     
     def _parse_retry_delay(self, error_message: str, default_delay: float) -> float:
         """

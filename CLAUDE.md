@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a comprehensive AI-powered Pokemon gaming project that uses Google Gemini AI to automatically play Pokemon games through multiple emulator interfaces. The project combines multimodal AI reasoning, real-time game control, and advanced emulation technology to create intelligent Pokemon-playing agents.
+This is a comprehensive AI-powered Pokemon gaming project that uses **multi-provider LLM AI** (Google Gemini + Mistral AI) to automatically play Pokemon games through multiple emulator interfaces. The project combines multimodal AI reasoning, real-time game control, advanced emulation technology, and **centralized LLM API system** to create intelligent Pokemon-playing agents with provider flexibility and error resilience.
 
 ## Project Structure
 

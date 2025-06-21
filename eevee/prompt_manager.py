@@ -931,14 +931,29 @@ REASONING: what visual elements you see that led to this choice
 """
         
         try:
-            # Use Gemini to select template and playbook
-            from gemini_api import send_gemini_request
+            # Use centralized LLM API for template selection
+            from llm_api import call_llm
             
             if verbose:
                 print(f"📊 AI Selection - Context: {len(memory_context)} chars")
-                print(f"📤 Sending selection prompt to Gemini...")
+                print(f"📤 Sending selection prompt to LLM API...")
             
-            response = send_gemini_request(selection_prompt, model="gemini-2.0-flash-exp")
+            # Use environment configuration for template selection
+            from provider_config import get_provider_config
+            config = get_provider_config()
+            
+            llm_response = call_llm(
+                prompt=selection_prompt, 
+                model=config.template_selection_model,
+                max_tokens=config.template_selection_max_tokens,
+                # Let the system auto-select provider based on model
+            )
+            
+            # Extract response text and handle errors
+            if llm_response.error:
+                raise Exception(f"LLM API error: {llm_response.error}")
+            
+            response = llm_response.text
             
             if verbose:
                 print(f"📥 Gemini Response Length: {len(response) if response else 0}")

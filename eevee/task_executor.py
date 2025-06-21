@@ -189,26 +189,20 @@ class TaskExecutor:
         analysis_prompt = self._build_step_analysis_prompt(step, context)
         
         try:
-            response = self.agent.gemini.messages.create(
-                model=self.agent.model,
-                messages=[
-                    {"role": "user", "content": analysis_prompt},
-                    {
-                        "role": "user",
-                        "content": [{
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/jpeg",
-                                "data": context["screenshot_data"]
-                            }
-                        }]
-                    }
-                ],
-                max_tokens=800
+            # Use centralized LLM API for screen analysis
+            from llm_api import call_llm
+            
+            llm_response = call_llm(
+                prompt=analysis_prompt,
+                image_data=context["screenshot_data"],
+                max_tokens=800,
+                model=self.agent.current_model if hasattr(self.agent, 'current_model') else None
             )
             
-            analysis = response.content[0].text if response.content else "No analysis generated"
+            if llm_response.error:
+                raise Exception(f"LLM API error: {llm_response.error}")
+            
+            analysis = llm_response.text or "No analysis generated"
             
             return {
                 "status": StepStatus.COMPLETED.value,
@@ -304,26 +298,20 @@ Look at the current screen and determine if the specified condition is satisfied
 Respond with either "CONDITION_MET" or "CONDITION_NOT_MET" followed by a brief explanation."""
         
         try:
-            response = self.agent.gemini.messages.create(
-                model=self.agent.model,
-                messages=[
-                    {"role": "user", "content": condition_prompt},
-                    {
-                        "role": "user",
-                        "content": [{
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/jpeg",
-                                "data": context["screenshot_data"]
-                            }
-                        }]
-                    }
-                ],
-                max_tokens=300
+            # Use centralized LLM API for condition checking
+            from llm_api import call_llm
+            
+            llm_response = call_llm(
+                prompt=condition_prompt,
+                image_data=context["screenshot_data"],
+                max_tokens=300,
+                model=self.agent.current_model if hasattr(self.agent, 'current_model') else None
             )
             
-            analysis = response.content[0].text if response.content else ""
+            if llm_response.error:
+                raise Exception(f"LLM API error: {llm_response.error}")
+            
+            analysis = llm_response.text or ""
             condition_met = "CONDITION_MET" in analysis.upper()
             
             return {
@@ -349,26 +337,20 @@ Respond with either "CONDITION_MET" or "CONDITION_NOT_MET" followed by a brief e
         action_prompt = self._build_action_prompt(step, context)
         
         try:
-            response = self.agent.gemini.messages.create(
-                model=self.agent.model,
-                messages=[
-                    {"role": "user", "content": action_prompt},
-                    {
-                        "role": "user",
-                        "content": [{
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/jpeg",
-                                "data": context["screenshot_data"]
-                            }
-                        }]
-                    }
-                ],
-                max_tokens=1000
+            # Use centralized LLM API for analysis and action
+            from llm_api import call_llm
+            
+            llm_response = call_llm(
+                prompt=action_prompt,
+                image_data=context["screenshot_data"],
+                max_tokens=1000,
+                model=self.agent.current_model if hasattr(self.agent, 'current_model') else None
             )
             
-            analysis = response.content[0].text if response.content else ""
+            if llm_response.error:
+                raise Exception(f"LLM API error: {llm_response.error}")
+            
+            analysis = llm_response.text or ""
             
             # Parse any action recommendations from the analysis
             actions_taken = self._parse_and_execute_actions(analysis)

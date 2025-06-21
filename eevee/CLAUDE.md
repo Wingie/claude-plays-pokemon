@@ -2,7 +2,7 @@
 
 ## 🏗️ Architecture Overview
 
-Eevee v1 is a sophisticated AI-powered Pokemon gameplay system that combines multimodal reasoning, real-time game control, and self-improving prompt templates.
+Eevee v1 is a sophisticated AI-powered Pokemon gameplay system that combines multimodal reasoning, real-time game control, self-improving prompt templates, and **centralized multi-provider LLM API system** supporting both Gemini and Mistral AI providers.
 
 ## 🧩 Core Components
 
@@ -34,6 +34,15 @@ Eevee v1 is a sophisticated AI-powered Pokemon gameplay system that combines mul
 ### **TaskExecutor** (`task_executor.py`)
 - **Primary Role**: Multi-step task decomposition and execution
 - **Key Features**: Natural language task processing, error recovery
+
+### **LLM API System** (`llm_api.py`, `provider_config.py`)
+- **Primary Role**: Centralized AI provider management and API abstraction
+- **Key Features**:
+  - **Multi-Provider Support**: Seamless switching between Gemini and Mistral providers
+  - **Unified Interface**: Single API for all LLM interactions across the system
+  - **Provider Abstraction**: Consistent response format regardless of underlying provider
+  - **Error Resilience**: Circuit breakers, exponential backoff, automatic fallback
+  - **Environment Configuration**: Easy provider switching via `.env` variables
 
 ## 🧠 AI-Directed Template System
 
@@ -130,6 +139,20 @@ eevee/runs/session_TIMESTAMP/
 └── screenshots/              # Visual game state evidence
 ```
 
+### **LLM API System**
+```
+eevee/
+├── llm_api.py                # Centralized LLM API with provider abstraction
+├── provider_config.py        # Environment-based configuration management
+├── .env                      # Provider API keys and configuration
+├── .env.example             # Configuration template and examples
+├── switch_provider.py        # Provider switching demonstration script
+└── tests/
+    ├── test_llm_api.py       # LLM API system tests
+    ├── test_provider_config.py # Configuration system tests
+    └── test_*_migration.py   # Migration validation tests
+```
+
 ## 🎮 Execution Modes
 
 ### **Continuous Gameplay** (Default)
@@ -212,6 +235,163 @@ ls -la runs/session_*/session_data.json
 3. **Turn 50+**: Sophisticated context-aware gameplay with minimal errors
 
 This architecture enables true AI self-improvement through dynamic template selection and continuous learning from gameplay experience.
+
+## 🤖 Multi-Provider LLM API System
+
+### **Architecture Overview**
+The centralized LLM API system provides a unified interface for AI interactions while supporting multiple providers with automatic fallback and error resilience.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Eevee Application Layer                      │
+├─────────────────────────────────────────────────────────────────┤
+│ EeveeAgent │ PromptManager │ TaskExecutor │ ContinuousGameplay │
+├─────────────────────────────────────────────────────────────────┤
+│                  Unified LLM API Interface                     │
+│                     call_llm() function                        │
+├─────────────────────────────────────────────────────────────────┤
+│              LLMAPIManager (Provider Abstraction)              │
+├─────────────────────────────────────────────────────────────────┤
+│  GeminiProvider          │         MistralProvider             │
+│  ├─ gemini-2.0-flash-exp │         ├─ mistral-large-latest     │
+│  ├─ gemini-1.5-pro       │         ├─ pixtral-12b-2409        │
+│  └─ Circuit Breaker      │         └─ Circuit Breaker         │
+├─────────────────────────────────────────────────────────────────┤
+│     Google Gemini API    │         Mistral AI API             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### **Key Features**
+
+#### **🔄 Provider Abstraction**
+- **Unified Interface**: Single `call_llm()` function for all AI interactions
+- **Standardized Response**: Consistent `LLMResponse` format across providers
+- **Provider Switching**: Runtime switching without code changes
+- **Model Selection**: Automatic model selection based on task requirements
+
+#### **🛡️ Error Resilience**
+- **Circuit Breakers**: Prevent cascading failures during API outages
+- **Exponential Backoff**: Smart retry logic with increasing delays
+- **Auto-Fallback**: Automatic provider switching on failures
+- **Rate Limit Handling**: Intelligent 429 error detection and recovery
+
+#### **⚙️ Environment Configuration**
+All provider settings managed via `.env` file:
+```bash
+# Primary provider selection
+LLM_PROVIDER=mistral                    # or 'gemini'
+FALLBACK_PROVIDER=gemini               # Auto-fallback target
+AUTO_FALLBACK=true                     # Enable automatic fallback
+
+# API keys
+GEMINI_API_KEY=your_gemini_key
+MISTRAL_API_KEY=your_mistral_key
+
+# Model preferences  
+TEMPLATE_SELECTION_MODEL=mistral-large-latest
+GAMEPLAY_MODEL=pixtral-12b-2409
+```
+
+### **Provider Capabilities**
+
+#### **Gemini Provider**
+- **Models**: `gemini-2.0-flash-exp`, `gemini-1.5-pro`, `gemini-1.5-flash`
+- **Capabilities**: Text + Vision, Function calling, Fast response times
+- **Best For**: Template selection, complex reasoning tasks
+- **Rate Limits**: Generous free tier, good for development
+
+#### **Mistral Provider**
+- **Models**: `mistral-large-latest` (text), `pixtral-12b-2409` (vision)
+- **Capabilities**: Advanced reasoning, vision analysis, competitive performance
+- **Best For**: Gameplay decisions, screenshot analysis, production use
+- **Rate Limits**: Pay-per-use, cost-effective for production
+
+### **Usage Examples**
+
+#### **Basic API Call**
+```python
+from llm_api import call_llm
+
+# Automatic provider selection based on .env
+response = call_llm(
+    prompt="Analyze this Pokemon battle situation",
+    image_data=screenshot_base64,
+    max_tokens=1000
+)
+
+print(f"Response: {response.text}")
+print(f"Provider: {response.provider}")
+print(f"Model: {response.model}")
+```
+
+#### **Provider-Specific Calls**
+```python
+# Force specific provider
+gemini_response = call_llm(
+    prompt="What move should I use?",
+    provider="gemini",
+    model="gemini-2.0-flash-exp"
+)
+
+mistral_response = call_llm(
+    prompt="Analyze this screenshot",
+    image_data=screenshot,
+    provider="mistral", 
+    model="pixtral-12b-2409"
+)
+```
+
+#### **Easy Provider Switching**
+```bash
+# Switch to Mistral for everything
+export LLM_PROVIDER=mistral
+export TEMPLATE_SELECTION_MODEL=mistral-large-latest
+export GAMEPLAY_MODEL=pixtral-12b-2409
+
+# Switch to Gemini for everything  
+export LLM_PROVIDER=gemini
+export TEMPLATE_SELECTION_MODEL=gemini-2.0-flash-exp
+export GAMEPLAY_MODEL=gemini-2.0-flash-exp
+
+# Hybrid setup (Mistral vision + Gemini text)
+export LLM_PROVIDER=gemini
+export TEMPLATE_SELECTION_MODEL=gemini-2.0-flash-exp
+export GAMEPLAY_MODEL=pixtral-12b-2409
+```
+
+### **Configuration Management**
+
+#### **Quick Configuration Check**
+```bash
+# Show current configuration
+python provider_config.py --show-config
+
+# Validate configuration
+python provider_config.py --validate
+
+# Switch provider temporarily
+python provider_config.py --set-provider mistral
+```
+
+#### **Provider Testing**
+```bash
+# Test all providers and models
+python tests/test_llm_api.py
+
+# Test provider switching
+python switch_provider.py
+
+# Test with Pokemon-specific prompts
+python tests/test_eevee_migration.py
+```
+
+### **Migration Benefits**
+- **✅ Centralized**: All LLM calls go through single API
+- **✅ Multi-Provider**: Support for Gemini + Mistral with easy switching
+- **✅ Resilient**: Circuit breakers and automatic fallback prevent failures
+- **✅ Configurable**: Easy provider switching via environment variables
+- **✅ Tested**: Comprehensive test suite validates all functionality
+- **✅ Backward Compatible**: Existing code continues working without changes
 
 ---
 

@@ -2488,13 +2488,15 @@ Examples:
         help="Force interactive mode (default for continuous gameplay)"
     )
     
-    # AI Model Configuration
+    # AI Model Configuration (uses environment configuration by default)
+    from provider_config import get_provider_config
+    config = get_provider_config()
+    
     parser.add_argument(
         "--model",
         type=str,
-        default="gemini-2.0-flash-exp",
-        choices=["gemini-2.0-flash-exp"],
-        help="AI model to use (default: gemini-2.0-flash-exp)"
+        default=config.gameplay_model,
+        help=f"AI model to use (default from .env: {config.gameplay_model})"
     )
     
     # Memory and Session Management
