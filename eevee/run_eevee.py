@@ -744,7 +744,8 @@ class ContinuousGameplay:
     
     def _determine_ai_context(self, memory_context: str, recent_actions: List[str] = None) -> tuple[str, Dict[str, Any]]:
         """
-        Determine appropriate AI-directed prompt context with enhanced data
+        UPDATED: Let AI choose the appropriate context based on provided data
+        No more hardcoded detection - provide rich context and let AI decide
         
         Args:
             memory_context: Recent memory/gameplay context
@@ -757,25 +758,18 @@ class ContinuousGameplay:
         user_goal = self.session.goal.lower()
         recent_actions = recent_actions or []
         
+        # Provide rich context data for AI to analyze
         context_data = {
-            "battle_context": {},
-            "maze_context": {},
-            "forest_context": {},
-            "cave_context": {}
+            "memory_context": memory_context,
+            "user_goal": user_goal,
+            "recent_actions": recent_actions,
+            "escalation_level": self._get_escalation_level(),
+            "session_turn": getattr(self.session, 'turns_completed', 0)
         }
         
-        # BATTLE CONTEXT (highest priority)
-        if self._detect_battle_context(context_lower):
-            context_data["battle_context"] = {
-                "battle_phase": self._detect_battle_phase(context_lower),
-                "is_gym_battle": any(keyword in context_lower for keyword in ["gym", "leader", "badge"]),
-                "recent_battle_actions": [action for action in recent_actions if action in ['a', 'up', 'down', 'left', 'right']]
-            }
-            return "battle", context_data
-        
-        # EMERGENCY CONTEXT (if stuck patterns detected)
+        # EMERGENCY CONTEXT (only for severe stuck patterns)
         stuck_level = self._get_escalation_level()
-        if stuck_level != "level_1":
+        if stuck_level in ["level_3", "level_4", "level_5"]:  # Only severe stuck patterns
             context_data["emergency_context"] = {
                 "escalation_level": stuck_level,
                 "stuck_patterns": self._analyze_stuck_patterns(recent_actions),
@@ -783,27 +777,9 @@ class ContinuousGameplay:
             }
             return "emergency", context_data
         
-        # MAZE/CAVE CONTEXT
-        if any(keyword in context_lower for keyword in ["cave", "tunnel", "rock", "ladder", "stairs", "level"]):
-            context_data["cave_context"] = {
-                "is_multilevel": any(keyword in context_lower for keyword in ["stairs", "ladder", "level"]),
-                "area_name": self._extract_location_name(context_lower),
-                "rock_formations": "rock" in context_lower
-            }
-            return "maze", context_data
-        
-        # FOREST CONTEXT  
-        elif any(keyword in context_lower for keyword in ["forest", "viridian forest", "trees", "dense"]):
-            context_data["forest_context"] = {
-                "forest_name": self._extract_location_name(context_lower),
-                "is_dense": any(keyword in context_lower for keyword in ["dense", "thick"]),
-                "has_trainers": "trainer" in context_lower
-            }
-            return "navigation", context_data  # Use navigation with forest context
-        
-        # DEFAULT NAVIGATION CONTEXT
-        else:
-            return "navigation", context_data
+        # DEFAULT: Return context data and let AI choose template dynamically
+        # The prompt_manager will use memory_context to select appropriate template
+        return "auto_select", context_data  # AI will analyze context and choose template
     
     def _detect_battle_phase(self, context_lower: str) -> str:
         """Detect current battle phase for context"""
@@ -1019,6 +995,7 @@ class ContinuousGameplay:
                         battle_context=context_data.get('battle_context'),
                         maze_context=context_data.get('maze_context'),
                         escalation_level=self._get_escalation_level(),
+                        memory_context=memory_context,  # Pass memory context for AI template selection
                         verbose=True
                     )
                     
@@ -1368,11 +1345,21 @@ Use the pokemon_controller tool with a list of button presses."""
     def _identify_templates_needing_improvement(self, recent_turns: List[Dict], template_stats: Dict[str, Any]) -> List[Dict]:
         """Use AI to identify which templates need improvement based on performance patterns"""
         
-        # Only consider templates that are actually used in template selection
-        # Get the list of valid template names from _determine_prompt_context
+        # FIXED: Consider templates that are actually used by AI-directed system
+        # The AI-directed system generates template names like "ai_directed_navigation"
         valid_templates = {
+            "ai_directed_navigation", "ai_directed_battle", "ai_directed_maze", "ai_directed_emergency",
+            # Legacy templates (fallback system)
             "battle_analysis", "exploration_strategy", "stuck_recovery", 
             "pokemon_party_analysis", "inventory_analysis", "task_analysis"
+        }
+        
+        # Template mapping: AI-directed templates → base templates for improvement
+        ai_template_mapping = {
+            "ai_directed_navigation": "exploration_strategy",
+            "ai_directed_battle": "battle_analysis", 
+            "ai_directed_maze": "exploration_strategy",
+            "ai_directed_emergency": "stuck_recovery"
         }
         
         # Filter to only templates that have poor performance and are in our valid set
@@ -1384,8 +1371,12 @@ Use the pokemon_controller tool with a list of button presses."""
                 
             # Consider templates with success rate below 70% or multiple failures
             if stats["success_rate"] < 0.7 or stats["failure_count"] >= 2:
+                # Map AI-directed template to its base template for improvement
+                base_template = ai_template_mapping.get(template_name, template_name)
+                
                 candidates.append({
                     "template_name": template_name,
+                    "base_template": base_template,  # Template to actually improve
                     "stats": stats,
                     "failure_turns": stats["failure_turns"][:3]  # Last 3 failures
                 })
@@ -2283,70 +2274,19 @@ def main():
                 print(f"= Turns: {session_summary['turns_completed']}/{session_summary['max_turns']}")
                 print(f"=� User interactions: {session_summary['user_interactions']}")
                 
-                # Trigger episode review if enabled and session completed sufficient turns
-                if args.episode_review_frequency > 0 and session_summary['turns_completed'] >= args.episode_review_frequency:
-                    try:
-                        from episode_reviewer import EpisodeReviewer
-                        reviewer = EpisodeReviewer(eevee_dir)
-                        
-                        # Find the most recent session directory
-                        runs_dir = eevee_dir / "runs"
-                        recent_sessions = sorted(runs_dir.glob("session_*"), key=lambda x: x.stat().st_mtime, reverse=True)
-                        
-                        # Filter to only directories with session_data.json
-                        valid_sessions = [s for s in recent_sessions if s.is_dir() and (s / "session_data.json").exists()]
-                        
-                        if valid_sessions:
-                            latest_session = valid_sessions[0]
-                            print(f"\n🔍 EPISODE REVIEW: Analyzing {session_summary['turns_completed']}-turn session...")
-                            print(f"📊 Session: {latest_session.name}")
-                            
-                            # Generate episode review report
-                            report = reviewer.generate_episode_report(latest_session)
-                            
-                            # Save report to file
-                            report_file = latest_session / "episode_review.md"
-                            with open(report_file, 'w') as f:
-                                f.write(report)
-                            
-                            print(f"📋 Episode review saved: {report_file}")
-                            
-                            # Show key findings
-                            metrics = reviewer.analyze_episode(latest_session)
-                            improvements = reviewer.suggest_prompt_improvements(metrics)
-                            
-                            print(f"\n📈 EPISODE SUMMARY:")
-                            print(f"   Navigation Efficiency: {metrics.navigation_efficiency:.2f}")
-                            print(f"   Battles Won: {metrics.battles_won}")
-                            print(f"   Stuck Patterns: {metrics.stuck_patterns}")
-                            print(f"   Major Achievements: {len(metrics.major_achievements)}")
-                            
-                            if improvements:
-                                print(f"\n🔧 PROMPT IMPROVEMENTS SUGGESTED: {len(improvements)}")
-                                for improvement in improvements[:3]:  # Show top 3
-                                    print(f"   • {improvement.prompt_name} ({improvement.priority} priority)")
-                                    print(f"     {improvement.reasoning}")
-                                
-                                # Apply template updates if enabled
-                                print(f"\n📝 Applying template updates from episode review...")
-                                update_result = reviewer.update_yaml_templates(latest_session, apply_changes=True)
-                                if update_result["success"] and update_result["changes_applied"] > 0:
-                                    # Reload templates after final review
-                                    if eevee.prompt_manager:
-                                        eevee.prompt_manager.reload_templates()
-                                        print(f"🔄 Templates reloaded with improvements for next session")
-                            else:
-                                print(f"\n✅ No prompt improvements needed - excellent performance!")
-                        else:
-                            print(f"\n⚠️ EPISODE REVIEW: No valid session directories found")
-                            print(f"   Searched in: {runs_dir}")
-                            print(f"   Looking for directories matching 'session_*' with session_data.json")
-                        
-                    except Exception as e:
-                        print(f"⚠️ Episode review failed: {e}")
-                        if args.debug:
-                            import traceback
-                            traceback.print_exc()
+                # OLD EPISODE REVIEWER SYSTEM - DISABLED (replaced by AI-powered periodic review)
+                # The new AI-powered review system runs during gameplay every N turns
+                # This old system conflicts with the new one and has been replaced
+                
+                # if args.episode_review_frequency > 0 and session_summary['turns_completed'] >= args.episode_review_frequency:
+                #     try:
+                #         from episode_reviewer import EpisodeReviewer
+                #         reviewer = EpisodeReviewer(eevee_dir)
+                #         [... old episode review code disabled ...]
+                #     except Exception as e:
+                #         print(f"⚠️ Episode review failed: {e}")
+                
+                print(f"\n✅ AI-powered learning system handled prompt improvements during gameplay")
                 
                 # Save session report
                 if args.save_report:

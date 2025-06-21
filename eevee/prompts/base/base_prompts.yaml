@@ -162,19 +162,18 @@ exploration_strategy:
     \ there\n\nIMMEDIATE ACTION (1 button max):\n- IF IN MENU: Follow MENU DETECTION\
     \ protocol above (B to exit)\n- IF CAN MOVE: Choose ONE unexplored direction:\
     \ up, down, left, or right\n- If all nearby areas explored, backtrack and try\
-    \ different branch\n- If you see a trainer, move toward them (battle will start\
-    \ automatically)\n- If path blocked, try alternative route\n- NEVER spam same\
-    \ direction repeatedly\n\nDEPTH-FIRST EXPLORATION RULES:\n1. Always check for\
+    \ different branch\n- If you see a trainer: First attempt to move toward them, but if same direction tried 2+ times, trainer is likely unreachable - try different direction instead\n- If path blocked, try alternative route\n- NEVER spam same direction repeatedly - if direction fails 2+ times, immediately try perpendicular direction\
+    \ - STUCK RECOVERY: If same action repeated 3+ times, try opposite direction\n\nDEPTH-FIRST EXPLORATION RULES:\n1. Always check for\
     \ menus first (B to exit if stuck)\n2. Pick a direction and follow it until you\
     \ can't go further\n3. When blocked, backtrack and try the next available path\n\
-    4. Trainers will battle you automatically - don't try to initiate\n5. Area complete\
+    4. Trainers will battle you automatically when close enough - if moving toward trainer fails 2+ times, explore other areas first\n5. Area complete\
     \ when no more unexplored paths remain\n6. Then find exit to next area or return\
-    \ to previous area\n\nUse pokemon_controller with 3-4 button or more ONLY if you\
-    \ are very confident about the pattern needed to fo to.\n"
+    \ to previous area\n\nCRITICAL: Maximum 1-2 buttons per turn only. Simple exploration needs single directional buttons.\
+    \ Never use 3+ buttons for basic movement. Use pokemon_controller with 1-2 buttons maximum.\n"
   variables:
   - task
   - recent_actions
-  version: '3.0'
+  version: '3.1'
 inventory_analysis:
   name: Inventory and Items Analysis Base
   description: Analyzes Pokemon inventory, items, and bag contents

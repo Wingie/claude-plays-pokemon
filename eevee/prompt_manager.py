@@ -735,6 +735,7 @@ Be specific about moves, types, and strategic recommendations.""",
         battle_context: Dict = None,
         maze_context: Dict = None,
         escalation_level: str = "level_1",
+        memory_context: str = "",
         verbose: bool = False
     ) -> str:
         """
@@ -754,28 +755,37 @@ Be specific about moves, types, and strategic recommendations.""",
             Formatted AI-directed prompt
         """
         
+        # Prepare initial variables FIRST (needed for auto_select template choice)
+        variables = {
+            "task": task,
+            "recent_actions": str(recent_actions or []),
+            "memory_context": memory_context,  # Pass actual memory context for AI selection
+            "escalation_level": escalation_level
+        }
+        
         # Use active template if set, otherwise select based on context
         if self.active_template:
             template_name = self.active_template
         else:
-            # Map AI-directed contexts to actual existing templates
-            context_mapping = {
-                "navigation": "exploration_strategy",
-                "battle": "battle_analysis", 
-                "maze": "exploration_strategy",
-                "emergency": "stuck_recovery"
-            }
-            template_name = context_mapping.get(context_type, "exploration_strategy")
+            # Handle AI auto-selection based on memory context
+            if context_type == "auto_select":
+                # Let AI choose template and playbook combination
+                template_name, playbook_to_include = self._ai_select_template_and_playbook(
+                    memory_context, escalation_level, verbose
+                )
+            else:
+                # Map AI-directed contexts to actual existing templates
+                context_mapping = {
+                    "navigation": "exploration_strategy",
+                    "battle": "battle_analysis", 
+                    "maze": "exploration_strategy",
+                    "emergency": "stuck_recovery"
+                }
+                template_name = context_mapping.get(context_type, "exploration_strategy")
         
         if template_name not in self.base_prompts:
             # Fallback to basic navigation if template not found
             template_name = "exploration_strategy"
-        
-        # Prepare variables based on template type
-        variables = {
-            "task": task,
-            "recent_actions": str(recent_actions or [])
-        }
         
         if "navigation" in template_name:
             variables["available_memories"] = str(available_memories or [])
@@ -790,13 +800,16 @@ Be specific about moves, types, and strategic recommendations.""",
             variables["escalation_level"] = escalation_level
         
         # Determine which playbook to include based on context
-        playbook_mapping = {
-            "navigation": "navigation",
-            "battle": "battle",
-            "maze": "navigation",
-            "emergency": "navigation"
-        }
-        playbook_to_include = playbook_mapping.get(context_type, None)
+        if context_type != "auto_select":
+            # For hardcoded contexts, use original mapping
+            playbook_mapping = {
+                "navigation": "navigation",
+                "battle": "battle",
+                "maze": "navigation",
+                "emergency": "navigation"
+            }
+            playbook_to_include = playbook_mapping.get(context_type, "navigation")
+        # For auto_select, playbook_to_include is already set by _ai_select_template_and_playbook
         
         # Get and format the template with playbook
         template = self.base_prompts[template_name]["template"]
@@ -822,3 +835,118 @@ Be specific about moves, types, and strategic recommendations.""",
                 print(f"⚠️ Template formatting error: {e}")
             # Fallback to basic template with playbook
             return self.get_prompt("exploration_strategy", variables, include_playbook=playbook_to_include, verbose=verbose)
+    
+    def _ai_select_template_and_playbook(self, memory_context: str, escalation_level: str, verbose: bool = False) -> tuple[str, str]:
+        """
+        Let AI choose the best template and playbook combination based on game context
+        
+        Args:
+            memory_context: Current game memory context
+            escalation_level: Stuck pattern escalation level
+            verbose: Enable verbose logging
+            
+        Returns:
+            Tuple of (template_name, playbook_name)
+        """
+        # Get available templates and playbooks
+        available_templates = list(self.base_prompts.keys())
+        available_playbooks = list(self.playbooks.keys())
+        
+        # Create selection prompt for AI
+        selection_prompt = f"""
+# POKEMON AI TEMPLATE & PLAYBOOK SELECTION
+
+## Current Game Context
+{memory_context[:500]}...
+
+## Escalation Level
+{escalation_level}
+
+## Available Templates
+{self._format_template_descriptions(available_templates)}
+
+## Available Playbooks  
+{self._format_playbook_descriptions(available_playbooks)}
+
+## Your Task
+Analyze the game context and choose the BEST template + playbook combination.
+
+Respond ONLY with this format:
+TEMPLATE: template_name
+PLAYBOOK: playbook_name
+REASONING: brief explanation
+"""
+        
+        try:
+            # Use Gemini to select template and playbook
+            from gemini_api import send_gemini_request
+            
+            response = send_gemini_request(selection_prompt, model="gemini-2.0-flash-exp")
+            
+            # Parse AI response
+            template_name = self._extract_selection(response, "TEMPLATE:", available_templates, "exploration_strategy")
+            playbook_name = self._extract_selection(response, "PLAYBOOK:", available_playbooks, "navigation")
+            reasoning = self._extract_selection(response, "REASONING:", [], "AI selection")
+            
+            if verbose:
+                print(f"🤖 AI TEMPLATE SELECTION: {template_name} + playbook/{playbook_name}")
+                print(f"   Reasoning: {reasoning}")
+            
+            return template_name, playbook_name
+            
+        except Exception as e:
+            if verbose:
+                print(f"⚠️ AI selection failed: {e}, using fallback")
+            
+            # Fallback to keyword-based selection
+            memory_lower = memory_context.lower()
+            if any(keyword in memory_lower for keyword in [
+                "wild", "trainer", "battle", "fight", "hp", "pp", "effective"
+            ]):
+                return "battle_analysis", "battle"
+            elif escalation_level != "level_1":
+                return "stuck_recovery", "navigation"
+            else:
+                return "exploration_strategy", "navigation"
+    
+    def _format_template_descriptions(self, templates: list) -> str:
+        """Format template descriptions for AI selection"""
+        descriptions = {
+            "battle_analysis": "Pokemon battle decisions, move selection, type effectiveness",
+            "exploration_strategy": "Overworld navigation, area exploration, pathfinding", 
+            "stuck_recovery": "Breaking out of loops, stuck pattern recovery",
+            "pokemon_party_analysis": "Party management, Pokemon status, healing",
+            "inventory_analysis": "Bag management, item usage, shopping",
+            "task_analysis": "Goal-oriented behavior, task decomposition"
+        }
+        
+        result = []
+        for template in templates:
+            desc = descriptions.get(template, "General purpose template")
+            result.append(f"- {template}: {desc}")
+        return "\n".join(result)
+    
+    def _format_playbook_descriptions(self, playbooks: list) -> str:
+        """Format playbook descriptions for AI selection"""
+        descriptions = {
+            "battle": "Battle strategies, type charts, move effectiveness, gym tactics",
+            "navigation": "Movement patterns, area navigation, stuck recovery techniques",
+            "services": "Pokemon Centers, shops, NPCs, healing locations", 
+            "gyms": "Gym-specific strategies, leader patterns, puzzle solutions"
+        }
+        
+        result = []
+        for playbook in playbooks:
+            desc = descriptions.get(playbook, "General knowledge playbook")
+            result.append(f"- {playbook}: {desc}")
+        return "\n".join(result)
+    
+    def _extract_selection(self, response: str, prefix: str, valid_options: list, fallback: str) -> str:
+        """Extract AI selection from response"""
+        lines = response.split('\n')
+        for line in lines:
+            if line.strip().startswith(prefix):
+                selection = line.replace(prefix, "").strip()
+                if not valid_options or selection in valid_options:
+                    return selection
+        return fallback

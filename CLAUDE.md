@@ -200,7 +200,8 @@ Eevee v1 is the primary interface for AI-powered Pokemon task execution. It prov
 - **Navigation Intelligence**: Route learning, location memory, and pathfinding
 - **OKR Progress Tracking**: Automatic objectives and key results updates
 - **Session Continuity**: Resume gameplay from previous sessions
-- **🧠 AI-Powered Template Learning**: Gemini 2.0 Flash automatically improves prompt templates based on gameplay performance
+- **🧠 AI-Directed Template System**: AI selects appropriate templates (battle, navigation, emergency) based on game context
+- **🔧 Automatic Template Learning**: Gemini 2.0 Flash continuously improves templates based on performance analysis
 
 ### Usage Examples
 ```bash
@@ -222,9 +223,12 @@ python eevee/run_eevee.py "analyze current battle situation and recommend next m
 # Inventory management with real-time monitoring
 python eevee/run_eevee.py "check what healing items I have in my bag" --save-report
 
-# 🧠 AI-POWERED CONTINUOUS LEARNING (NEW!)
-# The system automatically improves its own prompts every N turns
+# 🧠 AI-DIRECTED TEMPLATE LEARNING (FIXED SYSTEM!)
+# AI automatically selects templates and improves them based on performance
 python eevee/run_eevee.py --goal "walk around and win pokemon battles" --verbose --episode-review-frequency 4 --max-turns 12 --no-interactive
+
+# Automated learning script (runs 4-turn + 12-turn sessions + launches Claude Code)
+bash eevee/run_learn_fix.sh
 
 # Long-running self-improvement sessions
 python eevee/run_eevee.py --goal "complete pokemon red" --episode-review-frequency 10 --max-turns 100
@@ -440,20 +444,54 @@ python eevee/run_eevee.py --goal "find hidden items in viridian forest" --episod
 python eevee/run_eevee.py --goal "become pokemon champion" --episode-review-frequency 20 --max-turns 500
 ```
 
-#### **🔧 Template Selection Integration** 
-The learning system only improves templates that are actually used:
-- `battle_analysis` - Pokemon battle decisions
-- `exploration_strategy` - Overworld navigation
-- `stuck_recovery` - Loop and stuck pattern handling
-- `pokemon_party_analysis` - Party management
-- `task_analysis` - Goal-oriented behavior
+#### **🤖 AI-Directed Template System (UPDATED ARCHITECTURE)**
 
-**Never** tries to improve unused or fallback templates, ensuring focused learning.
+**How It Works:**
+1. **AI Context Analysis**: Memory context analyzed by AI to choose template type
+2. **Dynamic Template Selection**: AI picks `battle_analysis`, `exploration_strategy`, or `stuck_recovery`
+3. **Real Template Names**: System uses `ai_directed_battle`, `ai_directed_navigation`, etc.
+4. **Template Mapping**: Learning system maps AI-directed → base templates for improvement
+
+**Template Flow:**
+```
+Memory Context → AI Analysis → Template Selection → Template Mapping → Learning
+"Wild Ratata!" → Battle Context → ai_directed_battle → battle_analysis → Improvement
+"Grassy area..." → Navigation → ai_directed_navigation → exploration_strategy → Improvement
+```
+
+**Key Fix Applied:**
+- ✅ **Template Name Alignment**: Learning system now recognizes AI-directed template names
+- ✅ **True AI Selection**: No hardcoded battle detection - AI chooses based on context
+- ✅ **Single Review System**: Removed conflicting old episode reviewer
+- ✅ **Automated Script**: `run_learn_fix.sh` for continuous learning cycles
+
+## 🚀 Automated Learning Script
+
+**Quick Start:**
+```bash
+# Run automated learning cycles + launch Claude Code for analysis
+bash eevee/run_learn_fix.sh
+```
+
+**What It Does:**
+1. **Session 1**: 4-turn quick learning cycle
+2. **Session 2**: 12-turn extended learning cycle  
+3. **Analysis**: Shows recent sessions and template updates
+4. **Claude Code**: Auto-launches for immediate analysis
+
+**Monitoring:**
+```bash
+# Watch template improvements in real-time
+tail -f eevee/runs/session_*/periodic_review_turn_*.md
+
+# Check if templates are being updated
+ls -la eevee/prompts/base/base_prompts.yaml
+```
 
 ### Expected Performance Evolution
-- **Hour 1**: Basic gameplay with occasional stuck patterns
-- **Hour 2-3**: Templates learn to avoid common failure modes  
-- **Hour 4+**: Sophisticated gameplay with context-aware decision making
-- **Day 1+**: Expert-level Pokemon strategy with minimal human intervention
+- **First Run**: AI learns to recognize battle vs navigation contexts  
+- **5-10 Runs**: Templates improve for common failure patterns
+- **20+ Runs**: Sophisticated context-aware gameplay with minimal errors
+- **100+ Runs**: Expert-level Pokemon strategy with human-like decision making
 
-This system represents the cutting edge of AI self-improvement for game automation!
+**This system now truly represents AI self-improvement through dynamic template selection!**

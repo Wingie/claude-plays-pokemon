@@ -177,3 +177,42 @@ class ResponseObject:
                 'id': '1',  # Dummy ID
                 'input': {'action': action}
             }))
+
+
+def send_gemini_request(prompt: str, model: str = "gemini-2.0-flash-exp") -> str:
+    """
+    Send a text-only request to Gemini API
+    
+    Args:
+        prompt (str): The text prompt to send
+        model (str): The model to use (defaults to gemini-2.0-flash-exp)
+        
+    Returns:
+        str: The response text from Gemini
+    """
+    try:
+        # Get API key
+        api_key = os.getenv('GEMINI_API_KEY')
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY environment variable not set")
+        
+        # Configure and create model
+        genai.configure(api_key=api_key)
+        
+        # Map model names to actual Gemini models
+        model_mapping = {
+            "gemini-2.0-flash-exp": "gemini-2.0-flash-exp",
+            "gemini-1.5-flash": "gemini-1.5-flash",
+            "gemini-1.5-pro": "gemini-1.5-pro"
+        }
+        
+        actual_model = model_mapping.get(model, "gemini-1.5-flash")
+        
+        # Create model and generate response
+        gemini_model = genai.GenerativeModel(actual_model)
+        response = gemini_model.generate_content(prompt)
+        
+        return response.text
+        
+    except Exception as e:
+        raise Exception(f"Gemini API request failed: {e}")
