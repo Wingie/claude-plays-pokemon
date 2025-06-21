@@ -935,7 +935,7 @@ REASONING: what visual elements you see that led to this choice
             from gemini_api import send_gemini_request
             
             if verbose:
-                print(f"🔍 AI Selection Request - Memory Context Length: {len(memory_context)}")
+                print(f"📊 AI Selection - Context: {len(memory_context)} chars")
                 print(f"📤 Sending selection prompt to Gemini...")
             
             response = send_gemini_request(selection_prompt, model="gemini-2.0-flash-exp")

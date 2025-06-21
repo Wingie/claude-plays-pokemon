@@ -236,46 +236,23 @@ class EeveeAgent:
                     "error": None
                 }
                 
-                # DEBUG: Check raw response
+                # Essential API status info only
                 if self.verbose:
-                    print(f"🔍 DEBUG - Model: {self.current_model}")
-                    print(f"🔍 DEBUG - Prompt Length: {len(prompt)}")
-                    print(f"🔍 DEBUG - Use Tools: {use_tools}")
-                    print(f"🔍 DEBUG - Raw response exists: {bool(response)}")
-                    if response:
-                        print(f"🔍 DEBUG - Response text exists: {bool(response.text)}")
-                        if response.text:
-                            print(f"🔍 DEBUG - Raw response length: {len(response.text)}")
-                            print(f"🔍 DEBUG - First 100 chars: '{response.text[:100]}'")
-                        print(f"🔍 DEBUG - Has candidates: {bool(response.candidates)}")
-                        if response.candidates:
-                            print(f"🔍 DEBUG - Candidate count: {len(response.candidates)}")
-                            if response.candidates[0].content.parts:
-                                print(f"🔍 DEBUG - Parts count: {len(response.candidates[0].content.parts)}")
-                                for i, part in enumerate(response.candidates[0].content.parts):
-                                    print(f"🔍 DEBUG - Part {i}: text={bool(part.text)}, function_call={bool(part.function_call)}")
-                                    if part.text:
-                                        print(f"🔍 DEBUG - Part {i} text length: {len(part.text)}")
-                                    if part.function_call:
-                                        print(f"🔍 DEBUG - Part {i} function: {part.function_call.name}")
-                                        print(f"🔍 DEBUG - Part {i} args: {dict(part.function_call.args)}")
+                    print(f"📊 API Response: {len(response.text) if response and response.text else 0} chars")
+                    has_tools = bool(response and response.candidates and any(part.function_call for part in response.candidates[0].content.parts if hasattr(part, 'function_call')))
+                    print(f"🔧 Tools used: {'Yes' if has_tools else 'No'}")
                 
                 if use_tools and response.candidates and response.candidates[0].content.parts:
                     # Handle tool-enabled response
                     for part in response.candidates[0].content.parts:
                         if part.text:
                             result["text"] = part.text
-                            if self.verbose:
-                                print(f"🔍 DEBUG - Tool text part length: {len(part.text)}")
                         elif part.function_call and part.function_call.name == "pokemon_controller":
                             # Extract single button press from new format
                             args = dict(part.function_call.args)
                             if "buttons" in args:
                                 button = args["buttons"].lower().strip()
                                 result["button_presses"].append(button)
-                            
-                            if self.verbose:
-                                print(f"🔍 DEBUG - Function call button: {result['button_presses']}")
                     
                     # If we have text but no function calls, parse buttons from text
                     if result["text"] and not result["button_presses"]:
@@ -292,8 +269,6 @@ class EeveeAgent:
                             if result["button_presses"]:
                                 break
                         
-                        if self.verbose and result["button_presses"]:
-                            print(f"🔍 DEBUG - Parsed buttons from tools text: {result['button_presses']}")
                         
                         # Default fallback if no buttons parsed
                         if not result["button_presses"]:
@@ -301,8 +276,6 @@ class EeveeAgent:
                 else:
                     # Handle text-only response - parse buttons from text as fallback
                     result["text"] = response.text if response.text else ""
-                    if self.verbose:
-                        print(f"🔍 DEBUG - Text-only response length: {len(result['text'])}")
                     
                     # Extract button commands from text response as fallback when tools fail
                     if result["text"] and not result["button_presses"]:
@@ -330,14 +303,14 @@ class EeveeAgent:
             except Exception as e:
                 error_msg = str(e).lower()
                 
-                # Enhanced error logging for debugging
+                # Essential error info
                 if self.verbose:
                     print(f"🚨 API Exception: {e}")
-                    print(f"🔍 Exception type: {type(e)}")
+                    print(f"🔍 Exception type: {type(e).__name__}")
                     print(f"🔍 Full error message: {str(e)}")
                 
                 # Handle specific error types
-                if "whichoneof" in error_msg:
+                if "whichOneof" in error_msg:
                     if self.verbose:
                         print(f"🚨 Function call parsing error - tools issue detected")
                     # Return empty result for tools parsing errors
@@ -351,9 +324,7 @@ class EeveeAgent:
                 if "provided image is not valid" in error_msg or "image" in error_msg:
                     if self.verbose:
                         print(f"🚨 Image validation error: {e}")
-                        print(f"🔍 Image data provided: {bool(image_data)}")
-                        if image_data:
-                            print(f"🔍 Image data length: {len(image_data)}")
+                        print(f"📷 Image data: {'Provided' if image_data else 'None'}")
                     # Try without image for this attempt
                     if attempt < max_retries - 1:
                         print(f"⚠️ Retrying without image data...")
@@ -1497,14 +1468,12 @@ Format your response with clear sections addressing the task requirements."""
                 coord_data = game_context.get("coordinate_debug", {})
                 if coord_data.get("valid"):
                     coordinate_context = f"""
-**🎯 COORDINATE DEBUG DATA:**
-- **Position:** ({coord_data.get('x')}, {coord_data.get('y')})
-- **Method:** {coord_data.get('method', 'unknown')}
-- **Status:** ✅ Valid coordinate reading
-- **Debug note:** Use for position validation, not primary navigation"""
+**POSITION DATA:**
+- **Current Position:** ({coord_data.get('x')}, {coord_data.get('y')})
+- **Status:** ✅ Position available for reference"""
                 elif coord_data.get("error"):
                     coordinate_context = f"""
-**🔧 COORDINATE DEBUG:** ❌ {coord_data.get('error')} (Visual navigation only)"""
+**POSITION:** ❌ Position unavailable - using visual navigation"""
 
                 ai_prompt = f"""# Enhanced Pokemon Expert Agent - Continuous Gameplay
 

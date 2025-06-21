@@ -241,7 +241,7 @@ class ContinuousGameplay:
                         if emergency_review_needed:
                             print(f"\n🚨 EMERGENCY REVIEW TRIGGERED: Catastrophic performance detected at turn {turn_count}")
                         else:
-                            print(f"\n🔍 PERIODIC EPISODE REVIEW: Analyzing last {self.episode_review_frequency} turns...")
+                            print(f"\n📊 PERIODIC REVIEW: Analyzing last {self.episode_review_frequency} turns...")
                         self._run_periodic_episode_review(turn_count)
                 
                 # Step 5: Wait before next turn
@@ -323,12 +323,10 @@ class ContinuousGameplay:
             analysis_text = api_result.get("text", "No analysis provided")
             button_sequence = api_result.get("button_presses", ["a"])
             
-            # DEBUG: Check what we got from API
+            # Essential info only  
             if self.eevee.verbose:
-                print(f"🔍 DEBUG - API Response Length: {len(analysis_text)}")
-                print(f"🔍 DEBUG - Has button_presses: {bool(api_result.get('button_presses'))}")
-                if len(analysis_text) < 50:
-                    print(f"🔍 DEBUG - Short response: '{analysis_text}'")
+                print(f"📊 API Response: {len(analysis_text)} chars")
+                print(f"🔧 Actions provided: {'Yes' if api_result.get('button_presses') else 'No'}")
             
             # Always show enhanced analysis logging for better debugging
             self._log_enhanced_analysis(turn_number, analysis_text, button_sequence)
@@ -381,12 +379,15 @@ class ContinuousGameplay:
             print(f"⚠️ No valid buttons found, using default 'b' (exit menus)")
             validated_actions = ['b']
         
-        # LOOP DETECTION: Track patterns for informational purposes only
+        # ENHANCED LOOP DETECTION: Track patterns and apply automatic diversification
         if not hasattr(self, '_last_three_actions'):
             self._last_three_actions = []
         self._last_three_actions.append(validated_actions)
         if len(self._last_three_actions) > 3:
             self._last_three_actions.pop(0)
+        
+        # Automatic loop breaking - diversify when stuck
+        validated_actions = self._apply_automatic_loop_breaking(validated_actions)
         
         # INFORMATION ONLY: Alert about repetitive patterns without overriding
         if hasattr(self, '_last_three_actions') and len(self._last_three_actions) >= 3:
@@ -553,14 +554,122 @@ class ContinuousGameplay:
         print(f"\n=� Or type any Pokemon task for the AI to consider")
     
     def _get_memory_context(self) -> str:
-        """Get relevant memory context for AI"""
-        if not self.eevee.memory:
+        """Get relevant memory context for AI with spatial memory"""
+        context_parts = []
+        
+        # Get general memory context
+        if self.eevee.memory:
+            try:
+                general_context = self.eevee.memory.get_recent_gameplay_summary(limit=5)
+                if general_context:
+                    context_parts.append(general_context)
+            except:
+                pass
+        
+        # Add spatial memory to prevent repetitive actions
+        spatial_memory = self._build_spatial_memory()
+        if spatial_memory:
+            context_parts.append(spatial_memory)
+        
+        return "\n".join(context_parts) if context_parts else ""
+    
+    def _build_spatial_memory(self) -> str:
+        """Build spatial memory to prevent repetitive actions"""
+        if not hasattr(self, 'recent_turns') or not self.recent_turns:
             return ""
         
-        try:
-            return self.eevee.memory.get_recent_gameplay_summary(limit=5)
-        except:
-            return ""
+        memory_parts = []
+        recent_turns = self.recent_turns[-5:]  # Analyze last 5 turns
+        
+        # Track item collection attempts
+        item_attempts = []
+        repeated_movements = []
+        
+        for turn in recent_turns:
+            observation = turn.get("observation", "").lower()
+            actions = turn.get("action", [])
+            
+            # Detect item collection attempts
+            if any(keyword in observation for keyword in ["pokeball", "poke ball", "item", "pick up"]):
+                item_attempts.append({
+                    "turn": turn.get("turn"),
+                    "action": actions,
+                    "observation_snippet": observation[:100] + "..." if len(observation) > 100 else observation
+                })
+            
+            # Detect repeated directional movements
+            if actions and len(actions) == 1 and actions[0] in ["up", "down", "left", "right"]:
+                repeated_movements.append(actions[0])
+        
+        # Build warnings about repeated item attempts
+        if len(item_attempts) >= 2:
+            memory_parts.append("🚨 SPATIAL MEMORY - ITEM COLLECTION:")
+            memory_parts.append(f"   • You've attempted to collect items {len(item_attempts)} times recently")
+            memory_parts.append("   • If the item is still visible, try a different approach or move to explore other areas")
+            memory_parts.append("   • Avoid repeating the same movement toward items that may already be collected")
+        
+        # Build warnings about movement loops
+        if len(repeated_movements) >= 3:
+            from collections import Counter
+            movement_counts = Counter(repeated_movements[-4:])  # Last 4 movements
+            most_common = movement_counts.most_common(1)[0]
+            if most_common[1] >= 3:
+                memory_parts.append("🚨 SPATIAL MEMORY - MOVEMENT LOOP:")
+                memory_parts.append(f"   • You've pressed '{most_common[0]}' {most_common[1]} times recently")
+                memory_parts.append("   • Try a different direction or consider using 'A' to interact")
+        
+        return "\n".join(memory_parts) if memory_parts else ""
+    
+    def _apply_automatic_loop_breaking(self, proposed_actions: List[str]) -> List[str]:
+        """Automatically break loops by diversifying actions when stuck patterns detected"""
+        if not hasattr(self, '_last_three_actions') or len(self._last_three_actions) < 2:
+            return proposed_actions
+        
+        # Check if we're about to repeat the same action 3+ times
+        recent_actions = [str(action) for action in self._last_three_actions[-2:]]
+        proposed_action_str = str(proposed_actions)
+        
+        # If last 2 actions were identical and we're about to do the same again
+        if len(recent_actions) >= 2 and all(action == proposed_action_str for action in recent_actions):
+            print(f"🔧 LOOP BREAKER: Detected 3x consecutive {proposed_actions}, applying diversification")
+            return self._get_diversified_action(proposed_actions)
+        
+        # Check for simple oscillation (A→B→A pattern)
+        if len(self._last_three_actions) >= 2:
+            last_action = str(self._last_three_actions[-1])
+            second_last_action = str(self._last_three_actions[-2])
+            if (last_action == proposed_action_str and 
+                last_action != second_last_action and 
+                last_action in ["['up']", "['down']", "['left']", "['right']"]):
+                print(f"🔧 LOOP BREAKER: Detected oscillation pattern, applying diversification")
+                return self._get_diversified_action(proposed_actions)
+        
+        return proposed_actions
+    
+    def _get_diversified_action(self, stuck_actions: List[str]) -> List[str]:
+        """Get a diversified action to break out of loops"""
+        stuck_action = stuck_actions[0] if stuck_actions else "up"
+        
+        # If stuck on movement, try perpendicular directions first, then interaction
+        if stuck_action in ["up", "down"]:
+            alternatives = ["left", "right", "a", "b"]
+        elif stuck_action in ["left", "right"]:
+            alternatives = ["up", "down", "a", "b"]
+        elif stuck_action == "a":
+            alternatives = ["b", "up", "down", "left", "right"]
+        elif stuck_action == "b":
+            alternatives = ["a", "up", "down", "left", "right"]
+        else:
+            alternatives = ["a", "up", "down", "left", "right"]
+        
+        # Choose first alternative that's different from stuck action
+        for alternative in alternatives:
+            if alternative != stuck_action:
+                print(f"   → Switching from '{stuck_action}' to '{alternative}'")
+                return [alternative]
+        
+        # Fallback
+        return ["a"]
     
     def _record_turn_action(self, turn_number: int, observation: str, action: List[str], result: str):
         """Record a turn's action for recent context with progress tracking"""
@@ -934,7 +1043,10 @@ class ContinuousGameplay:
         
         # Show full AI reasoning
         print(f"💭 FULL AI REASONING:")
-        print(f"   {analysis_text}")
+        if analysis_text and analysis_text.strip():
+            print(f"   {analysis_text}")
+        else:
+            print(f"   ⚠️ Empty response from AI")
         print(f"{'='*60}")
     
     def _extract_section(self, text: str, keywords: List[str]) -> str:
@@ -1179,7 +1291,7 @@ Use the pokemon_controller tool with a list of button presses."""
     def _run_periodic_episode_review(self, current_turn: int):
         """Run AI-powered periodic episode review and apply prompt improvements automatically"""
         try:
-            print(f"🔍 PERIODIC EPISODE REVIEW (Turn {current_turn}): Analyzing last {self.episode_review_frequency} turns...")
+            print(f"📊 PERIODIC REVIEW (Turn {current_turn}): Analyzing last {self.episode_review_frequency} turns...")
             
             # Get recent turns for analysis
             recent_turns = self.session_turns[-self.episode_review_frequency:] if hasattr(self, 'session_turns') else []
@@ -1222,7 +1334,7 @@ Use the pokemon_controller tool with a list of button presses."""
                             print(f"   AI Performance Score: {performance_score:.2f}")
                             print(f"   Assessment: {ai_performance_result.get('assessment', 'No major issues detected')}")
                         else:
-                            print(f"\n🔍 AI PERFORMANCE ANALYSIS: Issues identified but no template improvements generated")
+                            print(f"\n📊 AI ANALYSIS: Issues identified but no template improvements generated")
                             print(f"   AI Performance Score: {performance_score:.2f}")
                             if issues:
                                 print(f"   Issues Detected: {', '.join(issues)}")
@@ -1231,7 +1343,7 @@ Use the pokemon_controller tool with a list of button presses."""
                         # Fallback to enhanced statistical analysis if AI analysis fails
                         enhanced_metrics = self._get_enhanced_performance_metrics(recent_turns)
                         
-                        print(f"\n🔍 ENHANCED PERFORMANCE REVIEW: AI analysis unavailable, using enhanced metrics")
+                        print(f"\n📊 PERFORMANCE REVIEW: AI analysis unavailable, using metrics")
                         print(f"   Navigation efficiency: {enhanced_metrics['navigation_efficiency']:.2f}")
                         print(f"   Complex stuck patterns: {enhanced_metrics['stuck_patterns']}")
                         print(f"   Oscillation patterns: {enhanced_metrics['oscillations']}")
@@ -2102,11 +2214,21 @@ Return ONLY the improved template content, ready to replace the current template
         if current_turn % 6 != 0:
             return False
         
-        # Need at least 12 turns to detect patterns
-        if len(self.session_data["turns"]) < 12:
+        # Load session data from file
+        try:
+            if hasattr(self, 'session_data_file') and self.session_data_file.exists():
+                with open(self.session_data_file, 'r') as f:
+                    session_data = json.load(f)
+            else:
+                return False
+        except Exception:
             return False
         
-        recent_turns = self.session_data["turns"][-12:]  # Last 12 turns
+        # Need at least 12 turns to detect patterns
+        if len(session_data["turns"]) < 12:
+            return False
+        
+        recent_turns = session_data["turns"][-12:]  # Last 12 turns
         stuck_patterns = self._detect_stuck_patterns_in_turns(recent_turns)
         stuck_ratio = len(stuck_patterns) / len(recent_turns)
         
