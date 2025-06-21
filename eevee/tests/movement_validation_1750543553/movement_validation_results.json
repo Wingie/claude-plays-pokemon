@@ -1,0 +1,71 @@
+[
+  {
+    "success": true,
+    "response": "```markdown\nPLAYER_TERRAIN: Grassland\nLOCATION_CLASS: Forest\n\nMOVEMENT_VALIDATION:\nUP: WALKABLE - The terrain above matches the player's current terrain.\nDOWN: WALKABLE - The terrain below matches the player's current terrain.\nLEFT: WALKABLE - The terrain to the left matches the player's current terrain.\nRIGHT: WALKABLE - The terrain to the right matches the player's current terrain.\n\nOBJECTS_DETECTED:\nNPCs: \n- \"2,3\" (Human figure)\n- \"5,1\" (Human figure)\n- \"7,4\" (Human figure)\n\nBuildings: \n- None detected\n\nSigns: \n- None detected\n\nItems: \n- None detected\n\nDETECTION TIPS:\n- NPCs appear as small human figures, different from terrain.\n- Check edge tiles (0,x and 7,x coordinates) carefully.\n- Look for sprites that stand out from background terrain.\n\nMOVEMENT_SEQUENCES:\n1_step_movements: \"up\", \"down\", \"left\", \"right\"\n2_step_combinations: \"up,up\", \"down,down\", \"left,left\", \"right,right\", \"up,down\", \"down,up\", \"left,right\", \"right,left\"\n3_step_paths: \"up,up,up\", \"down,down,down\", \"left,left,left\", \"right,right,right\", \"up,up,down\", \"down,down,up\", \"left,left,right\", \"right,right,left\"\n\nSUMMARY:\nValid directions: Up, Down, Left, Right\nBlocked directions: None\nInteractive objects: 3 (NPCs)\nMax movement depth: 3 steps\n```",
+    "error": null,
+    "movement_data": {
+      "location_class": "forest",
+      "valid_movements": [
+        "up",
+        "down",
+        "left",
+        "right"
+      ],
+      "blocked_movements": [],
+      "movement_reasons": {},
+      "objects_detected": {
+        "npcs": [
+          "2,3",
+          "5,1",
+          "7,4"
+        ],
+        "buildings": [],
+        "signs": [],
+        "items": []
+      },
+      "movement_sequences": {
+        "1_step": [],
+        "2_step": [],
+        "3_step": []
+      },
+      "recommended_prompt": "exploration_strategy",
+      "prompt_reason": "Overworld forest area - navigation and exploration needed"
+    },
+    "grid_size": 4,
+    "test_name": "Coarse 4x4 Grid"
+  },
+  {
+    "success": true,
+    "response": "```markdown\nPLAYER_TERRAIN: Grassland\n\nLOCATION_CLASS: Forest\n\nMOVEMENT_VALIDATION:\nUP: WALKABLE - The terrain above matches the player's current terrain.\nDOWN: WALKABLE - The terrain below matches the player's current terrain.\nLEFT: WALKABLE - The terrain to the left matches the player's current terrain.\nRIGHT: WALKABLE - The terrain to the right matches the player's current terrain.\n\nOBJECTS_DETECTED:\nNPCs: (4,3), (4,5)\nBuildings: None\nSigns: None\nItems: None\n\nDETECTION TIPS:\n- NPCs appear as small human figures, different from terrain.\n- Check edge tiles (0,x and 7,x coordinates) carefully.\n- Look for sprites that stand out from background terrain.\n\nMOVEMENT_SEQUENCES:\n1_step_movements: up, down, left, right\n2_step_combinations: up,up, down,down, left,left, right,right, up,left, up,right, down,left, down,right\n3_step_paths: up,up,up, down,down,down, left,left,left, right,right,right\n\nSUMMARY:\nValid directions: up, down, left, right\nBlocked directions: None\nInteractive objects: 2 (NPCs)\nMax movement depth: 3 steps\n```",
+    "error": null,
+    "movement_data": {
+      "location_class": "forest",
+      "valid_movements": [
+        "up",
+        "down",
+        "left",
+        "right"
+      ],
+      "blocked_movements": [],
+      "movement_reasons": {},
+      "objects_detected": {
+        "npcs": [
+          "4,3",
+          "4,5"
+        ],
+        "buildings": [],
+        "signs": [],
+        "items": []
+      },
+      "movement_sequences": {
+        "1_step": [],
+        "2_step": [],
+        "3_step": []
+      },
+      "recommended_prompt": "exploration_strategy",
+      "prompt_reason": "Overworld forest area - navigation and exploration needed"
+    },
+    "grid_size": 8,
+    "test_name": "Fine 8x8 Grid"
+  }
+]

@@ -1,0 +1,30 @@
+🧭 Pokemon Movement Validation Results
+============================================================
+
+OVERLAY IMAGES: /Users/wingston/code/claude-plays-pokemon/eevee/tests/movement_validation_1750543553
+------------------------------------------------------------
+
+TEST: Coarse 4x4 Grid
+GRID SIZE: 4x4
+LOCATION CLASS: forest
+VALID MOVEMENTS: ['up', 'down', 'left', 'right']
+BLOCKED MOVEMENTS: []
+BLOCK REASONS: {}
+OBJECTS DETECTED: 3
+  NPCS: ['2,3', '5,1', '7,4']
+RECOMMENDED PROMPT: exploration_strategy
+PROMPT REASON: Overworld forest area - navigation and exploration needed
+----------------------------------------
+
+TEST: Fine 8x8 Grid
+GRID SIZE: 8x8
+LOCATION CLASS: forest
+VALID MOVEMENTS: ['up', 'down', 'left', 'right']
+BLOCKED MOVEMENTS: []
+BLOCK REASONS: {}
+OBJECTS DETECTED: 2
+  NPCS: ['4,3', '4,5']
+RECOMMENDED PROMPT: exploration_strategy
+PROMPT REASON: Overworld forest area - navigation and exploration needed
+----------------------------------------
+

@@ -66,37 +66,44 @@ class MovementValidator:
             return None
     
     def add_light_grey_grid(self, image: Image.Image, grid_size: int = 8) -> Image.Image:
-        """Add light grey grid overlay (optimal configuration from previous tests)"""
-        overlay_image = image.copy()
-        draw = ImageDraw.Draw(overlay_image)
+        """Add semi-transparent light grey grid overlay for better sprite visibility"""
+        overlay_image = image.copy().convert('RGBA')
+        
+        # Create a transparent overlay layer
+        grid_overlay = Image.new('RGBA', overlay_image.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(grid_overlay)
         
         width, height = image.size
         tile_width = width // grid_size
         tile_height = height // grid_size
         
         # Draw semi-transparent light grey grid lines
+        grid_color = (204, 204, 204, 100)  # Light grey with transparency
         for x in range(0, width, tile_width):
-            draw.line([(x, 0), (x, height)], fill='#CCCCCC88', width=1)
+            draw.line([(x, 0), (x, height)], fill=grid_color, width=1)
         
         for y in range(0, height, tile_height):
-            draw.line([(0, y), (width, y)], fill='#CCCCCC88', width=1)
+            draw.line([(0, y), (width, y)], fill=grid_color, width=1)
         
-        # Add coordinate labels in light grey
+        # Add coordinate labels with transparency
         try:
             font_size = max(8, min(12, tile_width // 4))
             font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", font_size)
         except:
             font = ImageFont.load_default()
         
+        text_color = (204, 204, 204, 120)  # Light grey text with transparency
         for tile_x in range(grid_size):
             for tile_y in range(grid_size):
                 pixel_x = tile_x * tile_width
                 pixel_y = tile_y * tile_height
                 
                 coord_text = f"{tile_x},{tile_y}"
-                draw.text((pixel_x + 2, pixel_y + 2), coord_text, fill='#CCCCCC88', font=font)
+                draw.text((pixel_x + 2, pixel_y + 2), coord_text, fill=text_color, font=font)
         
-        return overlay_image
+        # Composite the grid overlay onto the original image
+        result = Image.alpha_composite(overlay_image, grid_overlay)
+        return result.convert('RGB')
     
     def image_to_base64(self, image: Image.Image) -> str:
         """Convert PIL Image back to base64"""
@@ -511,8 +518,8 @@ Remember: The player can move on terrain similar to what they're currently stand
     
     def save_movement_results(self, results: List[Dict]) -> None:
         """Save movement validation results"""
-        # JSON results
-        json_file = Path(__file__).parent / f"movement_validation_{self.timestamp}.json"
+        # JSON results in the overlay directory
+        json_file = self.overlay_dir / "movement_validation_results.json"
         
         with open(json_file, 'w') as f:
             json.dump(results, f, indent=2)
