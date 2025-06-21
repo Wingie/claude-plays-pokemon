@@ -14,6 +14,90 @@ env_file = Path(__file__).parent / ".env"
 if env_file.exists():
     load_dotenv(env_file)
 
+# Centralized Task-to-Model Mapping
+# Single source of truth for all AI task assignments
+TASK_MODEL_MAPPING = {
+    # Vision tasks (require screenshot analysis)
+    "screenshot_analysis": "pixtral-12b-2409",      # Mistral's vision specialist
+    "battle_decisions": "pixtral-12b-2409",         # Vision + battle strategy  
+    "menu_analysis": "pixtral-12b-2409",            # Menu/UI recognition
+    
+    # Text reasoning tasks
+    "template_selection": "mistral-large-latest",   # Template choice reasoning
+    "task_execution": "mistral-large-latest",       # Multi-step task planning
+    "navigation_decisions": "mistral-large-latest", # Movement strategy
+    
+    # Simple text tasks
+    "text_only": "mistral-large-latest",            # Basic text processing
+    "prompt_improvement": "mistral-large-latest",   # Prompt engineering
+}
+
+def get_model_for_task(task_type: str) -> str:
+    """
+    Get the assigned model for any task type
+    
+    Args:
+        task_type: Task type from TASK_MODEL_MAPPING keys
+        
+    Returns:
+        Specific model name to use for this task
+    """
+    return TASK_MODEL_MAPPING.get(task_type, "mistral-large-latest")
+
+def get_provider_for_task(task_type: str) -> str:
+    """
+    Auto-detect provider from the assigned model for a task
+    
+    Args:
+        task_type: Task type from TASK_MODEL_MAPPING keys
+        
+    Returns:
+        Provider name ("mistral" or "gemini")
+    """
+    model = get_model_for_task(task_type)
+    if "pixtral" in model or "mistral" in model:
+        return "mistral"
+    elif "gemini" in model:
+        return "gemini"
+    return "mistral"  # default
+
+def detect_task_type(has_image: bool = False, context: str = "") -> str:
+    """
+    Auto-detect task type based on context
+    
+    Args:
+        has_image: Whether this task involves image analysis
+        context: Context string to help determine task type
+        
+    Returns:
+        Task type from TASK_MODEL_MAPPING keys
+    """
+    if has_image:
+        if "battle" in context.lower():
+            return "battle_decisions"
+        elif "menu" in context.lower():
+            return "menu_analysis"
+        else:
+            return "screenshot_analysis"
+    else:
+        if "template" in context.lower():
+            return "template_selection"
+        elif "execution" in context.lower() or "task" in context.lower():
+            return "task_execution"
+        elif "navigation" in context.lower() or "movement" in context.lower():
+            return "navigation_decisions"
+        else:
+            return "text_only"
+
+def list_task_assignments() -> Dict[str, str]:
+    """
+    Get a copy of current task-to-model assignments
+    
+    Returns:
+        Dictionary of task_type -> model assignments
+    """
+    return TASK_MODEL_MAPPING.copy()
+
 class ProviderConfig:
     """Configuration manager for LLM providers and model selection"""
     

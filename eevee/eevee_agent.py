@@ -32,8 +32,6 @@ try:
         CONTROLLER_TYPE = "pokemon"
         print("🔄 Using standard Pokemon controller")
     
-    import google.generativeai as genai
-    from google.generativeai.types import FunctionDeclaration, Tool
     from dotenv import load_dotenv
     
     # Import centralized LLM API
@@ -69,7 +67,6 @@ class EeveeAgent:
         
         # Use the provided model as the current model
         self.current_model = model
-        self.rate_limited_models = set()
         
         # Available models will be determined by the LLM provider configuration
         self.available_models = []  # Will be populated after LLM manager initialization
@@ -156,27 +153,6 @@ class EeveeAgent:
             if self.debug:
                 print("⚠️  TaskExecutor not available, using basic execution")
     
-    def _switch_to_next_model(self) -> bool:
-        """
-        Switch to next available model when current model is rate limited
-        
-        Returns:
-            bool: True if successfully switched to new model, False if all models rate limited
-        """
-        for model in self.available_models:
-            if model not in self.rate_limited_models:
-                if model != self.current_model:
-                    old_model = self.current_model
-                    self.current_model = model
-                    self.gemini = genai.GenerativeModel(model_name=model)
-                    
-                    if self.verbose:
-                        print(f"🔄 Switched from {old_model} to {model} due to rate limiting")
-                    return True
-        
-        if self.verbose:
-            print("❌ All models are rate limited - waiting for quota reset")
-        return False
     
     def _call_llm_api(self, prompt: str, image_data: str = None, use_tools: bool = False, max_tokens: int = 1000) -> Dict[str, Any]:
         """
@@ -192,13 +168,30 @@ class EeveeAgent:
             Dict with 'text', 'button_presses', and 'error' keys
         """
         try:
-            # Use centralized LLM API
+            # Use centralized task-to-model mapping
+            from provider_config import detect_task_type, get_model_for_task, get_provider_for_task
+            
+            # Auto-detect task type based on context
+            task_type = detect_task_type(
+                has_image=bool(image_data),
+                context=prompt[:200]  # Use first 200 chars of prompt for context
+            )
+            
+            # Get the assigned model and provider for this task
+            model = get_model_for_task(task_type)
+            provider = get_provider_for_task(task_type)
+            
+            if self.verbose:
+                print(f"🎯 Task Type: {task_type}")
+                print(f"🤖 Using Model: {model} (Provider: {provider})")
+            
             response = call_llm(
                 prompt=prompt,
                 image_data=image_data,
                 use_tools=use_tools,
                 max_tokens=max_tokens,
-                model=self.current_model if hasattr(self, 'current_model') else None
+                model=model,
+                provider=provider
             )
             
             # Convert LLMResponse to expected format

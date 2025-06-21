@@ -938,15 +938,17 @@ REASONING: what visual elements you see that led to this choice
                 print(f"📊 AI Selection - Context: {len(memory_context)} chars")
                 print(f"📤 Sending selection prompt to LLM API...")
             
-            # Use environment configuration for template selection
-            from provider_config import get_provider_config
-            config = get_provider_config()
+            # Use centralized task-to-model mapping
+            from provider_config import get_model_for_task, get_provider_for_task
+            
+            model = get_model_for_task("template_selection")
+            provider = get_provider_for_task("template_selection")
             
             llm_response = call_llm(
                 prompt=selection_prompt, 
-                model=config.template_selection_model,
-                max_tokens=config.template_selection_max_tokens,
-                # Let the system auto-select provider based on model
+                model=model,
+                provider=provider,
+                max_tokens=500
             )
             
             # Extract response text and handle errors
@@ -956,10 +958,10 @@ REASONING: what visual elements you see that led to this choice
             response = llm_response.text
             
             if verbose:
-                print(f"📥 Gemini Response Length: {len(response) if response else 0}")
+                print(f"📥 {llm_response.provider.upper()} Response Length: {len(response) if response else 0}")
             
             if not response or len(response.strip()) < 10:
-                raise ValueError(f"Empty or too short Gemini response: '{response}'")
+                raise ValueError(f"Empty or too short {llm_response.provider} response: '{response}'")
             
             # Parse AI response
             template_name = self._extract_selection(response, "TEMPLATE:", available_templates, "exploration_strategy")
