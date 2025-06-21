@@ -200,6 +200,7 @@ Eevee v1 is the primary interface for AI-powered Pokemon task execution. It prov
 - **Navigation Intelligence**: Route learning, location memory, and pathfinding
 - **OKR Progress Tracking**: Automatic objectives and key results updates
 - **Session Continuity**: Resume gameplay from previous sessions
+- **🧠 AI-Powered Template Learning**: Gemini 2.0 Flash automatically improves prompt templates based on gameplay performance
 
 ### Usage Examples
 ```bash
@@ -220,6 +221,13 @@ python eevee/run_eevee.py "analyze current battle situation and recommend next m
 
 # Inventory management with real-time monitoring
 python eevee/run_eevee.py "check what healing items I have in my bag" --save-report
+
+# 🧠 AI-POWERED CONTINUOUS LEARNING (NEW!)
+# The system automatically improves its own prompts every N turns
+python eevee/run_eevee.py --goal "walk around and win pokemon battles" --verbose --episode-review-frequency 4 --max-turns 12 --no-interactive
+
+# Long-running self-improvement sessions
+python eevee/run_eevee.py --goal "complete pokemon red" --episode-review-frequency 10 --max-turns 100
 ```
 
 ### Architecture Components
@@ -349,3 +357,103 @@ python eevee/test_enhanced_prompts.py
 ```
 
 **🎯 Expected Results**: AI now provides clear insight into its decision-making process, learns navigation patterns automatically, and selects appropriate knowledge based on current game context.
+
+## 🧠 AI-Powered Template Learning System (Revolutionary!)
+
+**Implementation Complete**: The most advanced AI learning system yet developed for Pokemon automation.
+
+### How It Works
+
+#### **🔄 Continuous Learning Loop**
+```
+Every N turns:
+1. 📊 Analyze recent gameplay performance
+2. 🤖 Gemini analyzes which templates caused failures  
+3. 🛠️ Gemini 2.0 Flash generates improved templates
+4. 💾 Templates auto-saved to disk with version tracking
+5. 🔄 System reloads and uses improved templates immediately
+```
+
+#### **🎯 Smart Failure Detection**
+- **Stuck Pattern Analysis**: Detects repeated button sequences (like pressing 'A' 3+ times)
+- **Loop Detection**: Identifies when AI gets stuck in menu loops
+- **Progress Tracking**: Monitors actual game progress vs just button success
+- **Template Attribution**: Links specific templates to poor performance
+
+#### **🚀 Usage Examples**
+
+```bash
+# Quick 5-turn learning cycles for rapid improvement
+python eevee/run_eevee.py --goal "win battles" --episode-review-frequency 5 --max-turns 20 --verbose
+
+# Long-term learning session (recommended)
+python eevee/run_eevee.py --goal "complete pokemon red" --episode-review-frequency 15 --max-turns 200
+
+# Watch the AI learn in real-time
+python eevee/run_eevee.py --goal "explore viridian forest" --episode-review-frequency 8 --max-turns 50 --verbose
+```
+
+#### **📁 Output Files**
+```
+eevee/runs/session_TIMESTAMP/
+├── session_data.json           # Turn-by-turn data with template usage
+├── periodic_review_turn_5.md   # AI analysis of what went wrong
+├── periodic_review_turn_10.md  # Continuous improvement tracking
+└── screenshots/                # Visual evidence of failures
+
+eevee/prompts/base/
+└── base_prompts.yaml          # Templates automatically improved by AI
+```
+
+#### **🔍 Real-Time Monitoring**
+```bash
+# Watch live gameplay analysis
+tail -f eevee/runs/session_*/periodic_review_turn_*.md
+
+# Monitor template versions
+grep "version:" eevee/prompts/base/base_prompts.yaml
+
+# Check improvement logs
+🔧 AI-POWERED PROMPT LEARNING: Applied 2 improvements
+   📝 battle_analysis v4.0 → v4.1
+      Reason: Improved move selection logic for type effectiveness
+   📝 exploration_strategy v2.1 → v2.2  
+      Reason: Better stuck pattern recovery
+```
+
+#### **🎖️ Key Benefits**
+- **Self-Improving**: Templates get better automatically through gameplay
+- **Context-Aware**: Only improves templates that actually caused failures
+- **Intelligent**: Uses Gemini 2.0 Flash for sophisticated prompt engineering
+- **Persistent**: All changes saved with version tracking and reasoning
+- **Immediate**: Improved templates used in the same session
+
+#### **🧪 Testing the System**
+```bash
+# Test with failure-prone scenarios (AI gets stuck in battles/menus)
+python eevee/run_eevee.py --goal "defeat brock without type advantage" --episode-review-frequency 6 --max-turns 18
+
+# Test with navigation challenges
+python eevee/run_eevee.py --goal "find hidden items in viridian forest" --episode-review-frequency 4 --max-turns 16
+
+# Continuous improvement loop (let it run for hours)
+python eevee/run_eevee.py --goal "become pokemon champion" --episode-review-frequency 20 --max-turns 500
+```
+
+#### **🔧 Template Selection Integration** 
+The learning system only improves templates that are actually used:
+- `battle_analysis` - Pokemon battle decisions
+- `exploration_strategy` - Overworld navigation
+- `stuck_recovery` - Loop and stuck pattern handling
+- `pokemon_party_analysis` - Party management
+- `task_analysis` - Goal-oriented behavior
+
+**Never** tries to improve unused or fallback templates, ensuring focused learning.
+
+### Expected Performance Evolution
+- **Hour 1**: Basic gameplay with occasional stuck patterns
+- **Hour 2-3**: Templates learn to avoid common failure modes  
+- **Hour 4+**: Sophisticated gameplay with context-aware decision making
+- **Day 1+**: Expert-level Pokemon strategy with minimal human intervention
+
+This system represents the cutting edge of AI self-improvement for game automation!

@@ -287,7 +287,7 @@ class ContinuousGameplay:
         if not game_context.get("screenshot_data"):
             return {
                 "analysis": "No game data available",
-                "action": ["a"],  # Default action
+                "action": ["b"],  # Default action (safer for menu exit)
                 "reasoning": "Screenshot capture failed, using default action"
             }
         
@@ -308,7 +308,7 @@ class ContinuousGameplay:
             if api_result["error"]:
                 return {
                     "analysis": f"API Error: {api_result['error']}",
-                    "action": ["a"],
+                    "action": ["b"],
                     "reasoning": "API call failed, using default action"
                 }
             
@@ -343,13 +343,13 @@ class ContinuousGameplay:
         except Exception as e:
             return {
                 "analysis": f"Exception: {str(e)}",
-                "action": ["a"],
+                "action": ["b"],
                 "reasoning": "Exception occurred, using default action"
             }
     
     def _execute_ai_action(self, ai_result: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the AI's chosen action with button press validation"""
-        actions = ai_result.get("action", ["a"])
+        actions = ai_result.get("action", ["b"])
         
         if not isinstance(actions, list):
             actions = [actions]
@@ -369,10 +369,10 @@ class ContinuousGameplay:
             else:
                 print(f"⚠️ Invalid button '{action}' ignored")
         
-        # Fallback to 'a' if no valid actions
+        # Fallback to 'b' if no valid actions (safer default for exiting menus)
         if not validated_actions:
-            print(f"⚠️ No valid buttons found, using default 'a'")
-            validated_actions = ['a']
+            print(f"⚠️ No valid buttons found, using default 'b' (exit menus)")
+            validated_actions = ['b']
         
         # LOOP DETECTION: Track patterns for informational purposes only
         if not hasattr(self, '_last_three_actions'):
@@ -1186,8 +1186,18 @@ Use the pokemon_controller tool with a list of button presses."""
                     self._save_periodic_review(current_turn, improvement_result, recent_turns)
                         
                 else:
-                    print(f"\n✅ EXCELLENT PERFORMANCE: No prompt improvements needed")
-                    print(f"   Current templates are performing optimally")
+                    # Check if this is actually excellent performance by running basic metrics
+                    quick_metrics = self._get_quick_performance_metrics(recent_turns)
+                    
+                    if quick_metrics['navigation_efficiency'] > 0.7 and quick_metrics['stuck_patterns'] < 5:
+                        print(f"\n✅ GOOD PERFORMANCE: No prompt improvements needed")
+                        print(f"   Navigation efficiency: {quick_metrics['navigation_efficiency']:.2f}")
+                        print(f"   Stuck patterns: {quick_metrics['stuck_patterns']}")
+                    else:
+                        print(f"\n🔍 PERFORMANCE REVIEW: No specific improvements identified by AI")
+                        print(f"   Navigation efficiency: {quick_metrics['navigation_efficiency']:.2f}")
+                        print(f"   Stuck patterns: {quick_metrics['stuck_patterns']}")
+                        print(f"   AI may need longer observation period for improvements")
             else:
                 print(f"\n❌ AI REVIEW FAILED: {improvement_result.get('message', 'Unknown error')}")
                 if improvement_result.get('error'):
@@ -1198,6 +1208,38 @@ Use the pokemon_controller tool with a list of button presses."""
             if hasattr(self.eevee, 'debug') and self.eevee.debug:
                 import traceback
                 traceback.print_exc()
+    
+    def _get_quick_performance_metrics(self, recent_turns: List[Dict]) -> Dict[str, float]:
+        """Get quick performance metrics without full episode review analysis"""
+        if not recent_turns:
+            return {'navigation_efficiency': 0.0, 'stuck_patterns': 0}
+        
+        # Count stuck patterns (consecutive identical actions)
+        stuck_patterns = 0
+        prev_action = None
+        consecutive_count = 0
+        
+        for turn in recent_turns:
+            current_action = str(turn.get('button_presses', []))
+            if current_action == prev_action and current_action != "[]":
+                consecutive_count += 1
+                if consecutive_count >= 3:
+                    stuck_patterns += 1
+            else:
+                consecutive_count = 0
+            prev_action = current_action
+        
+        # Calculate navigation efficiency
+        unique_actions = len(set(str(turn.get('button_presses', [])) for turn in recent_turns))
+        total_actions = len(recent_turns)
+        action_diversity = unique_actions / max(1, total_actions)
+        stuck_penalty = max(0, 1 - (stuck_patterns / 20))  # Normalize for smaller sample
+        navigation_efficiency = (action_diversity + stuck_penalty) / 2
+        
+        return {
+            'navigation_efficiency': navigation_efficiency,
+            'stuck_patterns': stuck_patterns
+        }
                 
     def _run_ai_powered_review(self, recent_turns: List[Dict], current_turn: int) -> Dict[str, Any]:
         """Use AI to analyze recent turns and identify templates that need improvement"""

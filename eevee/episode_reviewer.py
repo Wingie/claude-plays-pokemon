@@ -18,6 +18,7 @@ class EpisodeMetrics:
     turns_completed: int
     battles_won: int
     battles_lost: int
+    battles_engaged: int
     items_collected: int
     new_areas_discovered: int
     stuck_patterns: int
@@ -67,10 +68,16 @@ class EpisodeReviewer:
             session_data = json.load(f)
         
         # Extract metrics from session data
+        turns = session_data.get('turns', []) or session_data.get('gameplay_history', [])
+        battles_won = self._count_battles_won(session_data)
+        battles_lost = self._count_battles_lost(session_data)
+        battles_engaged = self._count_battles_engaged(session_data)
+        
         metrics = EpisodeMetrics(
-            turns_completed=len(session_data.get('turns', [])),
-            battles_won=self._count_battles_won(session_data),
-            battles_lost=self._count_battles_lost(session_data),
+            turns_completed=len(turns),
+            battles_won=battles_won,
+            battles_lost=battles_lost,
+            battles_engaged=battles_engaged,
             items_collected=self._count_items_collected(session_data),
             new_areas_discovered=self._count_new_areas(session_data),
             stuck_patterns=self._count_stuck_patterns(session_data),
@@ -148,9 +155,11 @@ class EpisodeReviewer:
 ### Core Metrics
 - **Turns Completed**: {metrics.turns_completed}/100
 - **Navigation Efficiency**: {metrics.navigation_efficiency:.2f}
+- **Battles Engaged**: {metrics.battles_engaged}
 - **Battles Won**: {metrics.battles_won}
 - **Battles Lost**: {metrics.battles_lost}
 - **Battle Win Rate**: {metrics.battles_won / max(1, metrics.battles_won + metrics.battles_lost):.2f}
+- **Battle Completion Rate**: {(metrics.battles_won + metrics.battles_lost) / max(1, metrics.battles_engaged):.2f}
 - **Items Collected**: {metrics.items_collected}
 - **New Areas Discovered**: {metrics.new_areas_discovered}
 - **Stuck Patterns**: {metrics.stuck_patterns}
@@ -229,11 +238,20 @@ Found {len(improvements)} potential improvements:
     def _count_battles_won(self, session_data: Dict) -> int:
         """Count battles won in the session"""
         battles_won = 0
-        turns = session_data.get('turns', [])
+        
+        # Check for both old format (turns) and new format (gameplay_history)
+        turns = session_data.get('turns', []) or session_data.get('gameplay_history', [])
         
         for turn in turns:
+            # First check for battle_context (new format)
+            battle_context = turn.get('battle_context', {})
+            if battle_context and battle_context.get('battle_outcome') == 'won':
+                battles_won += 1
+                continue
+            
+            # Fallback to AI analysis text (old format)
             ai_analysis = turn.get('ai_analysis', '').lower()
-            if any(phrase in ai_analysis for phrase in ['gained exp', 'defeated', 'won battle', 'fainted']):
+            if any(phrase in ai_analysis for phrase in ['gained exp', 'defeated', 'won battle', 'victory', 'player wins']):
                 battles_won += 1
         
         return battles_won
@@ -241,23 +259,55 @@ Found {len(improvements)} potential improvements:
     def _count_battles_lost(self, session_data: Dict) -> int:
         """Count battles lost in the session"""
         battles_lost = 0
-        turns = session_data.get('turns', [])
+        
+        # Check for both old format (turns) and new format (gameplay_history)
+        turns = session_data.get('turns', []) or session_data.get('gameplay_history', [])
         
         for turn in turns:
+            # First check for battle_context (new format)
+            battle_context = turn.get('battle_context', {})
+            if battle_context and battle_context.get('battle_outcome') == 'lost':
+                battles_lost += 1
+                continue
+            
+            # Fallback to AI analysis text (old format)
             ai_analysis = turn.get('ai_analysis', '').lower()
-            if any(phrase in ai_analysis for phrase in ['pokemon fainted', 'lost battle', 'whited out']):
+            if any(phrase in ai_analysis for phrase in ['pokemon fainted', 'lost battle', 'whited out', 'defeat', 'player loses']):
                 battles_lost += 1
         
         return battles_lost
     
+    def _count_battles_engaged(self, session_data: Dict) -> int:
+        """Count total battle engagements (including ongoing)"""
+        battles_engaged = 0
+        
+        # Check for both old format (turns) and new format (gameplay_history)
+        turns = session_data.get('turns', []) or session_data.get('gameplay_history', [])
+        
+        for turn in turns:
+            # Check for battle_context (new format)
+            battle_context = turn.get('battle_context', {})
+            if battle_context and battle_context.get('is_battle_action'):
+                battles_engaged += 1
+                continue
+            
+            # Fallback to AI analysis text (old format)
+            ai_analysis = turn.get('ai_analysis', '').lower()
+            if any(phrase in ai_analysis for phrase in ['battle', 'fight', 'attack', 'wild pokemon', 'trainer battle']):
+                battles_engaged += 1
+        
+        return battles_engaged
+    
     def _count_items_collected(self, session_data: Dict) -> int:
         """Count items collected in the session"""
         items_collected = 0
-        turns = session_data.get('turns', [])
+        
+        # Check for both old format (turns) and new format (gameplay_history)
+        turns = session_data.get('turns', []) or session_data.get('gameplay_history', [])
         
         for turn in turns:
             ai_analysis = turn.get('ai_analysis', '').lower()
-            if any(phrase in ai_analysis for phrase in ['found item', 'picked up', 'obtained', 'received']):
+            if any(phrase in ai_analysis for phrase in ['found item', 'picked up', 'obtained', 'received', 'got item', 'item added']):
                 items_collected += 1
         
         return items_collected
@@ -279,7 +329,9 @@ Found {len(improvements)} potential improvements:
     def _count_stuck_patterns(self, session_data: Dict) -> int:
         """Count stuck patterns in the session"""
         stuck_patterns = 0
-        turns = session_data.get('turns', [])
+        
+        # Check for both old format (turns) and new format (gameplay_history)
+        turns = session_data.get('turns', []) or session_data.get('gameplay_history', [])
         
         # Look for consecutive identical actions
         prev_action = None
@@ -299,7 +351,8 @@ Found {len(improvements)} potential improvements:
     
     def _calculate_navigation_efficiency(self, session_data: Dict) -> float:
         """Calculate navigation efficiency score (0-1)"""
-        turns = session_data.get('turns', [])
+        # Check for both old format (turns) and new format (gameplay_history)
+        turns = session_data.get('turns', []) or session_data.get('gameplay_history', [])
         if not turns:
             return 0.0
         
