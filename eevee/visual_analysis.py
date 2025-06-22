@@ -386,13 +386,17 @@ VALIDATION RULES:
     def _save_grid_image(self, grid_image_base64: str, session_name: str = None) -> None:
         """Save grid overlay image to runs directory"""
         try:
-            # Create session directory
+            # Create session directory and screenshots subfolder
             session_dir = self._get_session_dir(session_name)
             session_dir.mkdir(parents=True, exist_ok=True)
             
-            # Save grid image
+            # Create screenshots subfolder
+            screenshots_dir = session_dir / "sshots"
+            screenshots_dir.mkdir(exist_ok=True)
+            
+            # Save grid image in screenshots subfolder
             image_bytes = base64.b64decode(grid_image_base64)
-            image_path = session_dir / f"step_{self.step_counter:04d}_grid.png"
+            image_path = screenshots_dir / f"step_{self.step_counter:04d}_grid.png"
             
             with open(image_path, 'wb') as f:
                 f.write(image_bytes)
@@ -453,7 +457,14 @@ VALIDATION RULES:
         """Get or create session directory for logging"""
         if session_name is None:
             import time
-            session_name = f"visual_analysis_{int(time.time())}"
+            session_name = f"session_{int(time.time())}"
+            print(f"⚠️ Visual analysis: No session_name provided, creating: {session_name}")
+        elif not session_name.startswith("session_"):
+            # Ensure session name has proper prefix  
+            session_name = f"session_{session_name}"
+            print(f"🔧 Visual analysis: Using session folder: {session_name}")
+        else:
+            print(f"✅ Visual analysis: Using existing session folder: {session_name}")
         
         return self.runs_dir / session_name
     
