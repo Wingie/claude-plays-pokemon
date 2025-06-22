@@ -1,31 +1,31 @@
 battle_analysis:
-  name: Verified Battle Analysis (Anti-False-Positive v4.0)
-  description: Only triggers for confirmed battle scenes with actual HP bars
+  name: Pokemon Battle Handler (Mistral-Optimized v5.0)
+  description: Handles Pokemon battles with clear visual verification
   template: |
-    You are analyzing a Game Boy Advance screenshot. VERIFY this is actually a battle scene first.
+    Pokemon Battle Analysis
     
-    TASK: {task}
-    RECENT ACTIONS: {recent_actions}
+    GOAL: {task}
+    RECENT: {recent_actions}
     
-    **BATTLE VERIFICATION REQUIRED:**
-    This template should ONLY be used if you see ALL of these:
-    - Large Pokemon sprites (not small character sprites)
-    - Actual HP bars with health meters
-    - Battle menu text (FIGHT, BAG, POKEMON, RUN)
+    **BATTLE VERIFICATION:**
+    Look for these battle indicators:
+    - HP bars with health meters
+    - Large Pokemon sprites (not small overworld characters)
+    - Battle menu: FIGHT, BAG, POKEMON, RUN
     
-    **IF THIS IS NOT A BATTLE:**
-    If you see small character sprites on terrain instead of large Pokemon sprites with HP bars, 
-    this is an overworld scene, not a battle. Press a directional button to move.
+    **ACTIONS:**
+    - Battle menu showing → Press A to choose FIGHT
+    - Move selection screen → Press A to attack
+    - Battle text/animations → Press A to continue
+    - NOT a battle → Choose movement direction
     
-    **BATTLE ACTIONS (only if confirmed battle):**
-    1. Battle menu visible → Press A to select FIGHT
-    2. Move selection screen → Choose offensive move with A
-    3. Battle text showing → Press A to continue
-    
-    **RESPONSE FORMAT:**
-    Battle verification: [YES if you see HP bars and large Pokemon sprites, NO if terrain/small sprites]
-    Action: [button press based on verification]
-    Reasoning: [explain what you actually see]
+    **REQUIRED JSON:**
+    ```json
+    {{
+      "button_presses": ["button"],
+      "reasoning": "action based on what's visible"
+    }}
+    ```
   variables:
   - task
   - recent_actions
@@ -33,46 +33,35 @@ battle_analysis:
   provider: 'mistral'
 
 exploration_strategy:
-  name: Strategic Movement Decision (Two-Stage Navigation v1.0)
-  description: Makes strategic movement decisions based on visual analysis from Pixtral
+  name: Strategic Movement Decision (Mistral-Optimized v2.0)
+  description: Concise movement decisions that trust Pixtral's visual analysis
   template: |
-    You are making strategic Pokemon navigation decisions based on visual analysis data.
+    Pokemon Navigation Decision
     
-    TASK: {task}
+    GOAL: {task}
     RECENT ACTIONS: {recent_actions}
     
-    **VISUAL ANALYSIS RESULTS (from Pixtral):**
-    Location Type: {location_type}
+    **VISUAL ANALYSIS (from Pixtral vision system):**
+    - Location: {location_type}
+    - Available directions: {valid_movements}
+    - Terrain: {movement_details}
+    - Objects: {objects_detected}
     
-    Valid Movements Available: {valid_movements}
+    **INSTRUCTIONS:**
+    1. TRUST the visual analysis location type: {location_type}
+    2. Choose ONE direction from: {valid_movements}
+    3. Avoid repeating recent failed actions
+    4. Prioritize unexplored directions
     
-    Movement Details:
-    {movement_details}
-    
-    Objects Detected:
-    {objects_detected}
-    
-    **YOUR DECISION:**
-    Based on the visual analysis above, choose ONE movement from the valid list: {valid_movements}
-    
-    Consider:
-    - Your current task: {task}
-    - Objects detected and their strategic value  
-    - Movement terrain analysis from Pixtral
-    - Recent actions to avoid getting stuck: {recent_actions}
-    
-    **MANDATORY JSON RESPONSE:**
+    **REQUIRED JSON RESPONSE:**
     ```json
     {{
-      "button_presses": ["movement"],
-      "reasoning": "brief explanation"
+      "button_presses": ["direction"],
+      "reasoning": "why this direction for {location_type} exploration"
     }}
     ```
     
-    CRITICAL REQUIREMENTS:
-    - ONLY return valid JSON format above
-    - button_presses must contain exactly ONE movement from: {valid_movements}
-    - No additional text outside JSON
+    CRITICAL: Only return valid JSON. No other text.
   variables:
   - task  
   - recent_actions
@@ -84,33 +73,32 @@ exploration_strategy:
   provider: 'mistral'
 
 stuck_recovery:
-  name: Ash's Problem Solving (Vision-Focused v2.0)
-  description: Enhanced stuck detection with careful screen analysis
+  name: Stuck Pattern Recovery (Mistral-Optimized v3.0)
+  description: Breaks stuck patterns with simple alternative actions
   template: |
-    I'm Ash Ketchum and I've been pressing the same buttons! Let me look carefully at my screen to figure out what's really going on.
-
-    My stuck pattern: {recent_actions}
-    My goal: {task}
-
-    CAREFUL SCREEN ANALYSIS:
-    - What's actually blocking me: [describe obstacles, walls, or menus]
-    - Character position: [where am I on screen]
-    - Available options: [what can I actually do from here]
-    - Menu state: [am I in a menu or overworld]
-    - Visual clues: [any arrows, indicators, or highlights]
-
-    DIFFERENT APPROACHES TO TRY:
-    - If stuck on terrain: try different direction
-    - If stuck in menu: try B to exit or different menu option
-    - If stuck on NPC: try A to interact or walk around
-    - If stuck at edge: try opposite direction
-
-    My completely different approach: ['button']
-
-    RULES:
-    - Break the stuck pattern
-    - Choose button based on actual screen state
-    - Stay positive like Ash
+    Stuck Pattern Detected
+    
+    GOAL: {task}
+    STUCK PATTERN: {recent_actions}
+    
+    **ANALYSIS:**
+    - Repeated actions indicate blocked path or menu loop
+    - Need to try completely different approach
+    - Break pattern with perpendicular or opposite direction
+    
+    **RECOVERY OPTIONS:**
+    - If stuck moving → try opposite direction
+    - If stuck on menu → press B to exit
+    - If stuck on interaction → try A button
+    - If stuck in corner → try diagonal escape
+    
+    **REQUIRED JSON:**
+    ```json
+    {{
+      "button_presses": ["different_button"],
+      "reasoning": "breaking stuck pattern by trying [approach]"
+    }}
+    ```
   variables:
   - recent_actions
   - task
