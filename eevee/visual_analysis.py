@@ -201,6 +201,9 @@ VALIDATION RULES:
 - Focus on actual visual terrain matching, not game assumptions"""
 
         try:
+            import time
+            start_time = time.time()
+            
             response = call_llm(
                 prompt=prompt,
                 image_data=grid_image_base64,
@@ -209,6 +212,8 @@ VALIDATION RULES:
                 max_tokens=600
             )
             
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+            
             if verbose:
                 print(f"📤 Pixtral visual analysis request sent")
                 print(f"📥 Response received: {len(response.text) if response.text else 0} chars")
@@ -216,6 +221,8 @@ VALIDATION RULES:
             return {
                 "success": True,
                 "response": response.text if hasattr(response, 'text') else str(response),
+                "prompt_sent": prompt,  # ENHANCED: Store the complete prompt
+                "processing_time_ms": processing_time,  # ENHANCED: Store timing
                 "error": None
             }
             
@@ -223,6 +230,8 @@ VALIDATION RULES:
             return {
                 "success": False,
                 "response": "",
+                "prompt_sent": prompt,  # ENHANCED: Store prompt even on failure
+                "processing_time_ms": None,
                 "error": str(e)
             }
     

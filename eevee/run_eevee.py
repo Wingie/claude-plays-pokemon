@@ -31,8 +31,8 @@ import queue
 import signal
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, Any, List, Union
-from dataclasses import dataclass, asdict
+from typing import Optional, Dict, Any, List, Union, Tuple
+from dataclasses import dataclass, asdict, field
 
 # Add paths for importing from the main project
 project_root = Path(__file__).parent.parent
@@ -54,8 +54,91 @@ except ImportError as e:
 
 
 @dataclass
+class LLMInteraction:
+    """Represents a single LLM API call with complete details"""
+    prompt_sent: str
+    raw_response: str
+    parsed_result: Dict[str, Any]
+    model_used: str
+    provider_used: str
+    timestamp: str
+    success: bool
+    error_message: Optional[str] = None
+    tokens_used: Optional[Dict[str, int]] = None  # {"input": 100, "output": 50}
+    processing_time_ms: Optional[float] = None
+
+@dataclass 
+class TurnData:
+    """Complete data for a single gameplay turn - designed for fine-tuning dataset creation"""
+    turn_number: int
+    timestamp: str
+    
+    # Visual Analysis Stage (Pixtral)
+    visual_analysis: Optional[LLMInteraction] = None
+    movement_data: Optional[Dict[str, Any]] = None
+    screenshot_path: Optional[str] = None
+    screenshot_base64: Optional[str] = None  # For fine-tuning
+    
+    # Strategic Decision Stage (mistral-large-latest or other)
+    strategic_decision: Optional[LLMInteraction] = None
+    memory_context: Optional[str] = None
+    template_selected: Optional[str] = None
+    template_version: Optional[str] = None
+    template_selection_reasoning: Optional[str] = None
+    
+    # Final Action & Results
+    final_button_presses: Optional[List[str]] = None
+    action_result: Optional[bool] = None
+    execution_time: Optional[str] = None
+    
+    # Fine-tuning Format
+    fine_tuning_entry: Optional[Dict[str, Any]] = None  # Mistral messages format
+    
+    # Additional Context
+    user_task: Optional[str] = None
+    escalation_level: Optional[int] = None
+    session_goal: Optional[str] = None
+    
+    # Quality Indicators
+    turn_success: bool = True
+    include_in_fine_tuning: bool = True
+    failure_reason: Optional[str] = None
+    
+    def __post_init__(self):
+        """Automatically create fine-tuning entry if both stages completed successfully"""
+        if self.visual_analysis and self.strategic_decision and self.include_in_fine_tuning:
+            self._create_fine_tuning_entry()
+    
+    def _create_fine_tuning_entry(self):
+        """Create Mistral fine-tuning format entry from turn data"""
+        if not (self.visual_analysis and self.strategic_decision and self.screenshot_base64):
+            return
+            
+        # Create user content with text + image
+        user_content = [
+            {"type": "text", "text": self.visual_analysis.prompt_sent},
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{self.screenshot_base64}"}}
+        ]
+        
+        # Use strategic decision result as assistant response
+        assistant_content = self.strategic_decision.parsed_result.get('reasoning', '') + " Action: " + str(self.final_button_presses)
+        
+        self.fine_tuning_entry = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": user_content
+                },
+                {
+                    "role": "assistant", 
+                    "content": assistant_content
+                }
+            ]
+        }
+
+@dataclass
 class GameplaySession:
-    """Represents a continuous gameplay session"""
+    """Represents a continuous gameplay session with enhanced data collection"""
     session_id: str
     start_time: str
     goal: str
@@ -66,9 +149,24 @@ class GameplaySession:
     last_analysis: str = ""
     user_interactions: List[str] = None
     
+    # Enhanced session data
+    turns_data: List[TurnData] = None
+    fine_tuning_dataset_path: Optional[str] = None
+    total_llm_calls: int = 0
+    successful_turns: int = 0
+    
     def __post_init__(self):
         if self.user_interactions is None:
             self.user_interactions = []
+        if self.turns_data is None:
+            self.turns_data = []
+    
+    def add_turn_data(self, turn_data: TurnData):
+        """Add complete turn data to session"""
+        self.turns_data.append(turn_data)
+        self.turns_completed = len(self.turns_data)
+        if turn_data.turn_success:
+            self.successful_turns += 1
 
 
 class InteractiveController:
@@ -240,8 +338,11 @@ class ContinuousGameplay:
                 # Step 4: Update memory and session state
                 self._update_session_state(turn_count, ai_result, execution_result)
                 
-                # Step 4.1: Update session data file for episode reviewer
+                # Step 4.1: Update legacy session data for episode reviewer (first)
                 self._update_session_data_file(turn_count, ai_result, execution_result)
+                
+                # Step 4.2: Comprehensive turn data logging (overrides with enhanced data)
+                self._log_complete_turn_data(turn_count, game_context, ai_result, execution_result, movement_data)
                 
                 # Step 4.5: Emergency/Periodic episode review check
                 if hasattr(self, 'episode_review_frequency') and self.episode_review_frequency > 0:
@@ -271,7 +372,46 @@ class ContinuousGameplay:
         self.session.status = "completed" if self.running else "stopped"
         self.session.turns_completed = turn_count
         
+        # Generate final fine-tuning dataset
+        self._export_fine_tuning_dataset()
+        
         return self._get_session_summary()
+    
+    def _export_fine_tuning_dataset(self):
+        """Export session data as JSONL file for Mistral fine-tuning"""
+        try:
+            if not self.session or not hasattr(self.session, 'turns_data'):
+                print("⚠️ No turn data available for export")
+                return
+            
+            # Create runs directory for this session
+            runs_dir = Path("runs") / f"session_{self.session.session_id}"
+            runs_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Export JSONL for fine-tuning
+            jsonl_path = runs_dir / "fine_tuning_dataset.jsonl"
+            quality_turns = [turn for turn in self.session.turns_data if turn.include_in_fine_tuning and turn.fine_tuning_entry]
+            
+            with open(jsonl_path, 'w') as f:
+                for turn in quality_turns:
+                    f.write(json.dumps(turn.fine_tuning_entry) + "\n")
+            
+            print(f"📊 Fine-tuning dataset exported: {len(quality_turns)} turns → {jsonl_path}")
+            
+            # Export metadata
+            metadata = {
+                "session_id": self.session.session_id,
+                "total_turns": len(self.session.turns_data),
+                "quality_turns": len(quality_turns),
+                "success_rate": len([t for t in self.session.turns_data if t.turn_success]) / len(self.session.turns_data) if self.session.turns_data else 0,
+                "export_timestamp": datetime.now().isoformat()
+            }
+            
+            with open(runs_dir / "dataset_metadata.json", 'w') as f:
+                json.dump(metadata, f, indent=2)
+                
+        except Exception as e:
+            print(f"⚠️ Failed to export fine-tuning dataset: {e}")
     
     def _capture_game_context(self) -> Dict[str, Any]:
         """Capture current game state via screenshot"""
@@ -330,6 +470,13 @@ class ContinuousGameplay:
                     session_name=session_name
                 )
                 
+                # ENHANCED: Store visual analysis metadata for comprehensive logging
+                if movement_data and '_meta' in movement_data:
+                    meta = movement_data['_meta']
+                    self._last_visual_prompt = meta.get('prompt_sent', '')
+                    self._last_visual_response = meta.get('raw_response', '')
+                    self._last_visual_processing_time = meta.get('processing_time_ms')
+                
                 if self.eevee.verbose:
                     valid_moves = self.visual_analyzer.get_valid_single_movements(movement_data)
                     print(f"✅ Visual analysis complete: {len(valid_moves)} valid movements")
@@ -337,6 +484,10 @@ class ContinuousGameplay:
             except Exception as e:
                 print(f"⚠️ Visual analysis failed: {e}")
                 movement_data = None
+                # Clear metadata on failure
+                self._last_visual_prompt = ''
+                self._last_visual_response = f'Error: {e}'
+                self._last_visual_processing_time = None
         
         # STAGE 2: Strategic Decision (mistral-large-latest) - Build context-aware prompt
         memory_context = self._get_memory_context()
@@ -355,6 +506,11 @@ class ContinuousGameplay:
             
             # Import centralized LLM API
             from llm_api import call_llm
+            import time
+            
+            # Store data for comprehensive logging
+            self._last_strategic_prompt = prompt
+            strategic_start_time = time.time()
             
             # Use mistral-large-latest for strategic decision making (text-only)
             llm_response = call_llm(
@@ -364,6 +520,12 @@ class ContinuousGameplay:
                 provider="mistral",
                 max_tokens=1000
             )
+            
+            # Store additional metadata for logging
+            self._last_strategic_response = llm_response.text if hasattr(llm_response, 'text') else str(llm_response)
+            self._last_strategic_model = "mistral-large-latest"
+            self._last_strategic_provider = "mistral"
+            self._last_strategic_processing_time = (time.time() - strategic_start_time) * 1000
             
             # Convert to expected format
             api_result = {
@@ -534,22 +696,62 @@ class ContinuousGameplay:
                 if self.eevee.debug:
                     print(f"�  Memory storage failed: {e}")
     
+    def _parse_ai_analysis_json(self, ai_analysis: str) -> Dict[str, Any]:
+        """Parse JSON from ai_analysis string into structured data"""
+        try:
+            import re
+            import json
+            
+            # Extract JSON from markdown code block
+            json_match = re.search(r'```json\s*({.*?})\s*```', ai_analysis, re.DOTALL)
+            if json_match:
+                json_data = json.loads(json_match.group(1))
+                return {
+                    "parsed_json": json_data,
+                    "raw_text": ai_analysis,
+                    "parsing_success": True
+                }
+            else:
+                return {
+                    "parsed_json": None,
+                    "raw_text": ai_analysis,
+                    "parsing_success": False,
+                    "error": "No JSON block found"
+                }
+        except json.JSONDecodeError as e:
+            return {
+                "parsed_json": None,
+                "raw_text": ai_analysis,
+                "parsing_success": False,
+                "error": f"JSON parsing failed: {e}"
+            }
+        except Exception as e:
+            return {
+                "parsed_json": None,
+                "raw_text": ai_analysis,
+                "parsing_success": False,
+                "error": f"Unexpected error: {e}"
+            }
+    
     def _update_session_data_file(self, turn_number: int, ai_result: Dict[str, Any], execution_result: Dict[str, Any]):
-        """Update session data file for episode reviewer"""
+        """Update legacy session data file for episode reviewer (backward compatibility)"""
         if not hasattr(self, 'session_data_file') or not hasattr(self, 'session_turns'):
             return
         
         try:
-            # Create turn data in the format expected by episode reviewer
+            # Parse AI analysis JSON
+            ai_analysis_raw = ai_result.get("analysis", "")
+            ai_analysis_parsed = self._parse_ai_analysis_json(ai_analysis_raw)
+            
+            # Create turn data in the format expected by episode reviewer (enhanced legacy format)
             turn_data = {
                 "turn": turn_number,
                 "timestamp": datetime.now().isoformat(),
-                "ai_analysis": ai_result.get("analysis", ""),
+                "ai_analysis": ai_analysis_parsed,  # ENHANCED: Structured JSON instead of string
                 "button_presses": ai_result.get("action", []),
                 "action_result": execution_result.get("success", False),
                 "screenshot_path": f"screenshot_{turn_number}.png",
                 "execution_time": execution_result.get("execution_time", 0.0),
-                # Add template tracking information
                 "template_used": ai_result.get("template_used", "unknown"),
                 "template_version": ai_result.get("template_version", "unknown")
             }
@@ -571,6 +773,161 @@ class ContinuousGameplay:
         except Exception as e:
             if self.eevee.debug:
                 print(f"⚠️ Failed to update session data file: {e}")
+    
+    def _log_complete_turn_data(self, turn_number: int, game_context: Dict[str, Any], 
+                               ai_result: Dict[str, Any], execution_result: Dict[str, Any], 
+                               movement_data: Dict = None):
+        """Log complete turn data for fine-tuning dataset creation"""
+        try:
+            # Create comprehensive turn data structure
+            turn_data = TurnData(
+                turn_number=turn_number,
+                timestamp=datetime.now().isoformat(),
+                
+                # Visual Analysis Stage (if available)
+                visual_analysis=self._extract_visual_analysis_data(movement_data) if movement_data else None,
+                movement_data=movement_data,
+                screenshot_path=game_context.get("screenshot_path"),
+                screenshot_base64=game_context.get("screenshot_data"),  # For fine-tuning
+                
+                # Strategic Decision Stage 
+                strategic_decision=self._extract_strategic_decision_data(ai_result),
+                memory_context=self._get_memory_context(),
+                template_selected=ai_result.get("template_used", "unknown"),
+                template_version=ai_result.get("template_version", "unknown"),
+                template_selection_reasoning=getattr(self, '_last_template_reasoning', None),
+                
+                # Final Action & Results
+                final_button_presses=ai_result.get("action", []),
+                action_result=execution_result.get("success", False),
+                execution_time=execution_result.get("execution_time"),
+                
+                # Additional Context
+                user_task=getattr(self, '_user_tasks', [])[-1] if hasattr(self, '_user_tasks') and self._user_tasks else None,
+                escalation_level=self._get_escalation_level(),
+                session_goal=self.session.goal,
+                
+                # Quality Assessment
+                turn_success=self._assess_turn_success(ai_result, execution_result),
+                include_in_fine_tuning=self._should_include_in_fine_tuning(ai_result, execution_result, movement_data)
+            )
+            
+            # Add to session
+            if not hasattr(self.session, 'turns_data'):
+                self.session.turns_data = []
+            
+            self.session.add_turn_data(turn_data)
+            
+            # Save enhanced session data to file
+            self._save_enhanced_session_data()
+            
+            if self.eevee.verbose:
+                print(f"📊 Turn {turn_number} logged: {len(turn_data.__dict__)} data fields, fine-tuning: {'✅' if turn_data.include_in_fine_tuning else '❌'}")
+                
+        except Exception as e:
+            print(f"⚠️ Failed to log complete turn data: {e}")
+            if self.eevee.debug:
+                import traceback
+                traceback.print_exc()
+    
+    def _extract_visual_analysis_data(self, movement_data: Dict) -> LLMInteraction:
+        """Extract visual analysis data from movement_data for structured logging"""
+        if not movement_data or not hasattr(self, '_last_visual_prompt'):
+            return None
+            
+        return LLMInteraction(
+            prompt_sent=getattr(self, '_last_visual_prompt', ''),
+            raw_response=getattr(self, '_last_visual_response', ''),
+            parsed_result=movement_data,
+            model_used="pixtral-12b-2409",
+            provider_used="mistral",
+            timestamp=datetime.now().isoformat(),
+            success=bool(movement_data.get('valid_sequences', {}).get('1_move')),
+            processing_time_ms=getattr(self, '_last_visual_processing_time', None)
+        )
+    
+    def _extract_strategic_decision_data(self, ai_result: Dict[str, Any]) -> LLMInteraction:
+        """Extract strategic decision data for structured logging"""
+        return LLMInteraction(
+            prompt_sent=getattr(self, '_last_strategic_prompt', ''),
+            raw_response=getattr(self, '_last_strategic_response', ai_result.get('analysis', '')),
+            parsed_result=ai_result,
+            model_used=getattr(self, '_last_strategic_model', 'mistral-large-latest'),
+            provider_used=getattr(self, '_last_strategic_provider', 'mistral'),
+            timestamp=datetime.now().isoformat(),
+            success=bool(ai_result.get('action')),
+            processing_time_ms=getattr(self, '_last_strategic_processing_time', None)
+        )
+    
+    def _assess_turn_success(self, ai_result: Dict[str, Any], execution_result: Dict[str, Any]) -> bool:
+        """Assess if turn was successful for quality filtering"""
+        # Basic success criteria
+        has_analysis = bool(ai_result.get('analysis', '').strip())
+        has_action = bool(ai_result.get('action'))
+        action_executed = execution_result.get('success', False)
+        
+        return has_analysis and has_action and action_executed
+    
+    def _should_include_in_fine_tuning(self, ai_result: Dict[str, Any], 
+                                     execution_result: Dict[str, Any], 
+                                     movement_data: Dict = None) -> bool:
+        """Determine if turn should be included in fine-tuning dataset"""
+        # Must be successful turn
+        if not self._assess_turn_success(ai_result, execution_result):
+            return False
+        
+        # Must have meaningful analysis (not just error messages)
+        analysis = ai_result.get('analysis', '')
+        if any(error_keyword in analysis.lower() for error_keyword in ['error', 'failed', 'exception', 'no game data']):
+            return False
+        
+        # Must have valid button presses
+        actions = ai_result.get('action', [])
+        if not actions or not isinstance(actions, list):
+            return False
+        
+        # Visual analysis quality check (if available)
+        if movement_data:
+            valid_moves = movement_data.get('valid_sequences', {}).get('1_move', [])
+            if not valid_moves:
+                return False  # Skip turns with no valid movements detected
+        
+        return True
+    
+    def _save_enhanced_session_data(self):
+        """Save enhanced session data with all turn details"""
+        try:
+            if not hasattr(self, 'session_data_file'):
+                return
+                
+            # Create comprehensive session data
+            enhanced_session_data = {
+                "session_metadata": {
+                    "session_id": self.session.session_id,
+                    "goal": self.session.goal,
+                    "start_time": self.session.start_time,
+                    "status": self.session.status,
+                    "total_turns": len(self.session.turns_data) if hasattr(self.session, 'turns_data') else 0,
+                    "successful_turns": self.session.successful_turns if hasattr(self.session, 'successful_turns') else 0,
+                    "fine_tuning_eligible": len([t for t in self.session.turns_data if t.include_in_fine_tuning]) if hasattr(self.session, 'turns_data') else 0
+                },
+                
+                # Legacy format for backward compatibility
+                "session_id": self.session.session_id,
+                "goal": self.session.goal,
+                "start_time": self.session.start_time,
+                "turns": self.session_turns if hasattr(self, 'session_turns') else [],
+                
+                # Enhanced turn data
+                "enhanced_turns": [asdict(turn) for turn in self.session.turns_data] if hasattr(self.session, 'turns_data') else []
+            }
+            
+            # Write enhanced session data
+            with open(self.session_data_file, 'w') as f:
+                json.dump(enhanced_session_data, f, indent=2, default=str)
+                
+        except Exception as e:
+            print(f"⚠️ Failed to save enhanced session data: {e}")
     
     def _handle_user_input(self):
         """Handle real-time user input during gameplay"""
