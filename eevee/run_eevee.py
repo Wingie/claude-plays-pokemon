@@ -29,6 +29,7 @@ import base64
 import threading
 import queue
 import signal
+import yaml
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Union, Tuple
@@ -1250,7 +1251,6 @@ class ContinuousGameplay:
         Returns:
             Tuple of (context_type, context_data_dict)
         """
-        context_lower = memory_context.lower()
         user_goal = self.session.goal.lower()
         recent_actions = recent_actions or []
         
@@ -1683,7 +1683,7 @@ Use the pokemon_controller tool with a list of button presses."""
                 return
             
             # Run AI-powered analysis and template improvement
-            improvement_result = self._run_ai_powered_review(recent_turns, current_turn)
+            improvement_result = self._run_ai_powered_review(recent_turns)
             
             if improvement_result["success"]:
                 changes_applied = improvement_result["changes_applied"]
@@ -1988,7 +1988,7 @@ Focus on Pokemon-specific gameplay understanding. A score of 0.75 means "good pe
             }
         }
                 
-    def _run_ai_powered_review(self, recent_turns: List[Dict], current_turn: int) -> Dict[str, Any]:
+    def _run_ai_powered_review(self, recent_turns: List[Dict]) -> Dict[str, Any]:
         """Use AI to analyze recent turns and identify templates that need improvement"""
         try:
             # Step 1: Analyze which templates were used and their performance
@@ -2499,8 +2499,6 @@ Return ONLY the improved template content, ready to replace the current template
             # Save to YAML file
             prompts_file = Path(__file__).parent / "prompts" / "base" / "base_prompts.yaml"
             if prompts_file.exists():
-                import yaml
-                
                 # Load current YAML
                 with open(prompts_file, 'r') as f:
                     all_templates = yaml.safe_load(f) or {}
@@ -2956,7 +2954,6 @@ Examples:
 def setup_environment():
     """Setup Eevee v1 directory structure and environment"""
     eevee_dir = Path(__file__).parent
-    project_root = eevee_dir.parent
     
     # Create required directories
     directories = [
@@ -2995,7 +2992,7 @@ def print_startup_banner(args):
     print("=. " + "="*60)
 
 
-def execute_single_task(eevee: EeveeAgent, task: str, args) -> Dict[str, Any]:
+def execute_single_task(eevee: EeveeAgent, task: str) -> Dict[str, Any]:
     """Execute a single task and return results"""
     print(f"<� Executing task: {task}")
     
@@ -3124,7 +3121,7 @@ def main():
         # Determine execution mode
         if args.task:
             # Single task execution mode
-            result = execute_single_task(eevee, args.task, args)
+            result = execute_single_task(eevee, args.task)
             
             # Print results
             print(f"\n Task execution completed!")
@@ -3159,7 +3156,7 @@ def main():
             gameplay = ContinuousGameplay(eevee, interactive=interactive, episode_review_frequency=args.episode_review_frequency)
             
             # Start session
-            session = gameplay.start_session(args.goal, args.max_turns)
+            gameplay.start_session(args.goal, args.max_turns)
             gameplay.turn_delay = args.turn_delay
             
             try:
