@@ -80,13 +80,24 @@ class PokemonEpisodeDiary:
         
         return episode_content
     
+    def _safe_get_analysis_text(self, turn: Dict) -> str:
+        """Safely extract analysis text from turn data, handling both string and dict formats"""
+        analysis = turn.get("ai_analysis", "")
+        if isinstance(analysis, dict):
+            # Try to extract text from dict format
+            return str(analysis.get("text", analysis.get("response", "")))
+        elif isinstance(analysis, str):
+            return analysis
+        else:
+            return str(analysis)
+
     def _detect_location(self, turns: List[Dict]) -> str:
         """Detect the primary location from AI analysis"""
         locations = ["Viridian Forest", "Route 1", "Pallet Town", "Pewter City", "forest", "route"]
         location_counts = {}
         
         for turn in turns:
-            analysis = turn.get("ai_analysis", "").lower()
+            analysis = self._safe_get_analysis_text(turn).lower()
             for location in locations:
                 if location.lower() in analysis:
                     location_counts[location] = location_counts.get(location, 0) + 1
@@ -99,7 +110,7 @@ class PokemonEpisodeDiary:
         """Detect battle events from session data"""
         battles = []
         for i, turn in enumerate(turns):
-            analysis = turn.get("ai_analysis", "").lower()
+            analysis = self._safe_get_analysis_text(turn).lower()
             if any(word in analysis for word in ["trainer", "battle", "fight", "wild pokemon"]):
                 battles.append({
                     "turn": turn.get("turn", i),
@@ -134,7 +145,7 @@ class PokemonEpisodeDiary:
         """Detect when Ash gets stuck and has to problem-solve"""
         stuck_moments = []
         for turn in turns:
-            analysis = turn.get("ai_analysis", "").lower()
+            analysis = self._safe_get_analysis_text(turn).lower()
             if any(word in analysis for word in ["stuck", "blocked", "corner", "repeat", "pattern"]):
                 stuck_moments.append({
                     "turn": turn.get("turn", 0),
@@ -147,7 +158,7 @@ class PokemonEpisodeDiary:
         """Detect new area discoveries"""
         discoveries = []
         for turn in turns:
-            analysis = turn.get("ai_analysis", "").lower()
+            analysis = self._safe_get_analysis_text(turn).lower()
             if any(word in analysis for word in ["new", "unexplored", "discover", "different"]):
                 discoveries.append({
                     "turn": turn.get("turn", 0),

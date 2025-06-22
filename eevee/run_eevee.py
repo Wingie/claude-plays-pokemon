@@ -479,8 +479,7 @@ class ContinuousGameplay:
                     self._last_visual_processing_time = meta.get('processing_time_ms')
                 
                 if self.eevee.verbose:
-                    valid_moves = self.visual_analyzer.get_valid_single_movements(movement_data)
-                    print(f"✅ Visual analysis complete: {len(valid_moves)} valid movements")
+                    print(f"✅ Visual analysis complete")
                     
             except Exception as e:
                 print(f"⚠️ Visual analysis failed: {e}")
@@ -1268,7 +1267,7 @@ class ContinuousGameplay:
         if stuck_level in ["level_3", "level_4", "level_5"]:  # Only severe stuck patterns
             context_data["emergency_context"] = {
                 "escalation_level": stuck_level,
-                "stuck_patterns": self._analyze_stuck_patterns(recent_actions),
+                "recent_actions": recent_actions[-5:] if recent_actions else [],  # Simple recent actions instead of stuck analysis
                 "attempts_count": len([action for action in recent_actions if action == recent_actions[-1]]) if recent_actions else 0
             }
             return "emergency", context_data
@@ -1321,36 +1320,7 @@ class ContinuousGameplay:
         
         return contexts
     
-    def _analyze_stuck_patterns(self, recent_actions: List[str]) -> Dict[str, Any]:
-        """Analyze recent actions for stuck patterns"""
-        if not recent_actions:
-            return {"pattern": "none", "severity": "low"}
-        
-        # Count consecutive identical actions
-        consecutive_count = 1
-        if len(recent_actions) > 1:
-            for i in range(len(recent_actions) - 2, -1, -1):
-                if recent_actions[i] == recent_actions[-1]:
-                    consecutive_count += 1
-                else:
-                    break
-        
-        # Determine pattern severity
-        if consecutive_count >= 5:
-            severity = "critical"
-        elif consecutive_count >= 3:
-            severity = "high"
-        elif consecutive_count >= 2:
-            severity = "medium"
-        else:
-            severity = "low"
-        
-        return {
-            "pattern": f"consecutive_{recent_actions[-1]}" if recent_actions else "none",
-            "severity": severity,
-            "count": consecutive_count,
-            "last_action": recent_actions[-1] if recent_actions else None
-        }
+    # Note: _analyze_stuck_patterns function removed to allow natural AI learning
     
     def _extract_location_name(self, context_lower: str) -> str:
         """Extract location name from context"""
@@ -1777,10 +1747,8 @@ Use the pokemon_controller tool with a list of button presses."""
         """Use Gemini 2.0 Flash Thinking to analyze Pokemon gameplay performance"""
         try:
             # Use enhanced stuck detection for analysis context
-            stuck_turn_indices = self._detect_stuck_patterns_in_turns(recent_turns)
-            
-            # Build comprehensive analysis prompt for Gemini
-            analysis_prompt = self._build_ai_performance_analysis_prompt(recent_turns, stuck_turn_indices, current_turn)
+            # Build AI performance analysis prompt (without stuck detection interference)
+            analysis_prompt = self._build_ai_performance_analysis_prompt(recent_turns, [], current_turn)
             
             # Call Gemini for intelligent performance analysis
             api_result = self.eevee._call_gemini_api(
@@ -1798,7 +1766,7 @@ Use the pokemon_controller tool with a list of button presses."""
             
             # Parse Gemini's response for performance assessment
             analysis_text = api_result.get("text", "")
-            return self._parse_ai_performance_response(analysis_text, stuck_turn_indices)
+            return self._parse_ai_performance_response(analysis_text, [])
             
         except Exception as e:
             return {
@@ -1940,20 +1908,18 @@ Focus on Pokemon-specific gameplay understanding. A score of 0.75 means "good pe
             }
         
         # Use the new comprehensive stuck detection
-        stuck_indices = self._detect_stuck_patterns_in_turns(recent_turns)
+        # Performance analysis without stuck detection interference - let AI learn naturally
+        exact_reps = 0
+        oscillations = 0
+        multibutton_reps = 0
+        directional_bias_turns = 0
         
-        # Count different pattern types
-        exact_reps = len(self._detect_exact_repetition_patterns(recent_turns))
-        oscillations = len(self._detect_oscillation_patterns(recent_turns))
-        multibutton_reps = len(self._detect_multibutton_repetitions(recent_turns))
-        directional_bias_turns = len(self._detect_directional_bias_patterns(recent_turns))
-        
-        # Calculate enhanced navigation efficiency
+        # Calculate navigation efficiency without stuck detection
         total_turns = len(recent_turns)
-        stuck_ratio = len(stuck_indices) / max(1, total_turns)
+        stuck_ratio = 0.0  # No artificial stuck detection
         
-        # Diversity of actions (non-stuck turns only)
-        non_stuck_turns = [turn for i, turn in enumerate(recent_turns) if i not in stuck_indices]
+        # Diversity of actions (all turns considered equally)
+        non_stuck_turns = recent_turns  # All turns treated equally
         if non_stuck_turns:
             unique_actions = len(set(str(turn.get('button_presses', [])) for turn in non_stuck_turns))
             action_diversity = unique_actions / len(non_stuck_turns)
@@ -2046,16 +2012,15 @@ Focus on Pokemon-specific gameplay understanding. A score of 0.75 means "good pe
         """Analyze which templates were used and their success/failure patterns"""
         template_stats = {}
         
-        # Detect stuck patterns in recent turns
-        stuck_patterns = self._detect_stuck_patterns_in_turns(recent_turns)
+        # Analyze turns without stuck detection - let AI learn naturally
         
         for i, turn in enumerate(recent_turns):
             template_used = turn.get("template_used", "unknown")
             template_version = turn.get("template_version", "unknown")
             
-            # Enhanced failure detection: not just action_result, but also stuck patterns
+            # Natural failure detection based on actual results only
             action_result = turn.get("action_result", False)
-            is_stuck_turn = i in stuck_patterns  # This turn is part of a stuck pattern
+            is_stuck_turn = False  # No artificial stuck detection
             
             # A turn is considered a "failure" if:
             # 1. The action didn't succeed, OR
@@ -2093,110 +2058,9 @@ Focus on Pokemon-specific gameplay understanding. A score of 0.75 means "good pe
         
         return template_stats
     
-    def _detect_stuck_patterns_in_turns(self, recent_turns: List[Dict]) -> List[int]:
-        """Enhanced stuck pattern detection for complex Pokemon movement patterns"""
-        stuck_turn_indices = []
-        
-        if len(recent_turns) < 3:
-            return stuck_turn_indices
-        
-        # TYPE 1: Exact consecutive identical button sequences (original detection)
-        stuck_turn_indices.extend(self._detect_exact_repetition_patterns(recent_turns))
-        
-        # TYPE 2: Oscillating patterns (A→B→A→B cycles)
-        stuck_turn_indices.extend(self._detect_oscillation_patterns(recent_turns))
-        
-        # TYPE 3: Multi-button combination repetitions
-        stuck_turn_indices.extend(self._detect_multibutton_repetitions(recent_turns))
-        
-        # TYPE 4: High directional frequency (same direction dominance)
-        stuck_turn_indices.extend(self._detect_directional_bias_patterns(recent_turns))
-        
-        return list(set(stuck_turn_indices))  # Remove duplicates
-    
-    def _detect_exact_repetition_patterns(self, recent_turns: List[Dict]) -> List[int]:
-        """Detect exact consecutive identical button sequences"""
-        stuck_indices = []
-        
-        for i in range(len(recent_turns) - 2):
-            current_action = recent_turns[i].get("button_presses", [])
-            next_action = recent_turns[i + 1].get("button_presses", [])
-            third_action = recent_turns[i + 2].get("button_presses", [])
-            
-            # If 3 consecutive turns have the same action, mark them as stuck
-            if current_action == next_action == third_action and current_action:
-                stuck_indices.extend([i, i + 1, i + 2])
-        
-        return stuck_indices
-    
-    def _detect_oscillation_patterns(self, recent_turns: List[Dict]) -> List[int]:
-        """Detect A→B→A→B oscillating movement patterns"""
-        stuck_indices = []
-        
-        if len(recent_turns) < 4:
-            return stuck_indices
-        
-        for i in range(len(recent_turns) - 3):
-            actions = []
-            for j in range(4):
-                action = recent_turns[i + j].get("button_presses", [])
-                if action:  # Only consider non-empty actions
-                    actions.append(tuple(action))  # Convert to tuple for comparison
-            
-            # Check for A→B→A→B pattern
-            if len(actions) == 4 and actions[0] == actions[2] and actions[1] == actions[3] and actions[0] != actions[1]:
-                stuck_indices.extend([i, i + 1, i + 2, i + 3])
-        
-        return stuck_indices
-    
-    def _detect_multibutton_repetitions(self, recent_turns: List[Dict]) -> List[int]:
-        """Detect repeated multi-button combinations like ['down', 'right'] * 3"""
-        stuck_indices = []
-        
-        if len(recent_turns) < 3:
-            return stuck_indices
-        
-        for i in range(len(recent_turns) - 2):
-            actions = []
-            for j in range(3):
-                action = recent_turns[i + j].get("button_presses", [])
-                actions.append(tuple(action))  # Convert to tuple for comparison
-            
-            # Check if all three actions are identical and multi-button
-            if len(set(actions)) == 1 and len(actions[0]) >= 2:  # Same action, 2+ buttons
-                stuck_indices.extend([i, i + 1, i + 2])
-        
-        return stuck_indices
-    
-    def _detect_directional_bias_patterns(self, recent_turns: List[Dict]) -> List[int]:
-        """Detect when same direction appears too frequently (directional obsession)"""
-        stuck_indices = []
-        
-        if len(recent_turns) < 6:  # Need at least 6 turns to detect bias
-            return stuck_indices
-        
-        # Count direction frequency in recent turns
-        direction_counts = {"up": 0, "down": 0, "left": 0, "right": 0}
-        total_directional_actions = 0
-        
-        for i, turn in enumerate(recent_turns[-6:]):  # Look at last 6 turns
-            buttons = turn.get("button_presses", [])
-            for button in buttons:
-                if button in direction_counts:
-                    direction_counts[button] += 1
-                    total_directional_actions += 1
-        
-        # If any direction appears >50% of the time, mark recent turns as stuck
-        if total_directional_actions >= 4:  # Need minimum directional actions
-            for direction, count in direction_counts.items():
-                frequency = count / total_directional_actions
-                if frequency > 0.5:  # More than 50% bias toward one direction
-                    # Mark the last 4 turns as stuck due to directional bias
-                    start_idx = max(0, len(recent_turns) - 4)
-                    stuck_indices.extend(range(start_idx, len(recent_turns)))
-                    break
-        
-        return stuck_indices
+    # Note: Stuck pattern detection functions removed to allow natural AI learning
+    # The AI will learn collision and navigation patterns through experience
+    # rather than code-based intervention that interferes with learning
     
     def _identify_templates_needing_improvement(self, recent_turns: List[Dict], template_stats: Dict[str, Any]) -> List[Dict]:
         """Use AI to identify which templates need improvement based on performance patterns"""
@@ -2608,16 +2472,8 @@ Return ONLY the improved template content, ready to replace the current template
         if len(session_data["turns"]) < 12:
             return False
         
-        recent_turns = session_data["turns"][-12:]  # Last 12 turns
-        stuck_patterns = self._detect_stuck_patterns_in_turns(recent_turns)
-        stuck_ratio = len(stuck_patterns) / len(recent_turns)
-        
-        # Emergency review if >50% stuck ratio
-        if stuck_ratio > 0.5:
-            print(f"🚨 EMERGENCY REVIEW TRIGGERED: {stuck_ratio:.1%} stuck ratio detected")
-            return True
-        
-        return False
+        # No artificial stuck detection - let AI learn naturally
+        return False  # Disable emergency reviews based on stuck patterns
     
     def _log_learning_event(self, turn_number: int, update_result: Dict[str, Any]):
         """Log automatic learning events to runs directory"""

@@ -850,18 +850,6 @@ Be specific about moves, types, and strategic recommendations.""",
             print("🔄 AI reset context to default navigation")
         return True
     
-    def _format_objects_for_prompt(self, objects_detected: Dict) -> str:
-        """Format object detection data for prompt inclusion"""
-        if not objects_detected:
-            return "No objects detected"
-        
-        object_summary = []
-        for obj_type, coords in objects_detected.items():
-            if coords:
-                coord_list = ", ".join(coords)
-                object_summary.append(f"{obj_type.title()}: {coord_list}")
-        
-        return "\n".join(object_summary) if object_summary else "No objects detected"
     
     def get_ai_directed_prompt(
         self, 
@@ -906,27 +894,11 @@ Be specific about moves, types, and strategic recommendations.""",
         }
         
         # Add movement validation data from visual analysis (Pixtral)
-        if movement_data:
-            # Extract valid movements for strategic decision
-            valid_movements = []
-            movement_details = []
-            for move, reason in movement_data.get('valid_sequences', {}).get('1_move', []):
-                # Convert U/D/L/R to up/down/left/right for button names
-                movement_map = {'U': 'up', 'D': 'down', 'L': 'left', 'R': 'right'}
-                if move in movement_map:
-                    valid_movements.append(movement_map[move])
-                    movement_details.append(f"{movement_map[move]}: {reason}")
-            
-            variables["valid_movements"] = valid_movements
-            variables["movement_details"] = "\n".join(movement_details) if movement_details else "No valid movements detected"
-            variables["objects_detected"] = self._format_objects_for_prompt(movement_data.get('objects_detected', {}))
-            variables["location_type"] = movement_data.get('location_class', 'unknown')
+        if movement_data and "raw_pixtral_response" in movement_data:
+            # Pass raw Pixtral response to AI for natural analysis
+            variables["pixtral_analysis"] = movement_data["raw_pixtral_response"]
         else:
-            # No visual analysis data available
-            variables["valid_movements"] = ["up", "down", "left", "right"]  # Allow all movements
-            variables["movement_details"] = "Visual analysis not available - all movements allowed"
-            variables["objects_detected"] = "No object detection data"
-            variables["location_type"] = "unknown"
+            variables["pixtral_analysis"] = "No visual analysis available"
         
         # Initialize playbook_to_include with safe default
         playbook_to_include = "navigation"

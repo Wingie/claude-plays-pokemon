@@ -149,56 +149,68 @@ class VisualAnalysis:
         """Call Pixtral for visual movement analysis"""
         center_coord = f"{self.grid_size//2},{self.grid_size//2}"
         
-        prompt = f"""VISUAL TERRAIN ANALYSIS
+        prompt = f"""POKEMON GAME TERRAIN COLLISION ANALYSIS
 
-You are analyzing a screenshot with a {self.grid_size}x{self.grid_size} coordinate grid overlay.
-Your task is to describe ONLY what you actually see, without making assumptions.
+You are analyzing a Pokemon Game Boy Advance screenshot with a {self.grid_size}x{self.grid_size} coordinate grid overlay.
+Your task is to identify Pokemon terrain collision rules and determine which directions are WALKABLE vs BLOCKED.
 
 COORDINATE SYSTEM:
-- U = Up (toward 0 on Y-axis)
-- D = Down (toward {self.grid_size-1} on Y-axis)  
-- L = Left (toward 0 on X-axis)
-- R = Right (toward {self.grid_size-1} on X-axis)
+- up = Up movement (toward 0 on Y-axis)
+- down = Down movement (toward {self.grid_size-1} on Y-axis)  
+- left = Left movement (toward 0 on X-axis)
+- right = Right movement (toward {self.grid_size-1} on X-axis)
 - Player position: Center at ({center_coord})
 
-CRITICAL: DESCRIBE ONLY WHAT YOU ACTUALLY SEE
-Do not assume this is any specific type of game or location.
-Do not invent objects, characters, or destinations that aren't clearly visible.
+POKEMON COLLISION RULES:
+🚫 BLOCKED TERRAIN (cannot walk through):
+- Tree sprites (even if they look like grass textures)
+- Water tiles (blue areas, ponds, rivers)
+- Building walls and structures
+- Rock formations and cliffs
+- NPCs and trainers (character sprites)
 
-TERRAIN ANALYSIS TASK:
-Look at the terrain around the center position and determine which directions have similar, walkable-looking terrain.
+✅ WALKABLE TERRAIN (can walk through):
+- Grass paths (actual walkable grass, not tree sprites)
+- Dirt/sand paths and roads
+- Wooden floors and indoor tiles
+- Open doorways and entrances
+
+VISUAL RECOGNITION TIPS:
+- Tree sprites often have darker green or brown trunks even with grass-like tops
+- Water has distinct blue coloring and reflective appearance
+- Walkable grass paths are usually lighter/different shade than tree areas
+- Building walls have straight edges and solid colors
 
 REQUIRED RESPONSE FORMAT:
 ```
-VISUAL_DESCRIPTION: [What you actually see in the image - terrain, colors, patterns]
-LOCATION_TYPE: [describe the visual environment - grassy, rocky, paved, etc.]
+VISUAL_DESCRIPTION: [What you see - include details about Pokemon terrain elements]
+LOCATION_TYPE: [forest/town/route/cave/building/water based on Pokemon environment]
 
 TERRAIN_ANALYSIS:
-UP: [describe actual visible terrain] - [WALKABLE/BLOCKED]
-DOWN: [describe actual visible terrain] - [WALKABLE/BLOCKED]  
-LEFT: [describe actual visible terrain] - [WALKABLE/BLOCKED]
-RIGHT: [describe actual visible terrain] - [WALKABLE/BLOCKED]
+up: [Pokemon terrain type] - [WALKABLE/BLOCKED based on collision rules]
+down: [Pokemon terrain type] - [WALKABLE/BLOCKED based on collision rules]  
+left: [Pokemon terrain type] - [WALKABLE/BLOCKED based on collision rules]
+right: [Pokemon terrain type] - [WALKABLE/BLOCKED based on collision rules]
 
 VALID_SEQUENCES:
 1_MOVE:
-- ("U", "Similar terrain continues upward")
-- ("D", "Same surface type extends downward")
-- ("L", "Consistent terrain to the left")
-- ("R", "Matching surface to the right")
+- ("up", "Grassy terrain continues upward")
+- ("down", "Grassy terrain extends downward")
+- ("left", "Grassy terrain to the left")
+- ("right", "Grassy terrain to the right")
 
 OBJECTS_VISIBLE:
-[ONLY list objects you can clearly see - be very conservative]
-Characters: [coordinate if you see clear human/character shapes]
-Structures: [coordinate if you see clear building/structure shapes]  
-Signs: [coordinate if you see clear sign/post shapes]
-Items: [coordinate if you see clear item/object shapes]
+Characters: [List any trainers or NPCs visible]
+Structures: [List any buildings or structures]
+Signs: [List any signs or posts]
+Items: [List any items or objects]
 ```
 
-VALIDATION RULES:
-- Only suggest moves on terrain that looks similar to the center position
-- Only list objects you can clearly and confidently identify
-- Be conservative - if unsure, don't include it
-- Focus on actual visual terrain matching, not game assumptions"""
+CRITICAL ANALYSIS FOCUS:
+- Apply Pokemon game collision detection rules
+- Distinguish tree sprites from walkable grass paths
+- Recognize water, walls, and other blocking terrain
+- Only mark directions as WALKABLE if they follow Pokemon movement rules"""
 
         try:
             import time
@@ -236,161 +248,12 @@ VALIDATION RULES:
             }
     
     def _parse_movement_response(self, response_text: str) -> Dict:
-        """Parse Pixtral response into structured movement data"""
-        movement_data = {
-            "location_class": "unknown",
-            "valid_sequences": {
-                "1_move": [],
-                "2_move": [],
-                "3_move": [],
-                "4_move": []
-            },
-            "objects_detected": {
-                "npcs": [],
-                "buildings": [],
-                "signs": [],
-                "items": []
-            },
-            "recommended_prompt": "exploration_strategy",
-            "prompt_reason": "Default recommendation"
+        """Return raw Pixtral response for AI to analyze naturally"""
+        return {
+            "raw_pixtral_response": response_text
         }
-        
-        response_lower = response_text.lower()
-        
-        # Extract location classification
-        location_patterns = [
-            (r"forest|wooded|tree|grassy", "forest"),
-            (r"town|city|building|urban", "town"),
-            (r"route|path|road", "route"),
-            (r"water|lake|river|pond", "water"),
-            (r"cave|cavern|rocky", "cave"),
-            (r"gym|center", "building")
-        ]
-        
-        for pattern, classification in location_patterns:
-            if re.search(pattern, response_lower):
-                movement_data["location_class"] = classification
-                break
-        
-        # Extract movement sequences using regex
-        sequence_pattern = r'\("([UDLR_]+)",\s*"([^"]+)"\)'
-        
-        for match in re.finditer(sequence_pattern, response_text):
-            sequence = match.group(1)
-            reason = match.group(2)
-            
-            # Categorize by length
-            move_count = len(sequence.split('_'))
-            if move_count == 1:
-                movement_data["valid_sequences"]["1_move"].append((sequence, reason))
-            elif move_count == 2:
-                movement_data["valid_sequences"]["2_move"].append((sequence, reason))
-            elif move_count == 3:
-                movement_data["valid_sequences"]["3_move"].append((sequence, reason))
-            elif move_count == 4:
-                movement_data["valid_sequences"]["4_move"].append((sequence, reason))
-        
-        # Extract object detections
-        coord_pattern = r'(\d+,\d+)'
-        
-        # Characters
-        char_section = re.search(r'characters?:.*?(?=\n\w+:|$)', response_lower, re.DOTALL)
-        if char_section:
-            char_coords = re.findall(coord_pattern, char_section.group(0))
-            movement_data["objects_detected"]["npcs"] = char_coords
-        
-        # Structures
-        struct_section = re.search(r'structures?:.*?(?=\n\w+:|$)', response_lower, re.DOTALL)
-        if struct_section:
-            struct_coords = re.findall(coord_pattern, struct_section.group(0))
-            movement_data["objects_detected"]["buildings"] = struct_coords
-        
-        # Signs
-        sign_section = re.search(r'signs?:.*?(?=\n\w+:|$)', response_lower, re.DOTALL)
-        if sign_section:
-            sign_coords = re.findall(coord_pattern, sign_section.group(0))
-            movement_data["objects_detected"]["signs"] = sign_coords
-        
-        # Items
-        item_section = re.search(r'items?:.*?(?=\n\w+:|$)', response_lower, re.DOTALL)
-        if item_section:
-            item_coords = re.findall(coord_pattern, item_section.group(0))
-            movement_data["objects_detected"]["items"] = item_coords
-        
-        # Set prompt recommendation based on location and objects
-        self._set_prompt_recommendation(movement_data)
-        
-        return movement_data
     
-    def _set_prompt_recommendation(self, movement_data: Dict) -> None:
-        """Set recommended prompt based on analysis results"""
-        location_class = movement_data["location_class"]
-        total_sequences = sum(len(seqs) for seqs in movement_data["valid_sequences"].values())
-        total_objects = sum(len(obj_list) for obj_list in movement_data["objects_detected"].values())
-        
-        if total_sequences == 0:
-            movement_data["recommended_prompt"] = "stuck_recovery"
-            movement_data["prompt_reason"] = "No valid movements available - emergency recovery needed"
-        elif location_class in ["forest", "route"]:
-            movement_data["recommended_prompt"] = "exploration_strategy" 
-            movement_data["prompt_reason"] = f"Overworld {location_class} area - navigation and exploration needed"
-        elif location_class in ["town", "building"]:
-            movement_data["recommended_prompt"] = "ai_navigation_with_memory_control"
-            movement_data["prompt_reason"] = f"Urban {location_class} area - structured navigation needed"
-        elif location_class == "cave":
-            movement_data["recommended_prompt"] = "ai_maze_with_solution_memory"
-            movement_data["prompt_reason"] = "Cave environment - maze navigation with memory needed"
-        else:
-            movement_data["recommended_prompt"] = "exploration_strategy"
-            movement_data["prompt_reason"] = f"Unknown {location_class} area - default exploration strategy"
     
-    def _log_analysis_results(self, movement_data: Dict) -> None:
-        """Log analysis results for debugging"""
-        print(f"\n🔍 VISUAL ANALYSIS RESULTS:")
-        print(f"📍 Location: {movement_data['location_class']}")
-        
-        # Single moves
-        single_moves = movement_data['valid_sequences']['1_move']
-        if single_moves:
-            print(f"🎮 Valid single movements ({len(single_moves)}):")
-            for move, reason in single_moves:
-                print(f"  ✓ {move} - {reason}")
-        
-        # Objects
-        objects = movement_data['objects_detected']
-        total_objects = sum(len(obj_list) for obj_list in objects.values())
-        if total_objects > 0:
-            print(f"🎯 Objects detected: {total_objects}")
-            for obj_type, coords in objects.items():
-                if coords:
-                    print(f"   {obj_type}: {coords}")
-        else:
-            print("🎯 No objects detected")
-    
-    def get_valid_single_movements(self, movement_data: Dict) -> List[str]:
-        """Extract just the valid single movement directions"""
-        return [move for move, _ in movement_data['valid_sequences']['1_move']]
-    
-    def format_movement_details(self, movement_data: Dict) -> str:
-        """Format movement details for text-based AI prompt"""
-        details = []
-        
-        for move, reason in movement_data['valid_sequences']['1_move']:
-            details.append(f"- {move}: {reason}")
-        
-        return "\n".join(details) if details else "No valid movements available"
-    
-    def format_objects_summary(self, movement_data: Dict) -> str:
-        """Format object detection summary for text-based AI prompt"""
-        objects = movement_data['objects_detected']
-        summary_parts = []
-        
-        for obj_type, coords in objects.items():
-            if coords:
-                coord_list = ", ".join(coords)
-                summary_parts.append(f"{obj_type.title()}: {coord_list}")
-        
-        return "\n".join(summary_parts) if summary_parts else "No objects detected"
     
     def _save_grid_image(self, grid_image_base64: str, session_name: str = None) -> None:
         """Save grid overlay image to runs directory"""
@@ -428,31 +291,43 @@ VALIDATION RULES:
                 f.write("=" * 60 + "\n\n")
                 
                 f.write(f"GRID SIZE: {self.grid_size}x{self.grid_size}\n")
-                f.write(f"LOCATION CLASS: {movement_data['location_class']}\n\n")
                 
-                # Valid movements summary
-                single_moves = movement_data['valid_sequences']['1_move']
-                valid_movements = [move for move, _ in single_moves]
-                f.write(f"VALID MOVEMENTS: {valid_movements}\n\n")
+                # Handle simplified data structure
+                if 'raw_pixtral_response' in movement_data:
+                    f.write(f"RAW PIXTRAL RESPONSE:\n{movement_data['raw_pixtral_response']}\n\n")
+                else:
+                    # Legacy format support
+                    if 'location_class' in movement_data:
+                        f.write(f"LOCATION CLASS: {movement_data['location_class']}\n\n")
+                    
+                    if 'valid_sequences' in movement_data and '1_move' in movement_data['valid_sequences']:
+                        single_moves = movement_data['valid_sequences']['1_move']
+                        valid_movements = [move for move, _ in single_moves]
+                        f.write(f"VALID MOVEMENTS: {valid_movements}\n\n")
                 
-                # Movement details
-                f.write("MOVEMENT DETAILS:\n")
-                for move, reason in single_moves:
-                    f.write(f"  ✓ {move} - {reason}\n")
-                f.write("\n")
+                # Legacy format details  
+                if 'valid_sequences' in movement_data and '1_move' in movement_data['valid_sequences']:
+                    single_moves = movement_data['valid_sequences']['1_move']
+                    f.write("MOVEMENT DETAILS:\n")
+                    for move, reason in single_moves:
+                        f.write(f"  ✓ {move} - {reason}\n")
+                    f.write("\n")
                 
-                # Objects detected
-                objects = movement_data['objects_detected']
-                total_objects = sum(len(obj_list) for obj_list in objects.values())
-                f.write(f"OBJECTS DETECTED: {total_objects}\n")
-                for obj_type, coords in objects.items():
-                    if coords:
-                        f.write(f"  {obj_type.upper()}: {coords}\n")
-                f.write("\n")
+                # Objects detected (legacy format)
+                if 'objects_detected' in movement_data:
+                    objects = movement_data['objects_detected']
+                    total_objects = sum(len(obj_list) for obj_list in objects.values())
+                    f.write(f"OBJECTS DETECTED: {total_objects}\n")
+                    for obj_type, coords in objects.items():
+                        if coords:
+                            f.write(f"  {obj_type.upper()}: {coords}\n")
+                    f.write("\n")
                 
-                # Prompt recommendation
-                f.write(f"RECOMMENDED PROMPT: {movement_data['recommended_prompt']}\n")
-                f.write(f"PROMPT REASON: {movement_data['prompt_reason']}\n\n")
+                # Prompt recommendation (legacy format)
+                if 'recommended_prompt' in movement_data:
+                    f.write(f"RECOMMENDED PROMPT: {movement_data['recommended_prompt']}\n")
+                if 'prompt_reason' in movement_data:
+                    f.write(f"PROMPT REASON: {movement_data['prompt_reason']}\n\n")
                 
                 # Raw AI response
                 f.write("--- RAW PIXTRAL RESPONSE ---\n")
@@ -480,3 +355,13 @@ VALIDATION RULES:
     def reset_step_counter(self) -> None:
         """Reset step counter for new session"""
         self.step_counter = 0
+    
+    def _log_analysis_results(self, movement_data: Dict) -> None:
+        """Log analysis results to console for debugging"""
+        print(f"🔍 Visual Analysis Results:")
+        print(f"   Step: {self.step_counter}")
+        if 'raw_pixtral_response' in movement_data:
+            response_preview = movement_data['raw_pixtral_response'][:100]
+            print(f"   Response Preview: {response_preview}...")
+        else:
+            print(f"   Movement Data Keys: {list(movement_data.keys())}")

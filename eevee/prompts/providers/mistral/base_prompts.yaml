@@ -19,10 +19,14 @@ battle_analysis:
     - Battle text/animations → Press A to continue
     - NOT a battle → Choose movement direction
     
+    **VALID BUTTON NAMES:**
+    - Movement: "up", "down", "left", "right"  
+    - Actions: "a", "b", "start", "select"
+    
     **REQUIRED JSON:**
     ```json
     {{
-      "button_presses": ["button"],
+      "button_presses": ["a"],
       "reasoning": "action based on what's visible"
     }}
     ```
@@ -33,43 +37,41 @@ battle_analysis:
   provider: 'mistral'
 
 exploration_strategy:
-  name: Strategic Movement Decision (Mistral-Optimized v2.0)
-  description: Concise movement decisions that trust Pixtral's visual analysis
+  name: Raw Pixtral Analysis (v4.0)
+  description: AI analyzes raw Pixtral visual data naturally without code processing
   template: |
-    Pokemon Navigation Decision
+    Pokemon Decision Making
     
     GOAL: {task}
     RECENT ACTIONS: {recent_actions}
     
-    **VISUAL ANALYSIS (from Pixtral vision system):**
-    - Location: {location_type}
-    - Available directions: {valid_movements}
-    - Terrain: {movement_details}
-    - Objects: {objects_detected}
+    **PIXTRAL VISUAL ANALYSIS:**
+    {pixtral_analysis}
     
     **INSTRUCTIONS:**
-    1. TRUST the visual analysis location type: {location_type}
-    2. Choose ONE direction from: {valid_movements}
-    3. Avoid repeating recent failed actions
-    4. Prioritize unexplored directions
+    1. Analyze the Pixtral visual report above
+    2. Determine if this is a battle scene, overworld navigation, or menu
+    3. Choose appropriate action based on what you see
+    4. Make ONE decision (movement direction, battle action, or menu selection)
+    
+    **VALID BUTTON NAMES:**
+    - Movement: "up", "down", "left", "right"
+    - Actions: "a", "b", "start", "select"
     
     **REQUIRED JSON RESPONSE:**
     ```json
     {{
-      "button_presses": ["direction"],
-      "reasoning": "why this direction for {location_type} exploration"
+      "button_presses": ["up"],
+      "reasoning": "decision based on visual analysis"
     }}
     ```
     
-    CRITICAL: Only return valid JSON. No other text.
+    Only return valid JSON with exact button names above.
   variables:
   - task  
   - recent_actions
-  - valid_movements
-  - movement_details
-  - objects_detected
-  - location_type
-  version: '1.0'
+  - pixtral_analysis
+  version: '4.0'
   provider: 'mistral'
 
 stuck_recovery:
@@ -92,10 +94,14 @@ stuck_recovery:
     - If stuck on interaction → try A button
     - If stuck in corner → try diagonal escape
     
+    **VALID BUTTON NAMES:**
+    - Movement: "up", "down", "left", "right"
+    - Actions: "a", "b", "start", "select"
+    
     **REQUIRED JSON:**
     ```json
     {{
-      "button_presses": ["different_button"],
+      "button_presses": ["left"],
       "reasoning": "breaking stuck pattern by trying [approach]"
     }}
     ```
