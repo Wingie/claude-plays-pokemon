@@ -627,20 +627,7 @@ class ContinuousGameplay:
         
         # Note: Movement validation is handled in the AI prompt stage, not here
         
-        # ENHANCED LOOP DETECTION: Track patterns and apply automatic diversification
-        if not hasattr(self, '_last_three_actions'):
-            self._last_three_actions = []
-        self._last_three_actions.append(validated_actions)
-        if len(self._last_three_actions) > 3:
-            self._last_three_actions.pop(0)
-        
-        # Automatic loop breaking - diversify when stuck
-        validated_actions = self._apply_automatic_loop_breaking(validated_actions)
-        
-        # INFORMATION ONLY: Alert about repetitive patterns without overriding
-        if hasattr(self, '_last_three_actions') and len(self._last_three_actions) >= 3:
-            if all(action == validated_actions for action in self._last_three_actions[-3:]):
-                print(f"ℹ️  PATTERN ALERT: Action {validated_actions} repeated 3 times - AI should consider alternatives")
+        # Note: Loop breaking system removed per user request - AI decisions are now fully respected
         
         try:
             # Execute button sequence
@@ -1063,56 +1050,6 @@ class ContinuousGameplay:
         
         return "\n".join(memory_parts) if memory_parts else ""
     
-    def _apply_automatic_loop_breaking(self, proposed_actions: List[str]) -> List[str]:
-        """Automatically break loops by diversifying actions when stuck patterns detected"""
-        if not hasattr(self, '_last_three_actions') or len(self._last_three_actions) < 2:
-            return proposed_actions
-        
-        # Check if we're about to repeat the same action 3+ times
-        recent_actions = [str(action) for action in self._last_three_actions[-2:]]
-        proposed_action_str = str(proposed_actions)
-        
-        # If last 2 actions were identical and we're about to do the same again
-        if len(recent_actions) >= 2 and all(action == proposed_action_str for action in recent_actions):
-            print(f"🔧 LOOP BREAKER: Detected 3x consecutive {proposed_actions}, applying diversification")
-            return self._get_diversified_action(proposed_actions)
-        
-        # Check for simple oscillation (A→B→A pattern)
-        if len(self._last_three_actions) >= 2:
-            last_action = str(self._last_three_actions[-1])
-            second_last_action = str(self._last_three_actions[-2])
-            if (last_action == proposed_action_str and 
-                last_action != second_last_action and 
-                last_action in ["['up']", "['down']", "['left']", "['right']"]):
-                print(f"🔧 LOOP BREAKER: Detected oscillation pattern, applying diversification")
-                return self._get_diversified_action(proposed_actions)
-        
-        return proposed_actions
-    
-    def _get_diversified_action(self, stuck_actions: List[str]) -> List[str]:
-        """Get a diversified action to break out of loops"""
-        stuck_action = stuck_actions[0] if stuck_actions else "up"
-        
-        # If stuck on movement, try perpendicular directions first, then interaction
-        if stuck_action in ["up", "down"]:
-            alternatives = ["left", "right", "a", "b"]
-        elif stuck_action in ["left", "right"]:
-            alternatives = ["up", "down", "a", "b"]
-        elif stuck_action == "a":
-            alternatives = ["b", "up", "down", "left", "right"]
-        elif stuck_action == "b":
-            alternatives = ["a", "up", "down", "left", "right"]
-        else:
-            alternatives = ["a", "up", "down", "left", "right"]
-        
-        # Choose first alternative that's different from stuck action
-        for alternative in alternatives:
-            if alternative != stuck_action:
-                print(f"   → Switching from '{stuck_action}' to '{alternative}'")
-                return [alternative]
-        
-        # Fallback
-        return ["a"]
     
     def _record_turn_action(self, turn_number: int, observation: str, action: List[str], result: str):
         """Record a turn's action for recent context with progress tracking"""
