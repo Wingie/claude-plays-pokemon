@@ -33,39 +33,54 @@ battle_analysis:
   provider: 'mistral'
 
 exploration_strategy:
-  name: Pure Visual Navigation (Anti-Hallucination v4.0)
-  description: Prevents Pixtral from hallucinating battle elements in overworld scenes
+  name: Strategic Movement Decision (Two-Stage Navigation v1.0)
+  description: Makes strategic movement decisions based on visual analysis from Pixtral
   template: |
-    You are analyzing a Game Boy Advance screenshot. DO NOT assume this is a Pokemon battle.
+    You are making strategic Pokemon navigation decisions based on visual analysis data.
     
     TASK: {task}
     RECENT ACTIONS: {recent_actions}
     
-    **CRITICAL: ONLY DESCRIBE WHAT YOU ACTUALLY SEE**
-    This is NOT a battle scene unless you see large Pokemon sprites facing each other with HP bars.
+    **VISUAL ANALYSIS RESULTS (from Pixtral):**
+    Location Type: {location_type}
     
-    **VISUAL ELEMENTS TO IDENTIFY:**
-    - Character sprites (small figures)
-    - Terrain patterns (bushes, paths, buildings)
-    - Background colors and textures
-    - Any UI elements in corners (but don't assume they're HP bars)
+    Valid Movements Available: {valid_movements}
     
-    **MOVEMENT DECISION:**
-    Based purely on the visual terrain, choose a direction to move:
-    - UP, DOWN, LEFT, or RIGHT
-    - Avoid obstacles like trees or walls
-    - Move toward open paths or new areas
+    Movement Details:
+    {movement_details}
     
-    **RESPONSE FORMAT:**
-    First describe what you actually see, then choose a direction.
+    Objects Detected:
+    {objects_detected}
     
-    Visual observation: [what you see without assumptions]
-    Movement choice: [UP/DOWN/LEFT/RIGHT]
-    Reasoning: [why this direction based on terrain]
+    **YOUR DECISION:**
+    Based on the visual analysis above, choose ONE movement from the valid list: {valid_movements}
+    
+    Consider:
+    - Your current task: {task}
+    - Objects detected and their strategic value  
+    - Movement terrain analysis from Pixtral
+    - Recent actions to avoid getting stuck: {recent_actions}
+    
+    **MANDATORY JSON RESPONSE:**
+    ```json
+    {{
+      "button_presses": ["movement"],
+      "reasoning": "brief explanation"
+    }}
+    ```
+    
+    CRITICAL REQUIREMENTS:
+    - ONLY return valid JSON format above
+    - button_presses must contain exactly ONE movement from: {valid_movements}
+    - No additional text outside JSON
   variables:
   - task  
   - recent_actions
-  version: '3.0'
+  - valid_movements
+  - movement_details
+  - objects_detected
+  - location_type
+  version: '1.0'
   provider: 'mistral'
 
 stuck_recovery:

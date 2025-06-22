@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Movement Validation Test
-Compare 4x4 vs 8x8 light grey grids for directional movement analysis
-Return structured dictionary with location class and valid movements
+Visual Analysis Test with Movement Sequence Planning
+Uses Pixtral to generate valid movement sequences with strategic reasoning
+Returns structured tuples for easy storage and integration
 """
 
 import sys
@@ -32,8 +32,8 @@ except ImportError as e:
 
 load_dotenv()
 
-class MovementValidator:
-    """Compare grid sizes for directional movement validation"""
+class VisualAnalysis:
+    """Visual analysis system with movement sequence planning using Pixtral"""
     
     def __init__(self):
         self.controller = SkyEmuController()
@@ -139,23 +139,23 @@ class MovementValidator:
             }
     
     def parse_movement_response(self, response_text: str) -> Dict:
-        """Parse AI response into structured movement data"""
+        """Parse AI response into structured movement data with sequences as tuples"""
         movement_data = {
             "location_class": "unknown",
-            "valid_movements": [],
-            "blocked_movements": [],
-            "movement_reasons": {},
+            "valid_sequences": {
+                "1_move": [],
+                "2_move": [],
+                "3_move": [],
+                "4_move": []
+            },
             "objects_detected": {
                 "npcs": [],
                 "buildings": [],
                 "signs": [],
                 "items": []
             },
-            "movement_sequences": {
-                "1_step": [],
-                "2_step": [],
-                "3_step": []
-            }
+            "recommended_prompt": "exploration_strategy",
+            "prompt_reason": "Default recommendation"
         }
         
         response_lower = response_text.lower()
@@ -175,63 +175,41 @@ class MovementValidator:
                 movement_data["location_class"] = classification
                 break
         
-        # Extract movement validations
-        directions = ["up", "down", "left", "right"]
+        # Extract movement sequences using regex
+        # Pattern to match tuples like ("U_L", "reason")
+        sequence_pattern = r'\("([UDLR_]+)",\s*"([^"]+)"\)'
         
-        for direction in directions:
-            # Look for explicit movement statements
-            valid_patterns = [
-                rf"{direction}.*(?:walkable|clear|open|valid|can move|passable)",
-                rf"(?:walkable|clear|open|valid|can move|passable).*{direction}",
-                rf"{direction}.*allowed",
-                rf"move {direction}"
-            ]
+        # Find all sequence matches
+        for match in re.finditer(sequence_pattern, response_text):
+            sequence = match.group(1)
+            reason = match.group(2)
             
-            blocked_patterns = [
-                rf"{direction}.*(?:blocked|unwalkable|tree|water|wall|obstacle)",
-                rf"(?:blocked|unwalkable|tree|water|wall|obstacle).*{direction}",
-                rf"{direction}.*not allowed",
-                rf"cannot.*{direction}"
-            ]
-            
-            is_valid = any(re.search(pattern, response_lower) for pattern in valid_patterns)
-            is_blocked = any(re.search(pattern, response_lower) for pattern in blocked_patterns)
-            
-            if is_valid and not is_blocked:
-                movement_data["valid_movements"].append(direction)
-            elif is_blocked:
-                movement_data["blocked_movements"].append(direction)
-                
-                # Extract reason for blocking
-                for pattern in blocked_patterns:
-                    match = re.search(pattern, response_lower)
-                    if match:
-                        context = match.group(0)
-                        if "tree" in context:
-                            movement_data["movement_reasons"][direction] = "tree"
-                        elif "water" in context:
-                            movement_data["movement_reasons"][direction] = "water"
-                        elif "wall" in context:
-                            movement_data["movement_reasons"][direction] = "wall"
-                        else:
-                            movement_data["movement_reasons"][direction] = "obstacle"
-                        break
+            # Categorize by length
+            move_count = len(sequence.split('_'))
+            if move_count == 1:
+                movement_data["valid_sequences"]["1_move"].append((sequence, reason))
+            elif move_count == 2:
+                movement_data["valid_sequences"]["2_move"].append((sequence, reason))
+            elif move_count == 3:
+                movement_data["valid_sequences"]["3_move"].append((sequence, reason))
+            elif move_count == 4:
+                movement_data["valid_sequences"]["4_move"].append((sequence, reason))
         
-        # Extract object detections  
+        # Extract object detections with new format
         # Find coordinate patterns in object sections
         coord_pattern = r'(\d+,\d+)'
         
-        # NPCs
-        npc_section = re.search(r'npcs?:.*?(?=\n\w+:|$)', response_lower, re.DOTALL)
-        if npc_section:
-            npc_coords = re.findall(coord_pattern, npc_section.group(0))
-            movement_data["objects_detected"]["npcs"] = npc_coords
+        # Characters (was NPCs)
+        char_section = re.search(r'characters?:.*?(?=\n\w+:|$)', response_lower, re.DOTALL)
+        if char_section:
+            char_coords = re.findall(coord_pattern, char_section.group(0))
+            movement_data["objects_detected"]["npcs"] = char_coords
         
-        # Buildings
-        building_section = re.search(r'buildings?:.*?(?=\n\w+:|$)', response_lower, re.DOTALL)
-        if building_section:
-            building_coords = re.findall(coord_pattern, building_section.group(0))
-            movement_data["objects_detected"]["buildings"] = building_coords
+        # Structures (was Buildings)
+        struct_section = re.search(r'structures?:.*?(?=\n\w+:|$)', response_lower, re.DOTALL)
+        if struct_section:
+            struct_coords = re.findall(coord_pattern, struct_section.group(0))
+            movement_data["objects_detected"]["buildings"] = struct_coords
         
         # Signs
         sign_section = re.search(r'signs?:.*?(?=\n\w+:|$)', response_lower, re.DOTALL)
@@ -245,12 +223,12 @@ class MovementValidator:
             item_coords = re.findall(coord_pattern, item_section.group(0))
             movement_data["objects_detected"]["items"] = item_coords
         
-        # Add prompt mapping based on location class
+        # Add prompt mapping based on location class and movement availability
         location_class = movement_data["location_class"]
-        valid_movement_count = len(movement_data["valid_movements"])
+        total_sequences = sum(len(seqs) for seqs in movement_data["valid_sequences"].values())
         
         # Prompt mapping logic
-        if valid_movement_count == 0:
+        if total_sequences == 0:
             # Stuck - need recovery
             movement_data["recommended_prompt"] = "stuck_recovery"
             movement_data["prompt_reason"] = "No valid movements available - emergency recovery needed"
@@ -297,84 +275,74 @@ class MovementValidator:
         
         grid_base64 = self.image_to_base64(grid_image)
         
-        # Movement validation prompt
+        # Movement sequence planning prompt
         center_coord = f"{grid_size//2},{grid_size//2}"
         
-        prompt = f"""POKEMON MOVEMENT VALIDATION ANALYSIS
+        prompt = f"""VISUAL TERRAIN ANALYSIS
 
-You are analyzing a Pokemon overworld scene with {grid_size}x{grid_size} light grey grid overlay.
+You are analyzing a screenshot with a {grid_size}x{grid_size} coordinate grid overlay.
+Your task is to describe ONLY what you actually see, without making assumptions.
 
-PLAYER POSITION: Center tile at coordinate ({center_coord})
+COORDINATE SYSTEM:
+- U = Up (toward 0 on Y-axis)
+- D = Down (toward {grid_size-1} on Y-axis)  
+- L = Left (toward 0 on X-axis)
+- R = Right (toward {grid_size-1} on X-axis)
+- Player position: Center at ({center_coord})
 
-CRITICAL GUIDANCE:
-1. The player is currently standing on a WALKABLE surface (this is the reference)
-2. If adjacent areas look SIMILAR to where the player is standing, they are also WALKABLE
-3. Only mark as BLOCKED if there are clear DIFFERENT obstacles (trees, water, walls)
+CRITICAL: DESCRIBE ONLY WHAT YOU ACTUALLY SEE
+Do not assume this is any specific type of game or location.
+Do not invent objects, characters, or destinations that aren't clearly visible.
 
-TERRAIN MATCHING STRATEGY:
-- Look at the player's current tile - this shows what "walkable" looks like
-- Compare adjacent tiles to the player's current position
-- If adjacent terrain matches player's terrain = WALKABLE
-- If adjacent terrain is clearly different (trees, water, walls) = BLOCKED
+TERRAIN ANALYSIS TASK:
+Look at the terrain around the center position and determine which directions have similar, walkable-looking terrain.
 
-MOVEMENT ANALYSIS:
-🔺 UP: Does the terrain above match the player's current terrain?
-🔻 DOWN: Does the terrain below match the player's current terrain?
-◀️ LEFT: Does the terrain to the left match the player's current terrain?
-▶️ RIGHT: Does the terrain to the right match the player's current terrain?
+MOVEMENT VALIDATION:
+From the center position, analyze each direction:
+- UP: What type of terrain/surface do you see?
+- DOWN: What type of terrain/surface do you see?
+- LEFT: What type of terrain/surface do you see?
+- RIGHT: What type of terrain/surface do you see?
 
-OBJECT DETECTION PRIORITY:
-Before answering, systematically examine EVERY tile in the 8x8 grid. Pay special attention to:
-- Corner tiles: (0,0), (0,7), (7,0), (7,7)  
-- RIGHT EDGE CRITICAL: Examine coordinates 7,0 through 7,7 very carefully for character sprites
-- LEFT EDGE: Examine coordinates 0,0 through 0,7 for any sprites
-- Look for human-shaped sprites, character figures, Pokemon trainers, or anything that differs from terrain
-- NPCs may be small, colorful, or have different textures than trees/water/paths
-- Check for any moving or animated elements that stand out
-
-CLASSIFICATION RULES:
-- WALKABLE: Terrain that matches where player is currently standing
-- BLOCKED: Clearly different terrain (dense trees, blue water, solid walls)
+SEQUENCE GENERATION:
+Only generate sequences where you can visually trace the path on similar terrain.
 
 REQUIRED RESPONSE FORMAT:
 ```
-PLAYER_TERRAIN: [describe what the player is standing on]
-LOCATION_CLASS: [forest/town/route/water/cave/building]
+VISUAL_DESCRIPTION: [What you actually see in the image - terrain, colors, patterns]
+LOCATION_TYPE: [describe the visual environment - grassy, rocky, paved, etc.]
 
-MOVEMENT_VALIDATION:
-UP: [WALKABLE/BLOCKED] - [terrain comparison to player position]
-DOWN: [WALKABLE/BLOCKED] - [terrain comparison to player position]
-LEFT: [WALKABLE/BLOCKED] - [terrain comparison to player position]  
-RIGHT: [WALKABLE/BLOCKED] - [terrain comparison to player position]
+TERRAIN_ANALYSIS:
+UP: [describe actual visible terrain] - [WALKABLE/BLOCKED]
+DOWN: [describe actual visible terrain] - [WALKABLE/BLOCKED]  
+LEFT: [describe actual visible terrain] - [WALKABLE/BLOCKED]
+RIGHT: [describe actual visible terrain] - [WALKABLE/BLOCKED]
 
-OBJECTS_DETECTED:
-IMPORTANT: Scan the ENTIRE grid systematically from 0,0 to 7,7. Look carefully for:
+VALID_SEQUENCES:
+1_MOVE:
+- ("U", "Similar terrain continues upward")
+- ("D", "Same surface type extends downward")
+- ("L", "Consistent terrain to the left")
+- ("R", "Matching surface to the right")
 
-NPCs: [CRITICAL: Examine each coordinate 0,0 through 7,7 systematically. List coordinates of ANY people/characters/trainers visible - they may be small sprites, different colored figures, human-like shapes, or Pokemon trainers. Pay extra attention to edges (coordinates with 0 or 7). Look for sprites that differ from background terrain, e.g., "2,3", "5,1", "7,4"]
-Buildings: [list coordinates of buildings/structures/houses/doors, e.g., "1,0", "7,7"]  
-Signs: [list coordinates of signs/posts/markers, e.g., "3,4"]
-Items: [list coordinates of visible items/objects/pickups, e.g., "6,2"]
+2_MOVE:
+- ("U_L", "Two-step path on similar terrain")
+- ("U_R", "Diagonal path through consistent surface")
+[Only include sequences you can visually verify]
 
-DETECTION TIPS:
-- NPCs often appear as small human figures, different from terrain
-- Check edge tiles (0,x and 7,x coordinates) especially carefully
-- Look for sprites that stand out from background terrain  
-- Characters may be facing different directions
-- Don't miss partially visible objects at screen edges
-
-MOVEMENT_SEQUENCES:
-1_step_movements: [all valid single steps: "up", "down", "left", "right"]
-2_step_combinations: [valid 2-step sequences: "up,left", "down,right", etc.]
-3_step_paths: [valid 3-step paths before hitting obstacles: "up,up,left", etc.]
-
-SUMMARY:
-Valid directions: [directions with similar terrain to player]
-Blocked directions: [directions with clearly different terrain]
-Interactive objects: [total count of NPCs + buildings + signs + items]
-Max movement depth: [how many steps possible before hitting obstacles]
+OBJECTS_VISIBLE:
+[ONLY list objects you can clearly see - be very conservative]
+Characters: [coordinate if you see clear human/character shapes]
+Structures: [coordinate if you see clear building/structure shapes]  
+Signs: [coordinate if you see clear sign/post shapes]
+Items: [coordinate if you see clear item/object shapes]
 ```
 
-Remember: The player can move on terrain similar to what they're currently standing on!"""
+VALIDATION RULES:
+- Only suggest moves on terrain that looks similar to the center position
+- Only list objects you can clearly and confidently identify
+- Be conservative - if unsure, don't include it
+- Focus on actual visual terrain matching, not game assumptions"""
         
         result = self.call_pixtral_for_movement(prompt, grid_base64)
         
@@ -389,27 +357,51 @@ Remember: The player can move on terrain similar to what they're currently stand
             
             # Display parsed results
             print(f"📍 Location: {movement_data['location_class']}")
-            print(f"✅ Valid movements: {movement_data['valid_movements']}")
-            print(f"❌ Blocked movements: {movement_data['blocked_movements']}")
             
-            if movement_data['movement_reasons']:
-                print(f"🚫 Block reasons: {movement_data['movement_reasons']}")
+            # Display movement sequences
+            print(f"\n🎮 MOVEMENT SEQUENCES:")
+            
+            sequences = movement_data['valid_sequences']
+            
+            # 1-move options
+            if sequences['1_move']:
+                print(f"\n1-MOVE OPTIONS ({len(sequences['1_move'])}):")
+                for seq, reason in sequences['1_move']:
+                    print(f"  ✓ {seq} - {reason}")
+            
+            # 2-move combos
+            if sequences['2_move']:
+                print(f"\n2-MOVE COMBOS ({len(sequences['2_move'])}):")
+                for seq, reason in sequences['2_move']:
+                    print(f"  ➤ {seq} - {reason}")
+            
+            # 3-move paths
+            if sequences['3_move']:
+                print(f"\n3-MOVE PATHS ({len(sequences['3_move'])}):")
+                for seq, reason in sequences['3_move']:
+                    print(f"  🎯 {seq} - {reason}")
+            
+            # 4-move sequences
+            if sequences['4_move']:
+                print(f"\n4-MOVE SEQUENCES ({len(sequences['4_move'])}):")
+                for seq, reason in sequences['4_move']:
+                    print(f"  🚀 {seq} - {reason}")
             
             # Display object detections
             objects = movement_data['objects_detected']
             total_objects = sum(len(obj_list) for obj_list in objects.values())
             if total_objects > 0:
-                print(f"🎯 Objects detected: {total_objects}")
+                print(f"\n🎯 Objects detected: {total_objects}")
                 for obj_type, coords in objects.items():
                     if coords:
                         print(f"   {obj_type}: {coords}")
             else:
-                print("🎯 No interactive objects detected")
+                print("\n🎯 No interactive objects detected")
             
             # Display prompt recommendation
             recommended_prompt = movement_data.get('recommended_prompt', 'exploration_strategy')
             prompt_reason = movement_data.get('prompt_reason', 'Default recommendation')
-            print(f"🤖 Recommended prompt: {recommended_prompt}")
+            print(f"\n🤖 Recommended prompt: {recommended_prompt}")
             print(f"💡 Reason: {prompt_reason}")
             
         else:
@@ -473,17 +465,17 @@ Remember: The player can move on terrain similar to what they're currently stand
         for result in successful_results:
             movement_data = result.get("movement_data", {})
             grid_size = result.get("grid_size", "unknown")
+            sequences = movement_data.get("valid_sequences", {})
             
-            valid_count = len(movement_data.get("valid_movements", []))
-            blocked_count = len(movement_data.get("blocked_movements", []))
-            total_analyzed = valid_count + blocked_count
+            total_sequences = sum(len(seqs) for seqs in sequences.values())
             
             print(f"\n📊 {grid_size}x{grid_size} Grid Results:")
             print(f"   Location: {movement_data.get('location_class', 'unknown')}")
-            print(f"   Valid movements: {valid_count}")
-            print(f"   Blocked movements: {blocked_count}")
-            print(f"   Total analyzed: {total_analyzed}/4 directions")
-            print(f"   Coverage: {(total_analyzed/4)*100:.1f}%")
+            print(f"   Total sequences generated: {total_sequences}")
+            print(f"   - 1-move: {len(sequences.get('1_move', []))}")
+            print(f"   - 2-move: {len(sequences.get('2_move', []))}")
+            print(f"   - 3-move: {len(sequences.get('3_move', []))}")
+            print(f"   - 4-move: {len(sequences.get('4_move', []))}")
         
         # Determine better configuration
         if len(successful_results) == 2:
@@ -494,17 +486,17 @@ Remember: The player can move on terrain similar to what they're currently stand
                 data_4x4 = result_4x4.get("movement_data", {})
                 data_8x8 = result_8x8.get("movement_data", {})
                 
-                coverage_4x4 = len(data_4x4.get("valid_movements", [])) + len(data_4x4.get("blocked_movements", []))
-                coverage_8x8 = len(data_8x8.get("valid_movements", [])) + len(data_8x8.get("blocked_movements", []))
+                sequences_4x4 = sum(len(seqs) for seqs in data_4x4.get("valid_sequences", {}).values())
+                sequences_8x8 = sum(len(seqs) for seqs in data_8x8.get("valid_sequences", {}).values())
                 
                 print(f"\n🏆 RECOMMENDATION:")
-                if coverage_8x8 > coverage_4x4:
+                if sequences_8x8 > sequences_4x4:
                     print("✅ 8x8 Grid provides better movement analysis")
-                    print("   - Higher resolution for precise obstacle detection")
-                    print("   - More detailed spatial understanding")
-                elif coverage_4x4 > coverage_8x8:
+                    print("   - Higher resolution for precise path planning")
+                    print("   - More detailed movement sequences generated")
+                elif sequences_4x4 > sequences_8x8:
                     print("✅ 4x4 Grid provides better movement analysis")
-                    print("   - Simpler analysis with clearer results")
+                    print("   - Simpler analysis with clearer path reasoning")
                     print("   - Less overwhelming for AI processing")
                 else:
                     print("🤝 Both grids provide similar movement analysis")
@@ -527,7 +519,7 @@ Remember: The player can move on terrain similar to what they're currently stand
         # Human-readable output in the overlay directory
         output_file = self.overlay_dir / "movement_validation_output.txt"
         with open(output_file, 'w') as f:
-            f.write("🧭 Pokemon Movement Validation Results\n")
+            f.write("🧭 Pokemon Visual Analysis Results with Movement Sequences\n")
             f.write("=" * 60 + "\n\n")
             f.write(f"OVERLAY IMAGES: {self.overlay_dir}\n")
             f.write("-" * 60 + "\n\n")
@@ -538,11 +530,13 @@ Remember: The player can move on terrain similar to what they're currently stand
                     f.write(f"TEST: {result.get('test_name', 'Unknown')}\n")
                     f.write(f"GRID SIZE: {result.get('grid_size', 'Unknown')}x{result.get('grid_size', 'Unknown')}\n")
                     f.write(f"LOCATION CLASS: {movement_data.get('location_class', 'unknown')}\n")
-                    f.write(f"VALID MOVEMENTS: {movement_data.get('valid_movements', [])}\n")
-                    f.write(f"BLOCKED MOVEMENTS: {movement_data.get('blocked_movements', [])}\n")
-                    f.write(f"BLOCK REASONS: {movement_data.get('movement_reasons', {})}\n")
                     
-                    # Add object detection data
+                    # Summary of valid movements (simplified)
+                    sequences = movement_data.get('valid_sequences', {})
+                    simple_movements = [move for move, _ in sequences.get('1_move', [])]
+                    f.write(f"VALID MOVEMENTS: {simple_movements}\n")
+                    
+                    # Objects summary
                     objects = movement_data.get('objects_detected', {})
                     total_objects = sum(len(obj_list) for obj_list in objects.values())
                     f.write(f"OBJECTS DETECTED: {total_objects}\n")
@@ -550,11 +544,49 @@ Remember: The player can move on terrain similar to what they're currently stand
                         if coords:
                             f.write(f"  {obj_type.upper()}: {coords}\n")
                     
-                    # Add prompt recommendation
                     f.write(f"RECOMMENDED PROMPT: {movement_data.get('recommended_prompt', 'exploration_strategy')}\n")
                     f.write(f"PROMPT REASON: {movement_data.get('prompt_reason', 'Default recommendation')}\n")
-                    
                     f.write("-" * 40 + "\n\n")
+                    
+                    # Write detailed movement sequences
+                    f.write(f"DETAILED MOVEMENT SEQUENCES:\n")
+                    
+                    # 1-move
+                    if sequences.get('1_move'):
+                        f.write(f"1-MOVE ({len(sequences['1_move'])}):\n")
+                        for seq, reason in sequences['1_move']:
+                            f.write(f"  ✓ {seq} - {reason}\n")
+                    
+                    # 2-move
+                    if sequences.get('2_move'):
+                        f.write(f"\n2-MOVE ({len(sequences['2_move'])}):\n")
+                        for seq, reason in sequences['2_move']:
+                            f.write(f"  ➤ {seq} - {reason}\n")
+                    
+                    # 3-move
+                    if sequences.get('3_move'):
+                        f.write(f"\n3-MOVE ({len(sequences['3_move'])}):\n")
+                        for seq, reason in sequences['3_move']:
+                            f.write(f"  🎯 {seq} - {reason}\n")
+                    
+                    # 4-move
+                    if sequences.get('4_move'):
+                        f.write(f"\n4-MOVE ({len(sequences['4_move'])}):\n")
+                        for seq, reason in sequences['4_move']:
+                            f.write(f"  🚀 {seq} - {reason}\n")
+                    
+                    # Add raw AI response at the end
+                    if 'response' in result:
+                        f.write(f"\n--- RAW AI RESPONSE ---\n")
+                        f.write(result['response'])
+                        f.write(f"\n--- END RAW RESPONSE ---\n")
+                    
+                    f.write("\n" + "=" * 80 + "\n\n")
+                else:
+                    # Save failed results too
+                    f.write(f"TEST: {result.get('test_name', 'Unknown')} - FAILED\n")
+                    f.write(f"ERROR: {result.get('error', 'Unknown error')}\n")
+                    f.write("-" * 80 + "\n\n")
         
         print(f"\n💾 Results saved to: {json_file}")
         print(f"📝 Output saved to: {output_file}")
@@ -592,25 +624,28 @@ Remember: The player can move on terrain similar to what they're currently stand
         self.compare_grid_sizes(screenshot_base64)
 
 def main():
-    """Main movement validation test"""
-    print("🧭 Pokemon Movement Validation Test")
+    """Main visual analysis test with movement sequences"""
+    print("🧭 Pokemon Visual Analysis Test with Movement Sequences")
     print("=" * 70)
-    print("Testing optimal grid configuration for directional movement analysis")
+    print("Testing Pixtral's ability to generate strategic movement sequences")
     print()
     
-    validator = MovementValidator()
+    validator = VisualAnalysis()
     validator.run_movement_validation_test()
     
-    print("\n✅ Movement validation test complete!")
+    print("\n✅ Visual analysis test complete!")
     print("\nGenerated Dictionary Format:")
     print("{")
     print('  "location_class": "forest",')
-    print('  "valid_movements": ["up", "right"],')
-    print('  "blocked_movements": ["down", "left"],')
-    print('  "movement_reasons": {"down": "water", "left": "tree"},')
-    print('  "objects_detected": {"npcs": [], "buildings": [], "signs": [], "items": []},')
+    print('  "valid_sequences": {')
+    print('    "1_move": [("U", "Clear path north"), ("R", "Open route east")],')
+    print('    "2_move": [("U_L", "Reach item"), ("R_D", "Follow path")],')
+    print('    "3_move": [("U_U_L", "To Pokemon Center"), ("R_D_L", "Around water")],')
+    print('    "4_move": [("L_L_U_U", "Complex path to shop")]')
+    print('  },')
+    print('  "objects_detected": {"npcs": ["2,3"], "buildings": ["7,7"]},')
     print('  "recommended_prompt": "exploration_strategy",')
-    print('  "prompt_reason": "Overworld forest area - navigation and exploration needed"')
+    print('  "prompt_reason": "Overworld forest area - navigation needed"')
     print("}")
 
 if __name__ == "__main__":

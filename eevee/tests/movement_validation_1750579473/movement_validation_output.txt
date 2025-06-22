@@ -1,0 +1,192 @@
+🧭 Pokemon Visual Analysis Results with Movement Sequences
+============================================================
+
+OVERLAY IMAGES: /Users/wingston/code/claude-plays-pokemon/eevee/tests/movement_validation_1750579473
+------------------------------------------------------------
+
+TEST: Coarse 4x4 Grid
+GRID SIZE: 4x4
+LOCATION CLASS: forest
+VALID MOVEMENTS: ['U', 'D', 'L', 'R']
+OBJECTS DETECTED: 9
+  NPCS: ['2,3', '5,1', '7,4']
+  BUILDINGS: ['1,1', '4,4']
+  SIGNS: ['3,3']
+  ITEMS: ['2,1', '1,2', '4,3']
+RECOMMENDED PROMPT: exploration_strategy
+PROMPT REASON: Overworld forest area - navigation and exploration needed
+----------------------------------------
+
+DETAILED MOVEMENT SEQUENCES:
+1-MOVE (4):
+  ✓ U - Open grass path northward
+  ✓ D - Path continues south
+  ✓ L - Can move left into forest
+  ✓ R - Clear route to the right
+
+2-MOVE (8):
+  ➤ U_L - Reach item ball in corner
+  ➤ U_R - Approach NPC for interaction
+  ➤ R_U - Navigate to building entrance
+  ➤ R_D - Follow path around obstacle
+  ➤ D_L - Move toward trainer battle
+  ➤ D_R - Access new route area
+  ➤ L_U - Shortcut through grass
+  ➤ L_D - Avoid trainer's line of sight
+
+3-MOVE (8):
+  🎯 U_U_L - Reach Pokemon Center entrance
+  🎯 U_R_R - Navigate to hidden item location
+  🎯 R_U_U - Path to gym building
+  🎯 R_D_L - Circle around water obstacle
+  🎯 D_D_R - Exit to next route
+  🎯 D_L_L - Approach grass patch for Pokemon
+  🎯 L_U_R - Zigzag through tree maze
+  🎯 L_L_D - Reach sign for reading
+
+4-MOVE (4):
+  🚀 U_U_L_L - Complete path to shop avoiding all battles
+  🚀 R_R_U_U - Navigate to far corner for rare item
+  🚀 D_D_L_R - Complex path through route obstacles
+  🚀 L_L_L_U - Reach western exit of current area
+
+--- RAW AI RESPONSE ---
+```plaintext
+LOCATION_CLASS: [forest]
+
+VALID_SEQUENCES:
+1_MOVE:
+- ("U", "Open grass path northward")
+- ("D", "Path continues south")
+- ("L", "Can move left into forest")
+- ("R", "Clear route to the right")
+
+2_MOVE:
+- ("U_L", "Reach item ball in corner")
+- ("U_R", "Approach NPC for interaction")
+- ("R_U", "Navigate to building entrance")
+- ("R_D", "Follow path around obstacle")
+- ("D_L", "Move toward trainer battle")
+- ("D_R", "Access new route area")
+- ("L_U", "Shortcut through grass")
+- ("L_D", "Avoid trainer's line of sight")
+
+3_MOVE:
+- ("U_U_L", "Reach Pokemon Center entrance")
+- ("U_R_R", "Navigate to hidden item location")
+- ("R_U_U", "Path to gym building")
+- ("R_D_L", "Circle around water obstacle")
+- ("D_D_R", "Exit to next route")
+- ("D_L_L", "Approach grass patch for Pokemon")
+- ("L_U_R", "Zigzag through tree maze")
+- ("L_L_D", "Reach sign for reading")
+
+4_MOVE:
+- ("U_U_L_L", "Complete path to shop avoiding all battles")
+- ("R_R_U_U", "Navigate to far corner for rare item")
+- ("D_D_L_R", "Complex path through route obstacles")
+- ("L_L_L_U", "Reach western exit of current area")
+
+OBJECTS_DETECTED:
+NPCs: ["2,3", "5,1", "7,4"]
+Buildings: ["1,1", "4,4"]
+Signs: ["3,3"]
+Items: ["2,1", "1,2", "4,3"]
+```
+--- END RAW RESPONSE ---
+
+================================================================================
+
+TEST: Fine 8x8 Grid
+GRID SIZE: 8x8
+LOCATION CLASS: forest
+VALID MOVEMENTS: ['U', 'R', 'D', 'L']
+OBJECTS DETECTED: 10
+  NPCS: ['2,3', '5,1', '7,4']
+  BUILDINGS: ['1,1', '7,7']
+  SIGNS: ['3,2', '6,5']
+  ITEMS: ['1,2', '3,4', '5,6']
+RECOMMENDED PROMPT: exploration_strategy
+PROMPT REASON: Overworld forest area - navigation and exploration needed
+----------------------------------------
+
+DETAILED MOVEMENT SEQUENCES:
+1-MOVE (4):
+  ✓ U - Open grass path northward
+  ✓ R - Clear route to the right
+  ✓ D - Path continues south
+  ✓ L - Can move left into town
+
+2-MOVE (8):
+  ➤ U_L - Reach item ball in corner
+  ➤ U_R - Approach NPC for interaction
+  ➤ R_U - Navigate to building entrance
+  ➤ R_D - Follow path around obstacle
+  ➤ D_L - Move toward trainer battle
+  ➤ D_R - Access new route area
+  ➤ L_U - Shortcut through grass
+  ➤ L_D - Avoid trainer's line of sight
+
+3-MOVE (8):
+  🎯 U_U_L - Reach Pokemon Center entrance
+  🎯 U_R_R - Navigate to hidden item location
+  🎯 R_U_U - Path to gym building
+  🎯 R_D_L - Circle around water obstacle
+  🎯 D_D_R - Exit to next route
+  🎯 D_L_L - Approach grass patch for Pokemon
+  🎯 L_U_R - Zigzag through tree maze
+  🎯 L_L_D - Reach sign for reading
+
+4-MOVE (4):
+  🚀 U_U_L_L - Complete path to shop avoiding all battles
+  🚀 R_R_U_U - Navigate to far corner for rare item
+  🚀 D_D_L_R - Complex path through route obstacles
+  🚀 L_L_L_U - Reach western exit of current area
+
+--- RAW AI RESPONSE ---
+```plaintext
+LOCATION_CLASS: [forest]
+
+VALID_SEQUENCES:
+1_MOVE:
+- ("U", "Open grass path northward")
+- ("R", "Clear route to the right")
+- ("D", "Path continues south")
+- ("L", "Can move left into town")
+
+2_MOVE:
+- ("U_L", "Reach item ball in corner")
+- ("U_R", "Approach NPC for interaction")
+- ("R_U", "Navigate to building entrance")
+- ("R_D", "Follow path around obstacle")
+- ("D_L", "Move toward trainer battle")
+- ("D_R", "Access new route area")
+- ("L_U", "Shortcut through grass")
+- ("L_D", "Avoid trainer's line of sight")
+
+3_MOVE:
+- ("U_U_L", "Reach Pokemon Center entrance")
+- ("U_R_R", "Navigate to hidden item location")
+- ("R_U_U", "Path to gym building")
+- ("R_D_L", "Circle around water obstacle")
+- ("D_D_R", "Exit to next route")
+- ("D_L_L", "Approach grass patch for Pokemon")
+- ("L_U_R", "Zigzag through tree maze")
+- ("L_L_D", "Reach sign for reading")
+
+4_MOVE:
+- ("U_U_L_L", "Complete path to shop avoiding all battles")
+- ("R_R_U_U", "Navigate to far corner for rare item")
+- ("D_D_L_R", "Complex path through route obstacles")
+- ("L_L_L_U", "Reach western exit of current area")
+
+OBJECTS_DETECTED:
+NPCs: ["2,3", "5,1", "7,4"]
+Buildings: ["1,1", "7,7"]
+Signs: ["3,2", "6,5"]
+Items: ["1,2", "3,4", "5,6"]
+```
+--- END RAW RESPONSE ---
+
+================================================================================
+

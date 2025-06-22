@@ -46,6 +46,7 @@ try:
     from task_executor import TaskExecutor
     from utils.navigation_enhancement import NavigationEnhancer
     from diary_generator import PokemonEpisodeDiary
+    from visual_analysis import VisualAnalysis
 except ImportError as e:
     print(f"⚠️  Core Eevee components not available: {e}")
     print("Starting with basic implementation...")
@@ -132,6 +133,16 @@ class ContinuousGameplay:
         
         # Enhanced navigation system
         self.nav_enhancer = NavigationEnhancer(history_size=20, similarity_threshold=0.95)
+        
+        # Visual analysis system for movement validation (8x8 grid, every turn)
+        try:
+            self.visual_analyzer = VisualAnalysis(grid_size=8, save_logs=True)
+            self.use_visual_analysis = True
+            print("✅ Visual analysis system initialized (Pixtral + mistral-large-latest)")
+        except Exception as e:
+            print(f"⚠️ Visual analysis unavailable: {e}")
+            self.visual_analyzer = None
+            self.use_visual_analysis = False
         
         # Track recent actions for context (last 5 turns)
         self.recent_turns = []
@@ -220,11 +231,11 @@ class ContinuousGameplay:
                 # Store for navigation analysis
                 self._last_game_context = game_context
                 
-                # Step 2: Get AI analysis and decision
-                ai_result = self._get_ai_decision(game_context, turn_count)
+                # Step 2: Get AI analysis and decision (returns both AI result and movement data)
+                ai_result, movement_data = self._get_ai_decision(game_context, turn_count)
                 
-                # Step 3: Execute AI's chosen action
-                execution_result = self._execute_ai_action(ai_result)
+                # Step 3: Execute AI's chosen action (with movement validation)
+                execution_result = self._execute_ai_action(ai_result, movement_data)
                 
                 # Step 4: Update memory and session state
                 self._update_session_state(turn_count, ai_result, execution_result)
@@ -289,35 +300,106 @@ class ContinuousGameplay:
                 "error": str(e)
             }
     
-    def _get_ai_decision(self, game_context: Dict[str, Any], turn_number: int) -> Dict[str, Any]:
-        """Get AI analysis and action decision"""
+    def _get_ai_decision(self, game_context: Dict[str, Any], turn_number: int) -> tuple:
+        """Get AI analysis and action decision with two-stage visual analysis system
+        
+        Returns:
+            tuple: (ai_result_dict, movement_data_dict)
+        """
         if not game_context.get("screenshot_data"):
             return {
                 "analysis": "No game data available",
                 "action": ["b"],  # Default action (safer for menu exit)
                 "reasoning": "Screenshot capture failed, using default action"
-            }
+            }, None
         
-        # Build context-aware prompt with image data for template selection
+        # STAGE 1: Visual Analysis (Pixtral) - Movement validation and object detection
+        movement_data = None
+        if self.use_visual_analysis and self.visual_analyzer:
+            try:
+                if self.eevee.verbose:
+                    print(f"🔍 Stage 1: Running visual analysis (Pixtral)...")
+                
+                # Get session name for logging
+                session_name = getattr(self.session, 'session_id', None)
+                
+                # Analyze current scene for movement validation
+                movement_data = self.visual_analyzer.analyze_current_scene(
+                    screenshot_base64=game_context.get("screenshot_data"),
+                    verbose=self.eevee.verbose,
+                    session_name=session_name
+                )
+                
+                if self.eevee.verbose:
+                    valid_moves = self.visual_analyzer.get_valid_single_movements(movement_data)
+                    print(f"✅ Visual analysis complete: {len(valid_moves)} valid movements")
+                    
+            except Exception as e:
+                print(f"⚠️ Visual analysis failed: {e}")
+                movement_data = None
+        
+        # STAGE 2: Strategic Decision (mistral-large-latest) - Build context-aware prompt
         memory_context = self._get_memory_context()
-        prompt_data = self._build_ai_prompt(turn_number, memory_context, game_context.get("screenshot_data"))
+        prompt_data = self._build_ai_prompt(
+            turn_number, 
+            memory_context, 
+            game_context.get("screenshot_data"), 
+            movement_data  # Pass movement validation data to prompt builder
+        )
         prompt = prompt_data.get("prompt", prompt_data) if isinstance(prompt_data, dict) else prompt_data
         
-        # Call Gemini API
+        # STAGE 2: Strategic Decision (mistral-large-latest) - No image needed, uses movement validation data
         try:
-            api_result = self.eevee._call_gemini_api(
+            if self.eevee.verbose:
+                print(f"🧠 Stage 2: Strategic decision (mistral-large-latest)...")
+            
+            # Import centralized LLM API
+            from llm_api import call_llm
+            
+            # Use mistral-large-latest for strategic decision making (text-only)
+            llm_response = call_llm(
                 prompt=prompt,
-                image_data=game_context["screenshot_data"],
-                use_tools=True,
+                image_data=None,  # No image needed - movement validation provides visual analysis
+                model="mistral-large-latest",
+                provider="mistral",
                 max_tokens=1000
             )
+            
+            # Convert to expected format
+            api_result = {
+                "error": llm_response.error,
+                "text": llm_response.text if hasattr(llm_response, 'text') else str(llm_response),
+                "button_presses": None  # Will be extracted from text
+            }
+            
+            # Extract button presses from JSON response (simplified)
+            if api_result["text"] and not api_result["error"]:
+                import re
+                import json
+                
+                # Parse standardized JSON response
+                json_match = re.search(r'```json\s*(\{.*?\})\s*```', api_result["text"], re.DOTALL)
+                if json_match:
+                    try:
+                        json_data = json.loads(json_match.group(1))
+                        if "button_presses" in json_data:
+                            api_result["button_presses"] = json_data["button_presses"]
+                        else:
+                            print("⚠️ No button_presses in JSON response")
+                            api_result["button_presses"] = ["b"]  # Simple fallback
+                    except json.JSONDecodeError as e:
+                        print(f"⚠️ JSON parsing failed: {e}")
+                        api_result["button_presses"] = ["b"]  # Simple fallback
+                else:
+                    print("⚠️ No JSON format found in response")
+                    api_result["button_presses"] = ["b"]  # Simple fallback
             
             if api_result["error"]:
                 return {
                     "analysis": f"API Error: {api_result['error']}",
                     "action": ["b"],
                     "reasoning": "API call failed, using default action"
-                }
+                }, movement_data
             
             # Enhanced logging with clear observation-to-action chain
             analysis_text = api_result.get("text", "No analysis provided")
@@ -343,17 +425,19 @@ class ContinuousGameplay:
                 result["template_used"] = prompt_data["template_used"]
                 result["template_version"] = prompt_data.get("template_version", "unknown")
             
-            return result
+            return result, movement_data
             
         except Exception as e:
             return {
                 "analysis": f"Exception: {str(e)}",
                 "action": ["b"],
                 "reasoning": "Exception occurred, using default action"
-            }
+            }, movement_data
     
-    def _execute_ai_action(self, ai_result: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the AI's chosen action with button press validation"""
+    # Movement validation is now handled in the AI prompt stage
+    
+    def _execute_ai_action(self, ai_result: Dict[str, Any], movement_data: Dict = None) -> Dict[str, Any]:
+        """Execute the AI's chosen action (movement already validated by two-stage system)"""
         actions = ai_result.get("action", ["b"])
         
         if not isinstance(actions, list):
@@ -378,6 +462,8 @@ class ContinuousGameplay:
         if not validated_actions:
             print(f"⚠️ No valid buttons found, using default 'b' (exit menus)")
             validated_actions = ['b']
+        
+        # Note: Movement validation is handled in the AI prompt stage, not here
         
         # ENHANCED LOOP DETECTION: Track patterns and apply automatic diversification
         if not hasattr(self, '_last_three_actions'):
@@ -1068,7 +1154,7 @@ class ContinuousGameplay:
         
         return ""
     
-    def _build_ai_prompt(self, turn_number: int, memory_context: str, image_data: str = None) -> Dict[str, Any]:
+    def _build_ai_prompt(self, turn_number: int, memory_context: str, image_data: str = None, movement_data: Dict = None) -> Dict[str, Any]:
         """Build context-aware AI prompt with playbook integration
         
         Returns:
@@ -1116,6 +1202,7 @@ class ContinuousGameplay:
                         escalation_level=self._get_escalation_level(),
                         memory_context=memory_context,  # Pass memory context for AI template selection
                         image_data=image_data,  # Pass screenshot for visual template selection
+                        movement_data=movement_data,  # NEW: Pass movement validation data from visual analysis
                         verbose=True
                     )
                     

@@ -850,6 +850,19 @@ Be specific about moves, types, and strategic recommendations.""",
             print("🔄 AI reset context to default navigation")
         return True
     
+    def _format_objects_for_prompt(self, objects_detected: Dict) -> str:
+        """Format object detection data for prompt inclusion"""
+        if not objects_detected:
+            return "No objects detected"
+        
+        object_summary = []
+        for obj_type, coords in objects_detected.items():
+            if coords:
+                coord_list = ", ".join(coords)
+                object_summary.append(f"{obj_type.title()}: {coord_list}")
+        
+        return "\n".join(object_summary) if object_summary else "No objects detected"
+    
     def get_ai_directed_prompt(
         self, 
         context_type: str = "navigation",
@@ -861,6 +874,7 @@ Be specific about moves, types, and strategic recommendations.""",
         escalation_level: str = "level_1",
         memory_context: str = "",
         image_data: str = None,
+        movement_data: Dict = None,
         verbose: bool = False
     ) -> str:
         """
@@ -876,6 +890,7 @@ Be specific about moves, types, and strategic recommendations.""",
             escalation_level: Emergency escalation level
             memory_context: Current memory context string
             image_data: Base64 encoded screenshot for visual template selection
+            movement_data: Movement validation data from visual analysis (Pixtral)
             verbose: Enable verbose logging
             
         Returns:
@@ -889,6 +904,29 @@ Be specific about moves, types, and strategic recommendations.""",
             "memory_context": memory_context,  # Pass actual memory context for AI selection
             "escalation_level": escalation_level
         }
+        
+        # Add movement validation data from visual analysis (Pixtral)
+        if movement_data:
+            # Extract valid movements for strategic decision
+            valid_movements = []
+            movement_details = []
+            for move, reason in movement_data.get('valid_sequences', {}).get('1_move', []):
+                # Convert U/D/L/R to up/down/left/right for button names
+                movement_map = {'U': 'up', 'D': 'down', 'L': 'left', 'R': 'right'}
+                if move in movement_map:
+                    valid_movements.append(movement_map[move])
+                    movement_details.append(f"{movement_map[move]}: {reason}")
+            
+            variables["valid_movements"] = valid_movements
+            variables["movement_details"] = "\n".join(movement_details) if movement_details else "No valid movements detected"
+            variables["objects_detected"] = self._format_objects_for_prompt(movement_data.get('objects_detected', {}))
+            variables["location_type"] = movement_data.get('location_class', 'unknown')
+        else:
+            # No visual analysis data available
+            variables["valid_movements"] = ["up", "down", "left", "right"]  # Allow all movements
+            variables["movement_details"] = "Visual analysis not available - all movements allowed"
+            variables["objects_detected"] = "No object detection data"
+            variables["location_type"] = "unknown"
         
         # Initialize playbook_to_include with safe default
         playbook_to_include = "navigation"
