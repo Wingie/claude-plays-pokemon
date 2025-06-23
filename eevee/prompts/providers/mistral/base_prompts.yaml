@@ -1,72 +1,67 @@
 battle_analysis:
-  name: Pokemon Battle Handler (Mistral-Optimized v5.0)
-  description: Handles Pokemon battles with clear visual verification
+  name: Pokemon Battle Handler (Mistral JSON)
+  description: Handles Pokemon battles with structured JSON responses
   template: |
     Pokemon Battle Analysis
     
     GOAL: {task}
     RECENT: {recent_actions}
     
-    **BATTLE VERIFICATION:**
-    Look for these battle indicators:
-    - HP bars with health meters
-    - Large Pokemon sprites (not small overworld characters)
-    - Battle menu: FIGHT, BAG, POKEMON, RUN
+    **VISUAL ANALYSIS:**
+    {pixtral_analysis}
     
-    **ACTIONS:**
-    - Battle menu showing → Press A to choose FIGHT
-    - Move selection screen → Press A to attack
-    - Battle text/animations → Press A to continue
-    - NOT a battle → Choose movement direction
+    **BATTLE ANALYSIS:**
+    Based on visual analysis:
+    - Battle phase (intro, menu, moves, animation)
+    - Available options and strategy
+    - HP status and type effectiveness
     
-    **VALID BUTTON NAMES:**
-    - Movement: "up", "down", "left", "right"  
+    **VALID BUTTONS:**
+    - Movement: "up", "down", "left", "right"
     - Actions: "a", "b", "start", "select"
     
-    **REQUIRED JSON:**
-    ```json
-    {{
-      "button_presses": ["a"],
-      "reasoning": "action based on what's visible"
-    }}
-    ```
+    **RESPONSE FORMAT (MANDATORY):**
+    Return ONLY a JSON object with no additional text:
+    
+    {{ "button_presses": ["a"], "reasoning": "Battle menu visible, selecting FIGHT option", "observations": "Four-option battle menu with FIGHT highlighted", "context_detected": "battle", "confidence": "high" }}
+    
+    Do not include any text before or after the JSON.
   variables:
   - task
   - recent_actions
+  - pixtral_analysis
   version: '3.0'
   provider: 'mistral'
 
 exploration_strategy:
-  name: Raw Pixtral Analysis (v4.0)
-  description: AI analyzes raw Pixtral visual data naturally without code processing
+  name: Navigation Analysis (Mistral JSON)
+  description: Analyzes navigation with visual data and structured responses
   template: |
-    Pokemon Decision Making
+    Pokemon Navigation Analysis
     
     GOAL: {task}
     RECENT ACTIONS: {recent_actions}
     
-    **PIXTRAL VISUAL ANALYSIS:**
+    **VISUAL ANALYSIS:**
     {pixtral_analysis}
     
-    **INSTRUCTIONS:**
-    1. Analyze the Pixtral visual report above
-    2. Determine if this is a battle scene, overworld navigation, or menu
-    3. Choose appropriate action based on what you see
-    4. Make ONE decision (movement direction, battle action, or menu selection)
+    **NAVIGATION STRATEGY:**
+    Based on visual analysis:
+    - Character position and available paths
+    - Obstacles and terrain features
+    - Menu state detection
+    - Movement decision
     
-    **VALID BUTTON NAMES:**
+    **VALID BUTTONS:**
     - Movement: "up", "down", "left", "right"
     - Actions: "a", "b", "start", "select"
     
-    **REQUIRED JSON RESPONSE:**
-    ```json
-    {{
-      "button_presses": ["up"],
-      "reasoning": "decision based on visual analysis"
-    }}
-    ```
+    **RESPONSE FORMAT (MANDATORY):**
+    Return ONLY a JSON object with no additional text:
     
-    Only return valid JSON with exact button names above.
+    {{ "button_presses": ["up"], "reasoning": "Path is clear north based on visual analysis", "observations": "Character on grassy terrain with clear path upward", "context_detected": "navigation", "confidence": "high" }}
+    
+    Do not include any text before or after the JSON.
   variables:
   - task  
   - recent_actions
@@ -75,36 +70,41 @@ exploration_strategy:
   provider: 'mistral'
 
 stuck_recovery:
-  name: Stuck Pattern Recovery (Mistral-Optimized v3.0)
-  description: Breaks stuck patterns with simple alternative actions
+  name: Stuck Recovery (Mistral JSON)
+  description: Recovers from stuck patterns with structured responses
   template: |
-    Stuck Pattern Detected
+    Pokemon Stuck Pattern Recovery
     
     GOAL: {task}
     STUCK PATTERN: {recent_actions}
     
-    **ANALYSIS:**
-    - Repeated actions indicate blocked path or menu loop
-    - Need to try completely different approach
-    - Break pattern with perpendicular or opposite direction
+    **RECOVERY ANALYSIS:**
+    - Identify repeated failing actions
+    - Determine recovery strategy
+    - Break pattern with alternative approach
     
     **RECOVERY OPTIONS:**
-    - If stuck moving → try opposite direction
-    - If stuck on menu → press B to exit
-    - If stuck on interaction → try A button
-    - If stuck in corner → try diagonal escape
+    - Perpendicular movement
+    - Opposite direction
+    - Menu escape (B button)
+    - Interaction attempt (A button)
     
-    **VALID BUTTON NAMES:**
+    **VALID BUTTONS:**
     - Movement: "up", "down", "left", "right"
     - Actions: "a", "b", "start", "select"
     
-    **REQUIRED JSON:**
-    ```json
-    {{
+    **RESPONSE FORMAT (MANDATORY):**
+    Return ONLY a JSON object with no additional text:
+    
+    {
       "button_presses": ["left"],
-      "reasoning": "breaking stuck pattern by trying [approach]"
-    }}
-    ```
+      "reasoning": "Breaking stuck pattern with perpendicular movement",
+      "observations": "Repeated failed attempts going up, trying left",
+      "context_detected": "navigation",
+      "confidence": "medium"
+    }
+    
+    Do not include any text before or after the JSON.
   variables:
   - recent_actions
   - task

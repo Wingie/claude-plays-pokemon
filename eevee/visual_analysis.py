@@ -151,66 +151,58 @@ class VisualAnalysis:
         
         prompt = f"""POKEMON GAME SCENE ANALYSIS
 
-You are analyzing a Pokemon Game Boy Advance screenshot to determine the current game state.
+Analyze this Pokemon Game Boy Advance screenshot and provide structured analysis.
 
-SIMPLE SCENE CLASSIFICATION:
+**SCENE CLASSIFICATION:**
+- Battle: HP bars, large Pokemon sprites, battle menu (FIGHT/BAG/POKEMON/RUN)
+- Navigation: Small character on terrain, environmental elements
+- Menu: Dialog boxes, menu options, status screens
 
-1. **BATTLE SCENE DETECTION**:
-   ✅ All three must be present to confirm battle:
-   - HP bars with numbers visible
-   - Large Pokemon sprites (not small overworld characters)
-   - Battle menu with FIGHT/BAG/POKEMON/RUN options
-   
-2. **OVERWORLD NAVIGATION**:
-   - Small character sprite on terrain
-   - No battle UI elements
-   - Environmental terrain (grass, trees, water, buildings)
-   
-3. **MENU/TEXT SCREEN**:
-   - Dialog boxes with text
-   - Menu options
-   - Status screens
+**ANALYSIS REQUIREMENTS:**
+- Conservative battle detection (all elements must be present)
+- Neutral description of visual elements
+- No assumptions about game state
 
-REQUIRED RESPONSE FORMAT:
-```
-VISUAL_DESCRIPTION: [Brief description of what you see]
-SCENE_TYPE: [battle/navigation/menu]
+**RESPONSE FORMAT (MANDATORY):**
+Return ONLY a JSON object with no additional text:
 
-BATTLE_CONFIRMATION (only if scene_type = battle):
-HP_BARS_VISIBLE: [yes/no]
-LARGE_POKEMON_SPRITES: [yes/no] 
-BATTLE_MENU_VISIBLE: [yes/no]
+{{
+  "scene_type": "battle|navigation|menu|unknown",
+  "visual_description": "Brief neutral description of what's visible",
+  "key_elements": ["list", "of", "important", "visual", "elements"],
+  "character_visible": true,
+  "menu_elements": ["any", "visible", "menu", "options"],
+  "confidence": "high|medium|low"
+}}
 
-NAVIGATION_INFO (only if scene_type = navigation):
-CHARACTER_POSITION: [center/left/right/top/bottom of screen]
-TERRAIN_VISIBLE: [grass/trees/water/buildings/mixed]
-
-OBJECTS_VISIBLE:
-Characters: [Any trainers or NPCs visible]
-Interactive_Elements: [Any items, signs, or special objects]
-```
-
-ANALYSIS FOCUS:
-- Conservative battle detection (all three criteria required)
-- Simple scene classification without complex terrain analysis
-- Focus on obvious visual elements only"""
+Do not include any text before or after the JSON. No markdown, no code blocks, no explanations."""
 
         try:
             import time
             start_time = time.time()
             
+            # Use environment-configured provider for visual analysis
+            import os
+            provider = os.getenv('LLM_PROVIDER', 'mistral').lower()
+            
+            if provider == 'gemini':
+                model = "gemini-2.0-flash-exp"  # Gemini's vision model
+            else:
+                model = "pixtral-12b-2409"  # Mistral's vision model
+                provider = "mistral"
+            
             response = call_llm(
                 prompt=prompt,
                 image_data=grid_image_base64,
-                model="pixtral-12b-2409",
-                provider="mistral",
+                model=model,
+                provider=provider,
                 max_tokens=600
             )
             
             processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
             
             if verbose:
-                print(f"📤 Pixtral visual analysis request sent")
+                print(f"📤 {provider.title()} visual analysis request sent ({model})")
                 print(f"📥 Response received: {len(response.text) if response.text else 0} chars")
             
             return {

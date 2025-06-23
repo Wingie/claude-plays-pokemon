@@ -237,7 +237,10 @@ class ContinuousGameplay:
         try:
             self.visual_analyzer = VisualAnalysis(grid_size=8, save_logs=True)
             self.use_visual_analysis = True
-            print("✅ Visual analysis system initialized (Pixtral + mistral-large-latest)")
+            import os
+            provider = os.getenv('LLM_PROVIDER', 'mistral').lower()
+            vision_model = 'gemini-2.0-flash-exp' if provider == 'gemini' else 'pixtral-12b-2409'
+            print(f"✅ Visual analysis system initialized ({vision_model} + mistral-large-latest)")
         except Exception as e:
             print(f"⚠️ Visual analysis unavailable: {e}")
             self.visual_analyzer = None
@@ -454,12 +457,12 @@ class ContinuousGameplay:
                 "reasoning": "Screenshot capture failed, using default action"
             }, None
         
-        # STAGE 1: Visual Analysis (Pixtral) - Movement validation and object detection
+        # STAGE 1: Visual Analysis - Movement validation and object detection
         movement_data = None
         if self.use_visual_analysis and self.visual_analyzer:
             try:
                 if self.eevee.verbose:
-                    print(f"🔍 Stage 1: Running visual analysis (Pixtral)...")
+                    print(f"🔍 Stage 1: Running visual analysis...")
                 
                 # Get session name for logging
                 session_name = getattr(self.session, 'session_id', None)
@@ -1531,17 +1534,32 @@ Use the pokemon_controller tool with your chosen button sequence."""
                         print(f"   📌 Template version: {version}")
                 
             except Exception as e:
+                # 🔧 FIX: No fallback! Fix the actual issue and retry with safe defaults
                 if self.eevee.verbose:
-                    print(f"⚠️ Prompt manager failed, using fallback: {e}")
-                print(f"📖 Using fallback prompt (no template)")
-                prompt = self._build_fallback_prompt(turn_number, memory_context, recent_task)
-                template_used = "fallback_exception"
-                template_version = "fallback"
+                    print(f"⚠️ Prompt manager failed: {e}")
+                    print(f"🔄 Retrying with safe template selection...")
+                
+                # Use safe default template instead of fallback
+                try:
+                    prompt = prompt_manager.get_prompt(
+                        "exploration_strategy", 
+                        variables, 
+                        include_playbook="navigation",
+                        verbose=True
+                    )
+                    template_used = "exploration_strategy"
+                    template_version = prompt_manager.base_prompts["exploration_strategy"].get('version', 'safe_default')
+                    using_ai_directed = False
+                    
+                    if self.eevee.verbose:
+                        print(f"✅ Using safe default JSON template: exploration_strategy")
+                        
+                except Exception as e2:
+                    # If even safe defaults fail, there's a fundamental issue
+                    raise Exception(f"Prompt manager completely broken: {e2}. Original error: {e}")
         else:
-            print(f"📖 Using fallback prompt (no prompt manager)")
-            prompt = self._build_fallback_prompt(turn_number, memory_context, recent_task)
-            template_used = "fallback_no_manager"
-            template_version = "fallback"
+            # 🚨 CRITICAL: This should never happen - prompt_manager is always initialized in EeveeAgent
+            raise Exception("EeveeAgent.prompt_manager is None - this indicates a critical initialization failure")
         
         # Clear processed user tasks
         if hasattr(self, '_user_tasks'):
@@ -1555,35 +1573,8 @@ Use the pokemon_controller tool with your chosen button sequence."""
             "playbooks_used": playbooks if 'playbooks' in locals() else []
         }
     
-    def _build_fallback_prompt(self, turn_number: int, memory_context: str, recent_task: str) -> str:
-        """Build fallback prompt when prompt manager is unavailable"""
-        # Add OKR context if enabled
-        okr_context = ""
-        if self.eevee.enable_okr:
-            okr_context = self.eevee.get_okr_context()
-            if self.eevee.verbose:
-                print(f"📊 OKR Context (fallback) included: {len(okr_context)} characters")
-        
-        return f"""# Pokemon Fire Red AI Expert - Turn {turn_number}
-
-**GOAL**: {self.session.goal}
-
-**USER INSTRUCTION**: {recent_task if recent_task else "Continue autonomous gameplay"}
-
-**RECENT MEMORY**: {memory_context}
-{okr_context}
-**GAMEPLAY CONTEXT**:
-- Turn {turn_number} of {self.session.max_turns}
-- Continuous autonomous gameplay with user guidance
-- Focus on efficient progress toward goal
-
-**ANALYSIS TASK**:
-🎯 **OBSERVE**: What's visible in the current game state?
-🧠 **ANALYZE**: How does this help achieve the goal? 
-⚡ **ACT**: Choose the best button press(es) for progress
-
-Analyze the screenshot and decide your next action to progress toward the goal.
-Use the pokemon_controller tool with a list of button presses."""
+    # 🗑️ REMOVED: _build_fallback_prompt() - No more non-JSON fallbacks!
+    # All responses must be JSON format for consistent parsing
     
     def _get_session_summary(self) -> Dict[str, Any]:
         """Get comprehensive session summary and generate Pokemon episode diary"""
