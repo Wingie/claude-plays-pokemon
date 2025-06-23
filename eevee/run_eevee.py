@@ -878,7 +878,11 @@ class ContinuousGameplay:
         
         # Visual analysis quality check (if available)
         if movement_data:
-            valid_moves = movement_data.get('valid_sequences', {}).get('1_move', [])
+            # Check for new visual context analyzer format
+            valid_moves = movement_data.get('valid_movements', [])
+            # Fallback to old format if needed
+            if not valid_moves:
+                valid_moves = movement_data.get('valid_sequences', {}).get('1_move', [])
             if not valid_moves:
                 return False  # Skip turns with no valid movements detected
         
