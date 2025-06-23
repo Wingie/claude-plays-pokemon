@@ -1,0 +1,74 @@
+{
+  "timestamp": 1750672897,
+  "test_type": "focused_anti_hallucination",
+  "prompt_results": [
+    {
+      "success": true,
+      "prompt_name": "movement_context_analyzer",
+      "provider": "mistral",
+      "model": "pixtral-12b-2409",
+      "response": "```json\n{\n  \"raw_pixtral_response\": \"This image depicts a navigation scene from a Pokemon game. The character is navigating through an overworld environment with various Pokemon visible on the grid.\",\n  \"scene_type\": \"navigation\",\n  \"visual_description\": \"The character is navigating through a grid-based overworld environment with various Pokemon scattered across the map. The terrain includes different types of grass and paths.\",\n  \"key_elements\": [\n    \"overworld terrain\",\n    \"character position\",\n    \"wild Pokemon encounters\"\n  ],\n  \"character_position\": \"Grid coordinates (0, 0)\",\n  \"interface_elements\": [],\n  \"confidence\": \"high\",\n  \"recommended_template\": \"ai_directed_navigation\",\n  \"template_reason\": \"The scene shows the character navigating through an overworld environment with visible Pokemon, requiring pathfinding and interaction decisions.\",\n  \"terrain_type\": \"overworld\",\n  \"movement_context\": \"The character can move in various directions to navigate the overworld, encountering and potentially battling wild Pokemon.\"\n}\n```",
+      "error": null,
+      "hallucination_analysis": {
+        "battle_keyword_count": 0,
+        "navigation_keyword_count": 8,
+        "false_hp_bars": false,
+        "false_battle_menu": true,
+        "false_pokemon_sprites": false,
+        "hallucination_score": 0,
+        "reality_score": 8
+      }
+    },
+    {
+      "success": true,
+      "prompt_name": "action_aware_detector",
+      "provider": "mistral",
+      "model": "pixtral-12b-2409",
+      "response": "```json\n{\n  \"raw_pixtral_response\": \"The image depicts a scene from a Pokemon game where the player character is navigating through an overworld environment. The player character is visible, and the terrain includes trees and grass. There are no visible battle interfaces or dialog boxes.\",\n  \"scene_type\": \"navigation\",\n  \"visual_description\": \"The scene shows a top-down view of a Pokemon overworld. The player character is navigating through a grassy area with trees. The terrain and character sprites are visible, but there are no battle interfaces or menu screens.\",\n  \"key_elements\": [\"character\", \"terrain\", \"objects\"],\n  \"character_position\": \"Grid coordinates: (2, 2)\",\n  \"interface_elements\": [],\n  \"confidence\": \"high\",\n  \"recommended_template\": \"ai_directed_navigation\",\n  \"template_reason\": \"The scene shows the player character navigating through an overworld environment without any battle interfaces or menu screens.\",\n  \"grid_analysis\": {\n    \"0,0\": \"Empty\",\n    \"0,1\": \"Empty\",\n    \"0,2\": \"Empty\",\n    \"1,0\": \"Empty\",\n    \"1,1\": \"Empty\",\n    \"1,2\": \"Empty\",\n    \"2,0\": \"Empty\",\n    \"2,1\": \"Empty\",\n    \"2,2\": \"Player character\",\n    \"3,0\": \"Tree\",\n    \"3,1\": \"Tree\",\n    \"3,2\": \"Empty\",\n    \"4,0\": \"Tree\",\n    \"4,1\": \"Tree\",\n    \"4,2\": \"Empty\",\n    \"5,0\": \"Empty\",\n    \"5,1\": \"Empty\",\n    \"5,2\": \"Empty\",\n    \"6,0\": \"Empty\",\n    \"6,1\": \"Empty\",\n    \"6,2\": \"Empty\",\n    \"7,0\": \"Empty\",\n    \"7,1\": \"Empty\",\n    \"7,2\": \"Empty\"\n  },\n  \"context_detected\": \"overworld exploration\"\n}\n```",
+      "error": null,
+      "hallucination_analysis": {
+        "battle_keyword_count": 1,
+        "navigation_keyword_count": 9,
+        "false_hp_bars": false,
+        "false_battle_menu": true,
+        "false_pokemon_sprites": false,
+        "hallucination_score": 1,
+        "reality_score": 9
+      }
+    },
+    {
+      "success": true,
+      "prompt_name": "spatial_environment_classifier",
+      "provider": "mistral",
+      "model": "pixtral-12b-2409",
+      "response": "```json\n{\n  \"raw_pixtral_response\": \"Complete spatial and environmental analysis with grid coordinate details for AI strategic use\",\n  \"scene_type\": \"navigation\",\n  \"visual_description\": \"The scene features a grid-based terrain with the player character navigating through various environmental elements. The grid is marked with coordinates and includes terrain features such as paths, obstacles, and possibly water or other environmental hazards.\",\n  \"key_elements\": [\"terrain features\", \"character sprites\", \"environmental objects\"],\n  \"character_position\": \"Player character is located at grid coordinates (0, 0).\",\n  \"interface_elements\": [\"UI elements might include health bars, experience points, and other status indicators typically found in navigation scenes.\"],\n  \"confidence\": \"high\",\n  \"recommended_template\": \"ai_directed_navigation\",\n  \"template_reason\": \"The scene includes a small player character sprite navigating through a grid-based terrain, which is typical for navigation scenes in Pokemon games.\",\n  \"terrain_analysis\": \"The terrain features include paths and potential environmental hazards or obstacles that the player character must navigate around. The grid layout suggests a structured environment with defined movement paths.\",\n  \"spatial_context\": \"The spatial context is grid-based, with each cell representing a specific area in the game world. This layout is essential for navigation planning and movement strategies.\"\n}\n```",
+      "error": null,
+      "hallucination_analysis": {
+        "battle_keyword_count": 1,
+        "navigation_keyword_count": 8,
+        "false_hp_bars": true,
+        "false_battle_menu": true,
+        "false_pokemon_sprites": false,
+        "hallucination_score": 1,
+        "reality_score": 8
+      }
+    },
+    {
+      "success": true,
+      "prompt_name": "comprehensive_scene_detector",
+      "provider": "mistral",
+      "model": "pixtral-12b-2409",
+      "response": "```json\n{\n  \"raw_pixtral_response\": \"Systematic scan of grid coordinates reveals a navigation scene with a player character moving on a terrain grid. The scene includes various Pokemon characters and terrain types.\",\n  \"scene_type\": \"navigation\",\n  \"visual_description\": \"The scene is set on a grid-based terrain with various Pokemon characters positioned at different coordinates. The player character is visible, and the environment includes grassy areas and water bodies.\",\n  \"key_elements\": [\n    \"character type: player and wild Pokemon\",\n    \"terrain type: grass, water\",\n    \"objects: Pokemon sprites\",\n    \"interfaces: none visible\"\n  ],\n  \"character_position\": {\n    \"player_character\": [1, 1],\n    \"wild_pokemon\": [5, 5]\n  },\n  \"interface_elements\": [],\n  \"confidence\": \"high\",\n  \"recommended_template\": \"ai_directed_navigation\",\n  \"template_reason\": \"The scene is an overworld navigation with no visible battle interface or dialog boxes, indicating a need for navigation-based AI decisions.\",\n  \"environmental_context\": \"The terrain includes grass and water, suggesting potential wild Pokemon encounters and movement planning around different terrain types.\",\n  \"scene_confidence\": \"high\"\n}\n```",
+      "error": null,
+      "hallucination_analysis": {
+        "battle_keyword_count": 1,
+        "navigation_keyword_count": 9,
+        "false_hp_bars": false,
+        "false_battle_menu": true,
+        "false_pokemon_sprites": false,
+        "hallucination_score": 1,
+        "reality_score": 9
+      }
+    }
+  ]
+}

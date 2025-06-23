@@ -149,29 +149,33 @@ class VisualAnalysis:
         """Call Pixtral for visual movement analysis"""
         center_coord = f"{self.grid_size//2},{self.grid_size//2}"
         
-        prompt = f"""POKEMON GAME SCENE ANALYSIS
+        prompt = f"""GAME BOY ADVANCE VISUAL ANALYSIS
 
-Analyze this Pokemon Game Boy Advance screenshot and provide structured analysis.
+Analyze this Game Boy Advance screenshot with coordinate grid overlay.
 
-**SCENE CLASSIFICATION:**
-- Battle: HP bars, large Pokemon sprites, battle menu (FIGHT/BAG/POKEMON/RUN)
-- Navigation: Small character on terrain, environmental elements
-- Menu: Dialog boxes, menu options, status screens
+**NEUTRAL DESCRIPTION:**
+Describe what you see using grid coordinates:
+- Visual elements and their positions (use grid references like "at grid 3,4")
+- Colors, shapes, and patterns  
+- Character/sprite positions
+- Interface elements (menus, bars, text)
 
-**ANALYSIS REQUIREMENTS:**
-- Conservative battle detection (all elements must be present)
-- Neutral description of visual elements
-- No assumptions about game state
+**CONTEXT DETECTION:**
+Based on visual evidence only, classify the scene type:
+- "battle": Large sprites facing each other + HP/status bars + battle menu (FIGHT/BAG/POKEMON/RUN)
+- "navigation": Small character on terrain/environment
+- "menu": Dialog boxes, status screens, inventory
+- "unknown": Cannot determine confidently
 
 **RESPONSE FORMAT (MANDATORY):**
 Return ONLY a JSON object with no additional text:
 
 {{
   "scene_type": "battle|navigation|menu|unknown",
-  "visual_description": "Brief neutral description of what's visible",
-  "key_elements": ["list", "of", "important", "visual", "elements"],
-  "character_visible": true,
-  "menu_elements": ["any", "visible", "menu", "options"],
+  "visual_description": "Brief neutral description using grid coordinates",
+  "key_elements": ["important", "visual", "elements"],
+  "character_position": "grid coordinates if visible",
+  "interface_elements": ["any", "menus", "or", "ui"],
   "confidence": "high|medium|low"
 }}
 
@@ -223,25 +227,53 @@ Do not include any text before or after the JSON. No markdown, no code blocks, n
             }
     
     def _parse_movement_response(self, response_text: str) -> Dict:
-        """Parse simplified Pixtral scene analysis response"""
+        """Parse enhanced Pixtral scene analysis response with template recommendation"""
         
         # Always include raw response for AI analysis
         result = {
             "raw_pixtral_response": response_text
         }
         
-        # Try to extract scene type for better AI template selection
+        # Try to parse JSON response
         try:
-            if "SCENE_TYPE: battle" in response_text:
-                result["scene_type"] = "battle"
-            elif "SCENE_TYPE: navigation" in response_text:
-                result["scene_type"] = "navigation"  
-            elif "SCENE_TYPE: menu" in response_text:
-                result["scene_type"] = "menu"
+            # Clean response text (remove markdown if present)
+            clean_response = response_text.strip()
+            if clean_response.startswith("```json"):
+                clean_response = clean_response.replace("```json", "").replace("```", "").strip()
+            
+            # Parse JSON
+            import json
+            parsed_data = json.loads(clean_response)
+            
+            # Extract scene analysis
+            result["scene_type"] = parsed_data.get("scene_type", "unknown")
+            result["visual_description"] = parsed_data.get("visual_description", "")
+            result["key_elements"] = parsed_data.get("key_elements", [])
+            result["character_position"] = parsed_data.get("character_position", "")
+            result["interface_elements"] = parsed_data.get("interface_elements", [])
+            result["confidence"] = parsed_data.get("confidence", "low")
+            
+            # AI Template Selection based on scene analysis
+            scene_type = result["scene_type"]
+            if scene_type == "battle":
+                result["recommended_template"] = "ai_directed_battle"
+                result["template_reason"] = "Battle scene detected with combat elements"
+            elif scene_type == "navigation":
+                result["recommended_template"] = "ai_directed_navigation"  
+                result["template_reason"] = "Navigation scene with character movement"
+            elif scene_type == "menu":
+                result["recommended_template"] = "ai_directed_navigation"  # Menus use navigation logic
+                result["template_reason"] = "Menu interface detected"
             else:
-                result["scene_type"] = "unknown"
-        except:
+                result["recommended_template"] = "ai_directed_navigation"  # Default fallback
+                result["template_reason"] = "Unknown scene type, using navigation default"
+                
+        except (json.JSONDecodeError, KeyError) as e:
+            # Fallback parsing for non-JSON responses
             result["scene_type"] = "unknown"
+            result["visual_description"] = "Failed to parse response"
+            result["recommended_template"] = "ai_directed_navigation"
+            result["template_reason"] = f"JSON parsing failed: {e}"
             
         return result
     

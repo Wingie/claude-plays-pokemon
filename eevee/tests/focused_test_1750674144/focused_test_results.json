@@ -1,0 +1,40 @@
+{
+  "timestamp": 1750674144,
+  "test_type": "focused_anti_hallucination",
+  "prompt_results": [
+    {
+      "success": true,
+      "prompt_name": "movement_context_analyzer_standard_mistral",
+      "provider": "mistral",
+      "model": "pixtral-12b-2409",
+      "response": "```json\n{\n  \"scene_type\": \"navigation\",\n  \"recommended_template\": \"ai_directed_navigation\",\n  \"confidence\": \"high\",\n  \"spatial_context\": \"Grid-based spatial understanding for navigation planning\",\n  \"character_position\": \"(4, 4)\",\n  \"visual_description\": \"The character is standing on a grid with various terrain types including water and land. The character is surrounded by numbers representing Pokemon encounters or encounters with trainers.\",\n  \"template_reason\": \"The scene depicts an overworld environment where the player can move freely in different directions, indicating navigation through the game world.\",\n  \"valid_movements\": [\"up\", \"down\", \"left\", \"right\"]\n}\n```",
+      "error": null,
+      "hallucination_analysis": {
+        "battle_keyword_count": 0,
+        "navigation_keyword_count": 6,
+        "false_hp_bars": false,
+        "false_battle_menu": true,
+        "false_pokemon_sprites": false,
+        "hallucination_score": 0,
+        "reality_score": 6
+      }
+    },
+    {
+      "success": true,
+      "prompt_name": "movement_context_analyzer_standard_gemini",
+      "provider": "gemini",
+      "model": "gemini-2.0-flash-exp",
+      "response": "```json\n{\n  \"scene_type\": \"navigation\",\n  \"recommended_template\": \"ai_directed_navigation\",\n  \"confidence\": \"high\",\n  \"spatial_context\": \"Grid-based spatial understanding for navigation planning\",\n  \"character_position\": \"3,3\",\n  \"visual_description\": \"Character with red hat is at grid coordinate (3,3). Terrain consists of open walkable space (purple hue) and impassable objects resembling rock formations with vegetation/trees at (0,0)-(1,7), (4,0)-(5,7), and (6,4)-(7,7)\",\n  \"template_reason\": \"The scene shows overworld movement. An AI-directed navigation template is suitable for planning routes and avoiding obstacles.\",\n  \"valid_movements\": [\"up\", \"down\", \"left\", \"right\"]\n}\n```",
+      "error": null,
+      "hallucination_analysis": {
+        "battle_keyword_count": 0,
+        "navigation_keyword_count": 8,
+        "false_hp_bars": false,
+        "false_battle_menu": false,
+        "false_pokemon_sprites": false,
+        "hallucination_score": 0,
+        "reality_score": 8
+      }
+    }
+  ]
+}
