@@ -41,81 +41,122 @@ class FocusedVisualPromptTester:
         self.test_dir = None
         
     def get_prompt_variations(self) -> List[Dict]:
-        """Test movement_context_analyzer_standard across Mistral and Gemini providers"""
-        mistral_prompt = """POKEMON SCENE ANALYSIS
-
-Analyze this Pokemon game screenshot with coordinate grid overlay.
-
-**IMPORTANT:** The white grid lines and coordinate numbers (0,0 through 7,7) are overlaid by us to help with spatial analysis - they are NOT part of the original game interface.
-
-**TASK:** Determine scene type and provide balanced analysis for the next AI stage.
-
-**ANALYSIS REQUIREMENTS:**
-- Identify scene type: navigation (overworld movement), battle (Pokemon combat), or menu (dialogs/interfaces)
-- Describe character position and visual context
-- Note template recommendation with reasoning
-- Provide confidence assessment and spatial understanding
-- Analyze terrain around player character to determine valid movement directions
-
-**CRITICAL:** Return ONLY JSON with balanced analysis:
-
-{
-  "scene_type": "navigation|battle|menu|unknown",
-  "recommended_template": "ai_directed_navigation|ai_directed_battle",
-  "confidence": "high|medium|low",
-  "spatial_context": "Grid-based spatial understanding for navigation planning",
-  "character_position": "grid coordinates if visible",
-  "visual_description": "Character and terrain description using grid coordinates",
-  "template_reason": "Why this template fits the visual evidence",
-  "valid_movements": ["up", "down", "left", "right"]
-}"""
+        """Test 4 battle-focused compact JSON variations for Gemini→Mistral handoff"""
         
-        gemini_prompt = """POKEMON SCENE ANALYSIS
+        universal_v1 = """POKEMON SCENE ANALYSIS
 
-Analyze this Pokemon game screenshot with coordinate grid overlay.
+Analyze screenshot. Detect scene type and provide appropriate data.
 
-**TASK:** Determine scene type and provide balanced analysis for the next AI stage.
+FOR BATTLE: Pokemon data + cursor position + button options
+FOR NAVIGATION: Movement options + terrain + NPCs  
+FOR MENU: Dialogue + interaction options
 
-**ANALYSIS REQUIREMENTS:**
-- Identify scene type: navigation (overworld movement), battle (Pokemon combat), or menu (dialogs/interfaces)
-- Describe character position and visual context
-- Note template recommendation with reasoning
-- Provide confidence assessment and spatial understanding
-- Analyze terrain around player character to determine valid movement directions
-
-**CRITICAL:** Return ONLY JSON with balanced analysis:
+ALWAYS include valid_buttons for current scene:
 
 {
-  "scene_type": "navigation|battle|menu|unknown",
-  "recommended_template": "ai_directed_navigation|ai_directed_battle",
-  "confidence": "high|medium|low",
-  "spatial_context": "Grid-based spatial understanding for navigation planning",
-  "character_position": "grid coordinates if visible",
-  "visual_description": "Character and terrain description using grid coordinates",
-  "template_reason": "Why this template fits the visual evidence",
-  "valid_movements": ["up", "down", "left", "right"]
-}"""
+  "scene_type": "battle|navigation|menu",
+  "battle_data": {"our_pokemon": {"name": "NAME", "hp": "X/Y", "level": 0}, "enemy_pokemon": {"name": "NAME", "hp": "X/Y", "level": 0}, "cursor_position": "FIGHT"},
+  "navigation_data": {"player_pos": "x,y", "terrain": "grass|water|path", "npcs_visible": [], "obstacles": []},
+  "menu_data": {"dialogue_text": "text", "interaction_type": "npc|sign|item"},
+  "valid_buttons": [
+    {"key": "A", "action": "specific_action", "result": "what_happens"},
+    {"key": "→", "action": "move_right_or_cursor", "result": "movement_or_menu"},
+    {"key": "↓", "action": "move_down_or_cursor", "result": "movement_or_menu"}
+  ],
+  "recommended_template": "ai_directed_navigation|ai_directed_battle"
+}
+
+FILL ONLY RELEVANT SECTIONS. JSON ONLY."""
+
+        universal_v2 = """POKEMON SCENE ANALYSIS
+
+Extract scene data + valid button options for ANY Pokemon context.
+
+FOR BATTLE: Pokemon status + fight options
+FOR NAVIGATION: Movement + terrain analysis  
+FOR MENU: Dialogue + interaction options
+
+{
+  "scene_type": "battle|navigation|menu",
+  "context_data": {
+    "battle": {"ours": "NAME HP:X/Y", "enemy": "NAME HP:X/Y", "cursor": "FIGHT"},
+    "navigation": {"terrain": "grass|path", "obstacles": [], "npcs": []},
+    "menu": {"text": "dialogue content", "type": "npc|sign"}
+  },
+  "valid_buttons": [
+    {"key": "A", "action": "context_specific_action"},
+    {"key": "→", "action": "move_or_cursor_right"},
+    {"key": "↓", "action": "move_or_cursor_down"}
+  ],
+  "recommended_template": "ai_directed_navigation|ai_directed_battle"
+}
+
+JSON ONLY."""
+
+        battle_focused_v3 = """POKEMON BATTLE ANALYSIS
+
+Analyze HP bars by COLOR (green=high, orange=medium, red=low). Detect cursor position and return ALL valid button options with SPECIFIC actions.
+
+{
+  "scene_type": "battle",
+  "battle_data": {
+    "our_hp": "14/26", 
+    "enemy_hp_color": "green|orange|red", 
+    "our_mon": "PIKACHU L9", 
+    "enemy_mon": "METAPOD L7"
+  },
+  "cursor_info": {"selected": "FIGHT", "menu": "main"},
+  "button_options": [
+    {"btn": "A", "does": "select_FIGHT_open_moves_menu"},
+    {"btn": "→", "does": "move_cursor_to_BAG"},
+    {"btn": "↓", "does": "move_cursor_to_POKEMON"},
+    {"btn": "B", "does": "back_or_cancel"}
+  ],
+  "fight_moves": []
+}
+
+JSON ONLY."""
+
+        battle_focused_v4 = """POKEMON BATTLE ANALYSIS
+
+Extract Pokemon data + cursor position + valid keys.
+
+{
+  "mode": "battle",
+  "status": {"us": "NAME HP", "them": "NAME HP"},
+  "cursor": "FIGHT",
+  "buttons": [
+    {"k": "A", "do": "select_FIGHT"},
+    {"k": "→", "do": "to_BAG"}, 
+    {"k": "↓", "do": "to_POKEMON"},
+    {"k": "B", "do": "cancel"}
+  ],
+  "moves": [],
+  "template": "battle"
+}
+
+JSON ONLY."""
         
         return [
             {
-                "name": "movement_context_analyzer_standard_mistral",
-                "description": "🎮 V2: Standard (8 keys) - Mistral Pixtral",
-                "prompt": mistral_prompt,
-                "provider": "mistral"
+                "name": "universal_v1",
+                "description": "🌍 Universal scene analysis - Handles all contexts",
+                "prompt": universal_v1,
+                "provider": "gemini"
             },
             {
-                "name": "movement_context_analyzer_standard_gemini",
-                "description": "🎮 V2: Standard (8 keys) - Gemini 2.0 Flash",
-                "prompt": gemini_prompt,
+                "name": "universal_v2", 
+                "description": "🎯 Streamlined universal - Compact context data",
+                "prompt": universal_v2,
                 "provider": "gemini"
             }
         ]
     
     def run_focused_test(self):
-        """Run focused test with 5 key prompts"""
-        print("🎯 MOVEMENT CONTEXT ANALYZER Provider Comparison Testing")
+        """Run focused test with 4 compact JSON variations"""
+        print("🎯 COMPACT JSON VISUAL ANALYSIS TESTING")
         print("=" * 60)
-        print("Testing movement_context_analyzer_standard across Mistral and Gemini providers")
+        print("Testing 4 compact JSON variations for Gemini-only visual analysis")
         
         # Connect to SkyEmu and capture screenshot
         if not self.controller.is_connected():
@@ -152,7 +193,7 @@ Analyze this Pokemon game screenshot with coordinate grid overlay.
         prompt_variations = self.get_prompt_variations()
         results = []
         
-        print(f"\n🧪 Testing {len(prompt_variations)} provider variations")
+        print(f"\n🧪 Testing {len(prompt_variations)} compact JSON variations")
         print("=" * 60)
         
         for i, variation in enumerate(prompt_variations, 1):

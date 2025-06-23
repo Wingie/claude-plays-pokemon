@@ -1,0 +1,74 @@
+{
+  "timestamp": 1750698845,
+  "test_type": "focused_anti_hallucination",
+  "prompt_results": [
+    {
+      "success": true,
+      "prompt_name": "battle_focused_v1",
+      "provider": "gemini",
+      "model": "gemini-2.0-flash-exp",
+      "response": "```json\n{\n  \"scene\": \"battle\",\n  \"our_pokemon\": {\"name\": \"METAPOD\", \"hp\": \"HP\", \"level\": 7},\n  \"enemy_pokemon\": {\"name\": \"PIKACHU\", \"hp\": \"14/26\", \"level\": 9},\n  \"cursor_position\": \"FIGHT\",\n  \"valid_buttons\": [\n    {\"key\": \"A\", \"action\": \"confirm_FIGHT\", \"result\": \"opens_move_menu\"},\n    {\"key\": \"\u2192\", \"action\": \"move_to_BAG\", \"result\": \"cursor_right\"},\n    {\"key\": \"\u2193\", \"action\": \"move_to_POKEMON\", \"result\": \"cursor_down\"},\n    {\"key\": \"B\", \"action\": \"cancel\", \"result\": \"closes_menu\"}\n\n  ],\n  \"moves\": [\n    {\"name\": \"GROWL\", \"pp\": null},\n    {\"name\": \"TAIL WHIP\", \"pp\": null},\n    {\"name\": \"THUNDERSHOCK\", \"pp\": \"36/40\"},\n    {\"name\": \"THUNDER WAVE\", \"pp\": null}\n  ]\n}\n```",
+      "error": null,
+      "hallucination_analysis": {
+        "battle_keyword_count": 1,
+        "navigation_keyword_count": 0,
+        "false_hp_bars": false,
+        "false_battle_menu": true,
+        "false_pokemon_sprites": false,
+        "hallucination_score": 1,
+        "reality_score": 0
+      }
+    },
+    {
+      "success": true,
+      "prompt_name": "battle_focused_v2",
+      "provider": "gemini",
+      "model": "gemini-2.0-flash-exp",
+      "response": "```json\n{\n  \"context\": \"battle_main|battle_fight\",\n  \"pokemon_status\": {\"ours\": \"METAPOD HP:8/8 Lv.7\", \"enemy\": \"PIKACHU HP:14/26 Lv.9\"},\n  \"cursor_state\": {\"current_selection\": \"GROWL\", \"menu_type\": \"move_selection\"},\n  \"valid_buttons\": [\n    {\"key\": \"A\", \"action\": \"select_current\", \"target\": \"GROWL\"},\n    {\"key\": \"\u2192\", \"action\": \"cursor_right\", \"target\": \"THUNDERSHOCK\"},\n    {\"key\": \"\u2193\", \"action\": \"cursor_down\", \"target\": \"TAIL WHIP\"}\n  ],\n  \"available_moves\": [\"GROWL\", \"TAIL WHIP\", \"THUNDERSHOCK\", \"THUNDER WAVE\"],\n  \"template\": \"battle\"\n}\n```\n",
+      "error": null,
+      "hallucination_analysis": {
+        "battle_keyword_count": 1,
+        "navigation_keyword_count": 0,
+        "false_hp_bars": false,
+        "false_battle_menu": true,
+        "false_pokemon_sprites": false,
+        "hallucination_score": 1,
+        "reality_score": 0
+      }
+    },
+    {
+      "success": true,
+      "prompt_name": "battle_focused_v3",
+      "provider": "gemini",
+      "model": "gemini-2.0-flash-exp",
+      "response": "```json\n{\n  \"scene_type\": \"battle\",\n  \"battle_data\": {\n    \"our_hp\": \"14/26\",\n    \"enemy_hp_color\": \"green\",\n    \"our_mon\": \"PIKACHU L9\",\n    \"enemy_mon\": \"METAPOD L7\"\n  },\n  \"cursor_info\": {\n    \"selected\": \"FIGHT\",\n    \"menu\": \"main\"\n  },\n  \"button_options\": [\n    {\n      \"btn\": \"A\",\n      \"does\": \"select_FIGHT_open_moves_menu\"\n    },\n    {\n      \"btn\": \"\u2192\",\n      \"does\": \"move_cursor_to_BAG\"\n    },\n    {\n      \"btn\": \"\u2193\",\n      \"does\": \"move_cursor_to_POKEMON\"\n    },\n    {\n      \"btn\": \"B\",\n      \"does\": \"back_or_cancel\"\n    }\n  ],\n  \"fight_moves\": [\n    {\"move\": \"GROWL\"},\n    {\"move\": \"TAIL WHIP\"},\n    {\"move\": \"THUNDERSHOCK\"},\n    {\"move\": \"THUNDER WAVE\"}\n  ]\n}\n```\n",
+      "error": null,
+      "hallucination_analysis": {
+        "battle_keyword_count": 1,
+        "navigation_keyword_count": 0,
+        "false_hp_bars": false,
+        "false_battle_menu": true,
+        "false_pokemon_sprites": false,
+        "hallucination_score": 1,
+        "reality_score": 0
+      }
+    },
+    {
+      "success": true,
+      "prompt_name": "battle_focused_v4",
+      "provider": "gemini",
+      "model": "gemini-2.0-flash-exp",
+      "response": "```json\n{\n  \"pokemon\": [\n    {\n      \"name\": \"METAPOD\",\n      \"level\": 7,\n      \"hp\": \"HP\" \n    },\n    {\n      \"name\": \"PIKACHU\",\n      \"level\": 9,\n      \"hp\": \"14/26\"\n    }\n  ],\n  \"cursor\": \"FIGHT\",\n  \"valid_keys\": [\"A\", \"\u2192\", \"\u2193\", \"B\"]\n}\n```\n",
+      "error": null,
+      "hallucination_analysis": {
+        "battle_keyword_count": 0,
+        "navigation_keyword_count": 0,
+        "false_hp_bars": false,
+        "false_battle_menu": true,
+        "false_pokemon_sprites": false,
+        "hallucination_score": 0,
+        "reality_score": 0
+      }
+    }
+  ]
+}

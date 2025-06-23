@@ -1,0 +1,74 @@
+{
+  "timestamp": 1750698585,
+  "test_type": "focused_anti_hallucination",
+  "prompt_results": [
+    {
+      "success": true,
+      "prompt_name": "battle_focused_v1",
+      "provider": "gemini",
+      "model": "gemini-2.0-flash-exp",
+      "response": "```json\n{\n  \"scene\": \"battle\",\n  \"our_pokemon\": {\"name\": \"METAPOD\", \"hp\": \"8/8\", \"level\": 7},\n  \"enemy_pokemon\": {\"name\": \"PIKACHU\", \"hp\": \"14/26\", \"level\": 9},\n  \"cursor_position\": \"FIGHT\",\n  \"valid_buttons\": [\n    {\"key\": \"A\", \"action\": \"confirm_FIGHT\", \"result\": \"opens_move_menu\"},\n    {\"key\": \"\u2192\", \"action\": \"move_to_BAG\", \"result\": \"cursor_right\"},\n    {\"key\": \"\u2193\", \"action\": \"move_to_POKEMON\", \"result\": \"cursor_down\"}\n  ],\n  \"moves\": []\n}\n```\n",
+      "error": null,
+      "hallucination_analysis": {
+        "battle_keyword_count": 1,
+        "navigation_keyword_count": 0,
+        "false_hp_bars": false,
+        "false_battle_menu": true,
+        "false_pokemon_sprites": false,
+        "hallucination_score": 1,
+        "reality_score": 0
+      }
+    },
+    {
+      "success": true,
+      "prompt_name": "battle_focused_v2",
+      "provider": "gemini",
+      "model": "gemini-2.0-flash-exp",
+      "response": "```json\n{\n  \"battle_state\": {\n    \"player_pokemon\": {\n      \"name\": \"PIKACHU\",\n      \"level\": 9,\n      \"hp\": \"14/26\"\n    },\n    \"opponent_pokemon\": {\n      \"name\": \"METAPOD\",\n      \"level\": 7,\n      \"hp\": null\n    }\n  },\n  \"cursor_position\": {\n    \"x\": 4,\n    \"y\": 5\n  },\n  \"valid_button_presses\": [\n    {\n      \"key\": \"A\",\n      \"action\": \"select_current\",\n      \"target\": \"FIGHT\"\n    },\n    {\n      \"key\": \"\u2192\",\n      \"action\": \"cursor_right\",\n      \"target\": \"BAG\"\n    },\n    {\n      \"key\": \"\u2193\",\n      \"action\": \"cursor_down\",\n      \"target\": \"POKEMON\"\n    }\n  ]\n}\n```\n",
+      "error": null,
+      "hallucination_analysis": {
+        "battle_keyword_count": 1,
+        "navigation_keyword_count": 0,
+        "false_hp_bars": false,
+        "false_battle_menu": true,
+        "false_pokemon_sprites": false,
+        "hallucination_score": 1,
+        "reality_score": 0
+      }
+    },
+    {
+      "success": true,
+      "prompt_name": "battle_focused_v3",
+      "provider": "gemini",
+      "model": "gemini-2.0-flash-exp",
+      "response": "```json\n{\n  \"scene_type\": \"battle\",\n  \"battle_data\": {\n    \"our_hp\": \"14/26\",\n    \"our_hp_color\": \"red\",\n    \"enemy_hp_color\": \"green\",\n    \"our_mon\": \"PIKACHU L9\",\n    \"enemy_mon\": \"METAPOD L7\"\n  },\n  \"cursor_info\": {\"selected\": \"FIGHT\", \"menu\": \"main\"},\n  \"button_options\": [\n    {\"btn\": \"A\", \"does\": \"select_FIGHT_open_moves_menu\"},\n    {\"btn\": \"\u2192\", \"does\": \"move_cursor_to_BAG\"},\n    {\"btn\": \"\u2193\", \"does\": \"move_cursor_to_POKEMON\"},\n    {\"btn\": \"B\", \"does\": \"back_or_cancel\"}\n  ],\n  \"fight_moves\": []\n}\n```\n",
+      "error": null,
+      "hallucination_analysis": {
+        "battle_keyword_count": 1,
+        "navigation_keyword_count": 0,
+        "false_hp_bars": false,
+        "false_battle_menu": true,
+        "false_pokemon_sprites": false,
+        "hallucination_score": 1,
+        "reality_score": 0
+      }
+    },
+    {
+      "success": true,
+      "prompt_name": "battle_focused_v4",
+      "provider": "gemini",
+      "model": "gemini-2.0-flash-exp",
+      "response": "```json\n{\n  \"pokemon_us\": {\n    \"name\": \"PIKACHU\",\n    \"level\": 9,\n    \"hp\": [14, 26]\n  },\n  \"pokemon_them\": {\n    \"name\": \"METAPOD\",\n    \"level\": 7,\n    \"hp\": []\n  },\n  \"cursor_position\": \"FIGHT\",\n  \"valid_keys\": [\"A\", \"\u2192\", \"\u2193\", \"B\"]\n}\n```\n",
+      "error": null,
+      "hallucination_analysis": {
+        "battle_keyword_count": 0,
+        "navigation_keyword_count": 0,
+        "false_hp_bars": false,
+        "false_battle_menu": true,
+        "false_pokemon_sprites": false,
+        "hallucination_score": 0,
+        "reality_score": 0
+      }
+    }
+  ]
+}
