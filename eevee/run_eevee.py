@@ -1442,41 +1442,69 @@ class ContinuousGameplay:
             }
             
             try:
-                # Get recent actions for context analysis
-                recent_actions_list = self._get_recent_action_list()
-                
-                # Determine appropriate context for AI-directed prompts
-                context_type, context_data = self._determine_ai_context(memory_context, recent_actions_list)
-                
-                # Initialize variables to avoid UnboundLocalError
-                playbooks = []
-                prompt_type = "fallback"
-                template_used = "fallback"
-                template_version = "unknown"
-                
-                # Try AI-directed prompt system first
-                if hasattr(prompt_manager, 'get_ai_directed_prompt'):
-                    prompt = prompt_manager.get_ai_directed_prompt(
-                        context_type=context_type,
-                        task=self.session.goal,
-                        recent_actions=recent_actions_list or [],
-                        available_memories=self._get_available_memory_contexts(),
-                        battle_context=context_data.get('battle_context'),
-                        maze_context=context_data.get('maze_context'),
-                        escalation_level=self._get_escalation_level(),
-                        memory_context=memory_context,  # Pass memory context for AI template selection
-                        image_data=image_data,  # Pass screenshot for visual template selection
-                        movement_data=movement_data,  # NEW: Pass movement validation data from visual analysis
+                # OPTIMIZATION: Use visual context analyzer's template recommendation directly
+                # This eliminates the redundant AI selection call and saves LLM tokens
+                if movement_data and 'recommended_template' in movement_data:
+                    # Use the template recommended by visual context analyzer
+                    visual_recommendation = movement_data['recommended_template']
+                    
+                    if self.eevee.verbose:
+                        print(f"🔍 Using visual analyzer template recommendation: {visual_recommendation}")
+                        confidence = movement_data.get('confidence', 'unknown')
+                        print(f"   Visual confidence: {confidence}")
+                    
+                    # Map visual analyzer recommendations to actual templates
+                    template_mapping = {
+                        "ai_directed_battle": "battle_analysis",
+                        "ai_directed_navigation": "exploration_strategy",
+                        "ai_directed_maze": "exploration_strategy", 
+                        "ai_directed_emergency": "stuck_recovery"
+                    }
+                    
+                    # Use mapped template or fallback to exploration_strategy
+                    prompt_type = template_mapping.get(visual_recommendation, "exploration_strategy")
+                    
+                    # Determine appropriate playbook based on template
+                    playbook_mapping = {
+                        "battle_analysis": "battle",
+                        "exploration_strategy": "navigation", 
+                        "stuck_recovery": "navigation"
+                    }
+                    playbook = playbook_mapping.get(prompt_type, "navigation")
+                    
+                    # Add spatial context variables from visual analysis
+                    variables.update({
+                        "scene_type": movement_data.get("scene_type", "unknown"),
+                        "spatial_context": movement_data.get("spatial_context", ""),
+                        "character_position": movement_data.get("character_position", ""),
+                        "visual_description": movement_data.get("visual_description", ""),
+                        "valid_movements": movement_data.get("valid_movements", []),
+                        "confidence": movement_data.get("confidence", "unknown"),
+                        "pixtral_analysis": movement_data.get("raw_pixtral_response", "Visual analysis complete")
+                    })
+                    
+                    # Generate prompt with visual intelligence data
+                    prompt = prompt_manager.get_prompt(
+                        prompt_type, 
+                        variables, 
+                        include_playbook=playbook,
                         verbose=True
                     )
                     
-                    # AI-directed system is working - skip the confusing fallback logging
-                    using_ai_directed = True
-                    template_used = f"ai_directed_{context_type}"
-                    template_version = "ai_directed"
+                    using_ai_directed = False
+                    template_used = prompt_type
+                    template_version = prompt_manager.base_prompts[prompt_type].get('version', 'visual_optimized')
+                    playbooks = [playbook]
+                    
+                    if self.eevee.verbose:
+                        print(f"✅ TOKEN OPTIMIZATION: Skipped redundant AI selection call")
+                        print(f"📖 Using template: {prompt_type} with playbook: {playbook}")
                 
                 else:
-                    # Fallback to original prompt system
+                    # Fallback: Use original context detection when visual analysis unavailable
+                    if self.eevee.verbose:
+                        print(f"⚠️ No visual template recommendation, using context detection")
+                    
                     prompt_type, playbooks = self._determine_prompt_context(memory_context)
                     prompt = prompt_manager.get_prompt(
                         prompt_type, 
@@ -1486,10 +1514,8 @@ class ContinuousGameplay:
                     )
                     using_ai_directed = False
                     template_used = prompt_type
-                    # Get template version if available
-                    if hasattr(prompt_manager, 'base_prompts') and prompt_type in prompt_manager.base_prompts:
-                        template_version = prompt_manager.base_prompts[prompt_type].get('version', 'unknown')
-                
+                    template_version = prompt_manager.base_prompts[prompt_type].get('version', 'context_detection')
+                    
                     # Add additional playbook context if multiple playbooks are relevant
                     if len(playbooks) > 1:
                         for additional_playbook in playbooks[1:]:
@@ -1931,7 +1957,7 @@ Focus on Pokemon-specific gameplay understanding. A score of 0.75 means "good pe
         
         return {
             'navigation_efficiency': navigation_efficiency,
-            'stuck_patterns': len(stuck_indices),
+            'stuck_patterns': 0,  # Fixed: No stuck detection in this system
             'oscillations': oscillations,
             'directional_bias': max_direction_ratio,
             'pattern_breakdown': {
