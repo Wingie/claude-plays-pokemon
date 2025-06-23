@@ -149,68 +149,51 @@ class VisualAnalysis:
         """Call Pixtral for visual movement analysis"""
         center_coord = f"{self.grid_size//2},{self.grid_size//2}"
         
-        prompt = f"""POKEMON GAME TERRAIN COLLISION ANALYSIS
+        prompt = f"""POKEMON GAME SCENE ANALYSIS
 
-You are analyzing a Pokemon Game Boy Advance screenshot with a {self.grid_size}x{self.grid_size} coordinate grid overlay.
-Your task is to identify Pokemon terrain collision rules and determine which directions are WALKABLE vs BLOCKED.
+You are analyzing a Pokemon Game Boy Advance screenshot to determine the current game state.
 
-COORDINATE SYSTEM:
-- up = Up movement (toward 0 on Y-axis)
-- down = Down movement (toward {self.grid_size-1} on Y-axis)  
-- left = Left movement (toward 0 on X-axis)
-- right = Right movement (toward {self.grid_size-1} on X-axis)
-- Player position: Center at ({center_coord})
+SIMPLE SCENE CLASSIFICATION:
 
-POKEMON COLLISION RULES:
-🚫 BLOCKED TERRAIN (cannot walk through):
-- Tree sprites (even if they look like grass textures)
-- Water tiles (blue areas, ponds, rivers)
-- Building walls and structures
-- Rock formations and cliffs
-- NPCs and trainers (character sprites)
-
-✅ WALKABLE TERRAIN (can walk through):
-- Grass paths (actual walkable grass, not tree sprites)
-- Dirt/sand paths and roads
-- Wooden floors and indoor tiles
-- Open doorways and entrances
-
-VISUAL RECOGNITION TIPS:
-- Tree sprites often have darker green or brown trunks even with grass-like tops
-- Water has distinct blue coloring and reflective appearance
-- Walkable grass paths are usually lighter/different shade than tree areas
-- Building walls have straight edges and solid colors
+1. **BATTLE SCENE DETECTION**:
+   ✅ All three must be present to confirm battle:
+   - HP bars with numbers visible
+   - Large Pokemon sprites (not small overworld characters)
+   - Battle menu with FIGHT/BAG/POKEMON/RUN options
+   
+2. **OVERWORLD NAVIGATION**:
+   - Small character sprite on terrain
+   - No battle UI elements
+   - Environmental terrain (grass, trees, water, buildings)
+   
+3. **MENU/TEXT SCREEN**:
+   - Dialog boxes with text
+   - Menu options
+   - Status screens
 
 REQUIRED RESPONSE FORMAT:
 ```
-VISUAL_DESCRIPTION: [What you see - include details about Pokemon terrain elements]
-LOCATION_TYPE: [forest/town/route/cave/building/water based on Pokemon environment]
+VISUAL_DESCRIPTION: [Brief description of what you see]
+SCENE_TYPE: [battle/navigation/menu]
 
-TERRAIN_ANALYSIS:
-up: [Pokemon terrain type] - [WALKABLE/BLOCKED based on collision rules]
-down: [Pokemon terrain type] - [WALKABLE/BLOCKED based on collision rules]  
-left: [Pokemon terrain type] - [WALKABLE/BLOCKED based on collision rules]
-right: [Pokemon terrain type] - [WALKABLE/BLOCKED based on collision rules]
+BATTLE_CONFIRMATION (only if scene_type = battle):
+HP_BARS_VISIBLE: [yes/no]
+LARGE_POKEMON_SPRITES: [yes/no] 
+BATTLE_MENU_VISIBLE: [yes/no]
 
-VALID_SEQUENCES:
-1_MOVE:
-- ("up", "Grassy terrain continues upward")
-- ("down", "Grassy terrain extends downward")
-- ("left", "Grassy terrain to the left")
-- ("right", "Grassy terrain to the right")
+NAVIGATION_INFO (only if scene_type = navigation):
+CHARACTER_POSITION: [center/left/right/top/bottom of screen]
+TERRAIN_VISIBLE: [grass/trees/water/buildings/mixed]
 
 OBJECTS_VISIBLE:
-Characters: [List any trainers or NPCs visible]
-Structures: [List any buildings or structures]
-Signs: [List any signs or posts]
-Items: [List any items or objects]
+Characters: [Any trainers or NPCs visible]
+Interactive_Elements: [Any items, signs, or special objects]
 ```
 
-CRITICAL ANALYSIS FOCUS:
-- Apply Pokemon game collision detection rules
-- Distinguish tree sprites from walkable grass paths
-- Recognize water, walls, and other blocking terrain
-- Only mark directions as WALKABLE if they follow Pokemon movement rules"""
+ANALYSIS FOCUS:
+- Conservative battle detection (all three criteria required)
+- Simple scene classification without complex terrain analysis
+- Focus on obvious visual elements only"""
 
         try:
             import time
@@ -248,10 +231,27 @@ CRITICAL ANALYSIS FOCUS:
             }
     
     def _parse_movement_response(self, response_text: str) -> Dict:
-        """Return raw Pixtral response for AI to analyze naturally"""
-        return {
+        """Parse simplified Pixtral scene analysis response"""
+        
+        # Always include raw response for AI analysis
+        result = {
             "raw_pixtral_response": response_text
         }
+        
+        # Try to extract scene type for better AI template selection
+        try:
+            if "SCENE_TYPE: battle" in response_text:
+                result["scene_type"] = "battle"
+            elif "SCENE_TYPE: navigation" in response_text:
+                result["scene_type"] = "navigation"  
+            elif "SCENE_TYPE: menu" in response_text:
+                result["scene_type"] = "menu"
+            else:
+                result["scene_type"] = "unknown"
+        except:
+            result["scene_type"] = "unknown"
+            
+        return result
     
     
     
