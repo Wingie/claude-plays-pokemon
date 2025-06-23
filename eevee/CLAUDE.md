@@ -2,7 +2,7 @@
 
 ## 🏗️ Architecture Overview
 
-Eevee v1 is a sophisticated AI-powered Pokemon gameplay system that combines multimodal reasoning, real-time game control, self-improving prompt templates, and **centralized multi-provider LLM API system** supporting both Gemini and Mistral AI providers.
+Eevee v1 is a sophisticated AI-powered Pokemon gameplay system that combines multimodal reasoning, real-time game control, self-improving prompt templates, **centralized multi-provider LLM API system** supporting both Gemini and Mistral AI providers, and **standardized JSON response parsing** for consistent behavior across all AI interactions.
 
 ## 🧩 Core Components
 
@@ -43,6 +43,15 @@ Eevee v1 is a sophisticated AI-powered Pokemon gameplay system that combines mul
   - **Provider Abstraction**: Consistent response format regardless of underlying provider
   - **Error Resilience**: Circuit breakers, exponential backoff, automatic fallback
   - **Environment Configuration**: Easy provider switching via `.env` variables
+
+### **JSON Response System** (`run_eevee.py`, template system)
+- **Primary Role**: Standardized response parsing across all AI providers
+- **Key Features**:
+  - **100% JSON Responses**: Eliminated all non-JSON fallback mechanisms
+  - **Provider-Specific Templates**: Optimized templates for Gemini and Mistral capabilities
+  - **Visual Analysis Integration**: `pixtral_analysis` variable for screenshot context
+  - **Robust Error Handling**: Safe JSON defaults instead of verbose text fallbacks
+  - **Unified Format**: Consistent button_presses, reasoning, observations, context_detected fields
 
 ## 🧠 AI-Directed Template System
 
