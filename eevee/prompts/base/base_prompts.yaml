@@ -90,26 +90,34 @@ stuck_recovery:
   version: '5.0'
 battle_analysis:
   name: Pokemon Battle Analysis (JSON Response)
-  description: Analyze Pokemon battle situations and provide strategic decisions
+  description: Analyze Pokemon battle situations using spatial context and provide strategic decisions
   template: |
     Pokemon Battle Analysis
     
     GOAL: {task}
     RECENT ACTIONS: {recent_actions}
     
+    **VISUAL CONTEXT PROVIDED:**
+    Scene Type: {scene_type}
+    Spatial Context: {spatial_context}
+    Character Position: {character_position}
+    Visual Description: {visual_description}
+    Valid Movements: {valid_movements}
+    Confidence: {confidence}
+    
     **BATTLE ANALYSIS INSTRUCTIONS:**
     
-    Analyze the current Pokemon battle situation:
-    - Battle phase (intro text, menu selection, move selection, animation)
-    - Available options and optimal strategy
-    - Type effectiveness considerations
-    - HP status and battle state
+    Use the visual context above to analyze the Pokemon battle situation:
+    - Use visual_description to identify battle phase and UI elements
+    - Consider spatial_context for menu navigation and positioning
+    - Analyze battle state from character_position and scene details
+    - If confidence is low, use safer battle decisions
     
     **BATTLE STRATEGY:**
-    - Battle intro/text: Press A to advance
-    - Main battle menu: Navigate to FIGHT and press A
-    - Move selection: Choose best move based on type effectiveness
-    - Battle animations: Press A to continue
+    - Battle intro/text: Press A to advance (based on visual_description)
+    - Main battle menu: Navigate using spatial_context to FIGHT option
+    - Move selection: Use visual layout for menu navigation
+    - Battle animations: Press A to continue based on scene_type
     
     **VALID BUTTONS:**
     - Movement: "up", "down", "left", "right"
@@ -120,8 +128,8 @@ battle_analysis:
     
     {
       "button_presses": ["a"],
-      "reasoning": "Battle menu visible, selecting FIGHT option",
-      "observations": "Four-option battle menu with FIGHT/BAG/POKEMON/RUN",
+      "reasoning": "Battle menu detected in visual context, selecting FIGHT option",
+      "observations": "Four-option battle menu visible with spatial layout information",
       "context_detected": "battle",
       "confidence": "high"
     }
@@ -130,7 +138,13 @@ battle_analysis:
   variables:
   - task
   - recent_actions
-  version: '5.0'
+  - scene_type
+  - spatial_context
+  - character_position
+  - visual_description
+  - valid_movements
+  - confidence
+  version: '6.0'
 pokemon_party_analysis:
   name: Pokemon Party Analysis (JSON Response)
   description: Analyze Pokemon party status and provide management decisions
@@ -174,25 +188,33 @@ pokemon_party_analysis:
   version: '5.0'
 exploration_strategy:
   name: Pokemon Navigation Analysis (JSON Response)
-  description: Analyze overworld navigation and provide movement decisions
+  description: Analyze overworld navigation and provide movement decisions using spatial context
   template: |
     Pokemon Navigation Analysis
     
     GOAL: {task}
     RECENT ACTIONS: {recent_actions}
     
+    **VISUAL CONTEXT PROVIDED:**
+    Scene Type: {scene_type}
+    Spatial Context: {spatial_context}
+    Character Position: {character_position}
+    Visual Description: {visual_description}
+    Valid Movements: {valid_movements}
+    Confidence: {confidence}
+    
     **NAVIGATION ANALYSIS INSTRUCTIONS:**
     
-    Analyze the current overworld navigation situation:
-    - Character position and available paths
-    - Obstacles and barriers (trees, rocks, water)
-    - Potential trainers or points of interest
-    - Menu state (if stuck in menus, press B to exit)
+    Use the spatial context above to analyze the overworld navigation situation:
+    - Use character_position and spatial_context for precise movement planning
+    - Consider valid_movements for safe direction choices
+    - Analyze visual_description for obstacles and opportunities
+    - If confidence is low, use more cautious movement strategy
     
     **NAVIGATION STRATEGY:**
-    - Systematic exploration of all directions
-    - Avoid repeating failed movements
-    - Break stuck patterns with different approaches
+    - Prioritize movements from valid_movements list
+    - Use spatial_context to understand terrain layout
+    - Avoid repeating failed movements from recent_actions
     - One button press per decision for careful movement
     
     **VALID BUTTONS:**
@@ -204,8 +226,8 @@ exploration_strategy:
     
     {
       "button_presses": ["up"],
-      "reasoning": "Path is clear north, continuing exploration",
-      "observations": "Character on grassy terrain with trees to east and west",
+      "reasoning": "Path is clear north based on spatial context and valid movements",
+      "observations": "Character positioned for northward movement in open terrain",
       "context_detected": "navigation",
       "confidence": "high"
     }
@@ -214,7 +236,13 @@ exploration_strategy:
   variables:
   - task
   - recent_actions
-  version: '5.0'
+  - scene_type
+  - spatial_context
+  - character_position
+  - visual_description
+  - valid_movements
+  - confidence
+  version: '6.0'
 inventory_analysis:
   name: Pokemon Inventory Analysis (JSON Response)
   description: Analyze bag contents and provide item management decisions
@@ -292,3 +320,30 @@ ai_emergency_recovery_with_escalation:
   - task
   - escalation_level
   version: '5.0'
+visual_context_analyzer:
+  name: Movement Context Analyzer (Production)
+  description: Primary visual analysis system providing spatial context for all gameplay templates
+  template: |
+    Analyze this Pokemon game screenshot and provide spatial context for AI decision making.
+    
+    **ANALYSIS REQUIREMENTS:**
+    - Identify scene type: navigation (overworld movement), battle (Pokemon combat), or menu (dialogs/interfaces)
+    - Describe character position and visual context using grid coordinates  
+    - Note template recommendation with reasoning
+    - Provide confidence assessment and spatial understanding
+    - Analyze terrain around player character to determine valid movement directions
+    
+    **CRITICAL:** Return ONLY JSON with analysis:
+    
+    {{
+      "scene_type": "navigation|battle|menu|unknown",
+      "recommended_template": "ai_directed_navigation|ai_directed_battle",
+      "confidence": "high|medium|low",
+      "spatial_context": "Grid-based spatial understanding for navigation planning",
+      "character_position": "grid coordinates if visible",
+      "visual_description": "Character and terrain description using grid coordinates", 
+      "template_reason": "Why this template fits the visual evidence",
+      "valid_movements": ["up", "down", "left", "right"]
+    }}
+  variables: []
+  version: '1.0'

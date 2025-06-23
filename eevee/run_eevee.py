@@ -1147,14 +1147,7 @@ class ContinuousGameplay:
                 playbooks = ["navigation"]
                 return prompt_type, playbooks
         
-        # Check for user recovery tasks (but only if NOT in battle)
-        recent_tasks = getattr(self, '_user_tasks', [])
-        if any("STUCK RECOVERY" in task for task in recent_tasks):
-            # Skip stuck recovery if we're in a battle
-            if not self._detect_battle_context(context_lower):
-                prompt_type = "stuck_recovery"
-                playbooks = ["navigation"] 
-                return prompt_type, playbooks
+        # User tasks (removed automatic stuck recovery)
                 
         # PARTY MANAGEMENT: Pokemon party analysis
         elif self._detect_party_context(context_lower, user_goal):
@@ -2613,12 +2606,7 @@ Return ONLY the improved template content, ready to replace the current template
                 print(f"   Recommended: {recommended.get('description', 'Try alternative approach')}")
                 print(f"   Actions: {recommended.get('actions', [])}")
                 
-                # Add recovery strategy to user task queue for next turn
-                if not hasattr(self, '_user_tasks'):
-                    self._user_tasks = []
-                
-                recovery_task = f"STUCK RECOVERY: {recommended.get('description', 'Use alternative navigation')}"
-                self._user_tasks.append(recovery_task)
+                # Removed automatic stuck recovery task injection - let AI decide
         
         # Log navigation confidence
         confidence = nav_analysis.get("navigation_confidence", 0.5)

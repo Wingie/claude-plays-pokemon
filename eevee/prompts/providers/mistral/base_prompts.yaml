@@ -222,3 +222,34 @@ task_analysis:
   - memory_context
   version: '1.0'
   provider: 'mistral'
+
+visual_context_analyzer:
+  name: Movement Context Analyzer (Mistral Production)
+  description: Primary visual analysis system optimized for Mistral/Pixtral with grid explanation
+  template: |
+    **IMPORTANT:** The white grid lines and coordinate numbers (0,0 through 7,7) are overlaid by us to help with spatial analysis - they are NOT part of the original game interface.
+    
+    Analyze this Pokemon game screenshot and provide spatial context for AI decision making.
+    
+    **ANALYSIS REQUIREMENTS:**
+    - Identify scene type: navigation (overworld movement), battle (Pokemon combat), or menu (dialogs/interfaces)
+    - Describe character position and visual context using grid coordinates
+    - Note template recommendation with reasoning
+    - Provide confidence assessment and spatial understanding
+    - Analyze terrain around player character to determine valid movement directions
+    
+    **CRITICAL:** Return ONLY JSON with analysis:
+    
+    {
+      "scene_type": "navigation|battle|menu|unknown",
+      "recommended_template": "ai_directed_navigation|ai_directed_battle",
+      "confidence": "high|medium|low",
+      "spatial_context": "Grid-based spatial understanding for navigation planning",
+      "character_position": "grid coordinates if visible",
+      "visual_description": "Character and terrain description using grid coordinates", 
+      "template_reason": "Why this template fits the visual evidence",
+      "valid_movements": ["up", "down", "left", "right"]
+    }
+  variables: []
+  version: '1.0'
+  provider: 'mistral'

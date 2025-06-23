@@ -146,41 +146,7 @@ class VisualAnalysis:
             raise RuntimeError(f"Failed to add grid overlay: {e}")
     
     def _call_pixtral_for_analysis(self, grid_image_base64: str, verbose: bool = False) -> Dict:
-        """Call Pixtral for visual movement analysis"""
-        center_coord = f"{self.grid_size//2},{self.grid_size//2}"
-        
-        prompt = f"""GAME BOY ADVANCE VISUAL ANALYSIS
-
-Analyze this Game Boy Advance screenshot with coordinate grid overlay.
-
-**NEUTRAL DESCRIPTION:**
-Describe what you see using grid coordinates:
-- Visual elements and their positions (use grid references like "at grid 3,4")
-- Colors, shapes, and patterns  
-- Character/sprite positions
-- Interface elements (menus, bars, text)
-
-**CONTEXT DETECTION:**
-Based on visual evidence only, classify the scene type:
-- "battle": Large sprites facing each other + HP/status bars + battle menu (FIGHT/BAG/POKEMON/RUN)
-- "navigation": Small character on terrain/environment
-- "menu": Dialog boxes, status screens, inventory
-- "unknown": Cannot determine confidently
-
-**RESPONSE FORMAT (MANDATORY):**
-Return ONLY a JSON object with no additional text:
-
-{{
-  "scene_type": "battle|navigation|menu|unknown",
-  "visual_description": "Brief neutral description using grid coordinates",
-  "key_elements": ["important", "visual", "elements"],
-  "character_position": "grid coordinates if visible",
-  "interface_elements": ["any", "menus", "or", "ui"],
-  "confidence": "high|medium|low"
-}}
-
-Do not include any text before or after the JSON. No markdown, no code blocks, no explanations."""
-
+        """Call visual_context_analyzer template for enhanced movement analysis"""
         try:
             import time
             start_time = time.time()
@@ -189,31 +155,45 @@ Do not include any text before or after the JSON. No markdown, no code blocks, n
             import os
             provider = os.getenv('LLM_PROVIDER', 'mistral').lower()
             
+            # Import prompt manager to get raw template
+            from prompt_manager import PromptManager
+            
+            # Initialize prompt manager and get raw template
+            prompt_manager = PromptManager()
+            template_data = prompt_manager.base_prompts.get("visual_context_analyzer", {})
+            template_content = template_data.get("template", "")
+            
+            if not template_content:
+                raise RuntimeError(f"visual_context_analyzer template not found for provider: {provider}")
+            
+            # Use the proven movement_context_analyzer prompt based on provider
             if provider == 'gemini':
                 model = "gemini-2.0-flash-exp"  # Gemini's vision model
+                prompt = template_content  # Clean Gemini template
             else:
                 model = "pixtral-12b-2409"  # Mistral's vision model
                 provider = "mistral"
+                prompt = template_content  # Mistral template with grid explanation
             
             response = call_llm(
                 prompt=prompt,
                 image_data=grid_image_base64,
                 model=model,
                 provider=provider,
-                max_tokens=600
+                max_tokens=800  # Increased for structured response
             )
             
             processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
             
             if verbose:
-                print(f"📤 {provider.title()} visual analysis request sent ({model})")
+                print(f"📤 {provider.title()} visual_context_analyzer template used ({model})")
                 print(f"📥 Response received: {len(response.text) if response.text else 0} chars")
             
             return {
                 "success": True,
                 "response": response.text if hasattr(response, 'text') else str(response),
-                "prompt_sent": prompt,  # ENHANCED: Store the complete prompt
-                "processing_time_ms": processing_time,  # ENHANCED: Store timing
+                "prompt_sent": prompt,  # Store the template prompt
+                "processing_time_ms": processing_time,
                 "error": None
             }
             
@@ -221,13 +201,13 @@ Do not include any text before or after the JSON. No markdown, no code blocks, n
             return {
                 "success": False,
                 "response": "",
-                "prompt_sent": prompt,  # ENHANCED: Store prompt even on failure
+                "prompt_sent": "visual_context_analyzer template",
                 "processing_time_ms": None,
                 "error": str(e)
             }
     
     def _parse_movement_response(self, response_text: str) -> Dict:
-        """Parse enhanced Pixtral scene analysis response with template recommendation"""
+        """Parse visual_context_analyzer response with 8-key JSON structure"""
         
         # Always include raw response for AI analysis
         result = {
@@ -245,35 +225,34 @@ Do not include any text before or after the JSON. No markdown, no code blocks, n
             import json
             parsed_data = json.loads(clean_response)
             
-            # Extract scene analysis
+            # Extract visual_context_analyzer 8-key structure
             result["scene_type"] = parsed_data.get("scene_type", "unknown")
-            result["visual_description"] = parsed_data.get("visual_description", "")
-            result["key_elements"] = parsed_data.get("key_elements", [])
-            result["character_position"] = parsed_data.get("character_position", "")
-            result["interface_elements"] = parsed_data.get("interface_elements", [])
+            result["recommended_template"] = parsed_data.get("recommended_template", "ai_directed_navigation")
             result["confidence"] = parsed_data.get("confidence", "low")
+            result["spatial_context"] = parsed_data.get("spatial_context", "")
+            result["character_position"] = parsed_data.get("character_position", "")
+            result["visual_description"] = parsed_data.get("visual_description", "")
+            result["template_reason"] = parsed_data.get("template_reason", "")
+            result["valid_movements"] = parsed_data.get("valid_movements", ["up", "down", "left", "right"])
             
-            # AI Template Selection based on scene analysis
-            scene_type = result["scene_type"]
-            if scene_type == "battle":
-                result["recommended_template"] = "ai_directed_battle"
-                result["template_reason"] = "Battle scene detected with combat elements"
-            elif scene_type == "navigation":
-                result["recommended_template"] = "ai_directed_navigation"  
-                result["template_reason"] = "Navigation scene with character movement"
-            elif scene_type == "menu":
-                result["recommended_template"] = "ai_directed_navigation"  # Menus use navigation logic
-                result["template_reason"] = "Menu interface detected"
-            else:
-                result["recommended_template"] = "ai_directed_navigation"  # Default fallback
-                result["template_reason"] = "Unknown scene type, using navigation default"
+            # Ensure recommended_template uses ai_directed format
+            template = result["recommended_template"]
+            if template not in ["ai_directed_battle", "ai_directed_navigation"]:
+                if "battle" in template.lower():
+                    result["recommended_template"] = "ai_directed_battle"
+                else:
+                    result["recommended_template"] = "ai_directed_navigation"
                 
         except (json.JSONDecodeError, KeyError) as e:
             # Fallback parsing for non-JSON responses
             result["scene_type"] = "unknown"
-            result["visual_description"] = "Failed to parse response"
             result["recommended_template"] = "ai_directed_navigation"
+            result["confidence"] = "low"
+            result["spatial_context"] = "Failed to parse response"
+            result["character_position"] = ""
+            result["visual_description"] = "Failed to parse response"
             result["template_reason"] = f"JSON parsing failed: {e}"
+            result["valid_movements"] = ["up", "down", "left", "right"]
             
         return result
     
