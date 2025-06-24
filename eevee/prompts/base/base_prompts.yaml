@@ -77,8 +77,8 @@ stuck_recovery:
     
     {{
       "button_presses": ["left"],
-      "reasoning": "Breaking stuck pattern by trying perpendicular direction",
-      "observations": "Same screen position for 3+ turns, trying new approach",
+      "reasoning": "stuck_pattern_break",
+      "observations": "same_position_3turns",
       "context_detected": "navigation",
       "confidence": "medium"
     }}
@@ -167,8 +167,8 @@ battle_analysis:
     
     {{
       "battle_plan": [
-        {{"turn": 1, "action": ["a"], "goal": "finish_weak", "reasoning": "Level 9 vs Level 3 - any damage move will KO"}},
-        {{"turn": 2, "action": ["bag", "down", "a"], "goal": "heal_if_survive", "reasoning": "Backup healing if battle continues"}}
+        {{"turn": 1, "action": ["a"], "goal": "finish_weak", "reasoning": "level_advantage_ko"}},
+        {{"turn": 2, "action": ["bag", "down", "a"], "goal": "heal_if_survive", "reasoning": "backup_healing"}}
       ],
       "immediate_action": ["a"],
       "strategy_priority": "efficiency",
@@ -220,8 +220,8 @@ pokemon_party_analysis:
     
     {{
       "button_presses": ["a"],
-      "reasoning": "Selecting Pokemon to view detailed stats",
-      "observations": "Party screen showing 6 Pokemon with HP bars",
+      "reasoning": "view_pokemon_stats",
+      "observations": "party_screen_6pokemon",
       "context_detected": "menu",
       "confidence": "high"
     }}
@@ -271,8 +271,8 @@ exploration_strategy:
     
     {{
       "button_presses": ["up"],
-      "reasoning": "Path is clear north based on spatial context and valid movements",
-      "observations": "Character positioned for northward movement in open terrain",
+      "reasoning": "north_clear_path",
+      "observations": "open_terrain",
       "context_detected": "navigation",
       "confidence": "high"
     }}
@@ -318,8 +318,8 @@ inventory_analysis:
     
     {{
       "button_presses": ["down"],
-      "reasoning": "Scrolling to view more items in bag",
-      "observations": "Bag screen showing healing items and Poke Balls",
+      "reasoning": "scroll_view_items",
+      "observations": "bag_healing_pokeballs",
       "context_detected": "menu",
       "confidence": "high"
     }}
