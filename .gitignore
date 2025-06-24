@@ -1,4 +1,6 @@
+gemini-multimodal-playground/standalone/genai-stack/*
 skyemu-mcp/
+.db
 .env
 .sav
 .gba
