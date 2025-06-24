@@ -1,0 +1,217 @@
+# PHASE 2: MEMORY - Ultra-Compact Neo4j-Driven Prompts
+# Token-optimized templates with memory integration
+
+battle_memory_micro:
+  name: "Memory-Driven Battle (Ultra-Compact)"
+  description: "Neo4j memory-enhanced battle decisions with minimal tokens"
+  template: |
+    Memory Query: {memory_context}
+    HP: {our_hp} vs L{enemy_level} | Success Rate: {task_success_rate}%
+    
+    Learned Strategy: {best_strategy}
+    Proven Against L{enemy_level}: {proven_moves}
+    
+    execute_strategy({best_strategy})
+    {{"action": "{best_strategy}", "confidence": {task_success_rate}, "buttons": ["{memory_action}"]}}
+  variables:
+    - memory_context
+    - our_hp
+    - enemy_level  
+    - task_success_rate
+    - best_strategy
+    - proven_moves
+    - memory_action
+  estimated_tokens: 60
+  version: '2.0_memory'
+
+navigation_memory_micro:
+  name: "Memory-Driven Navigation (Ultra-Compact)"
+  description: "Neo4j route memory with minimal tokens"
+  template: |
+    From: {current_location} → To: {target_location}
+    Known Route: {stored_route} | Success: {route_success_rate}%
+    
+    execute_route({stored_route})
+    {{"route": "{stored_route}", "confidence": {route_success_rate}, "buttons": ["{next_move}"]}}
+  variables:
+    - current_location
+    - target_location
+    - stored_route
+    - route_success_rate
+    - next_move
+  estimated_tokens: 35
+  version: '2.0_memory'
+
+task_memory_executor:
+  name: "Task Memory Executor (Function-Based)"
+  description: "Execute tasks based on Neo4j success patterns"
+  template: |
+    Task: {task_name} | Previous Success: {success_rate}%
+    Similar Context Matches: {similar_situations}
+    
+    execute_task({task_name}, strategy="{learned_strategy}")
+    {{"task": "{task_name}", "strategy": "{learned_strategy}", "execute": true}}
+  variables:
+    - task_name
+    - success_rate
+    - similar_situations  
+    - learned_strategy
+  estimated_tokens: 45
+  version: '2.0_memory'
+
+memory_pattern_learner:
+  name: "Pattern Learning (Auto-Save)"
+  description: "Ultra-compact pattern recognition and saving"
+  template: |
+    Context: {current_context}
+    Action: {taken_action} | Result: {action_result}
+    
+    save_pattern(context="{current_context}", action="{taken_action}", success={action_success})
+    {{"learned": true, "pattern": "{context_pattern}", "confidence": {pattern_confidence}}}
+  variables:
+    - current_context
+    - taken_action
+    - action_result
+    - action_success
+    - context_pattern
+    - pattern_confidence
+  estimated_tokens: 40
+  version: '2.0_memory'
+
+hp_crisis_memory:
+  name: "HP Crisis Memory (Emergency)"
+  description: "Emergency HP management with learned responses"
+  template: |
+    CRISIS: HP {current_hp}/{max_hp} ({hp_percent}%)
+    Past Crisis Actions: {crisis_memory}
+    Best Recovery: {best_recovery_action}
+    
+    emergency_protocol({best_recovery_action})
+    {{"emergency": true, "action": "{best_recovery_action}", "priority": "critical"}}
+  variables:
+    - current_hp
+    - max_hp
+    - hp_percent
+    - crisis_memory
+    - best_recovery_action
+  estimated_tokens: 50
+  version: '2.0_memory'
+
+level_advantage_memory:
+  name: "Level Advantage Memory (Quick Finish)" 
+  description: "Level difference strategies from memory"
+  template: |
+    Advantage: L{our_level} vs L{enemy_level} (x{level_multiplier})
+    Fast Finish Memory: {quick_finish_moves}
+    Proven Effective: {proven_quick_moves}
+    
+    quick_finish({proven_quick_moves}[0])
+    {{"strategy": "quick_finish", "move": "{proven_quick_moves}", "turns_expected": 1}}
+  variables:
+    - our_level
+    - enemy_level
+    - level_multiplier
+    - quick_finish_moves
+    - proven_quick_moves
+  estimated_tokens: 45
+  version: '2.0_memory'
+
+type_effectiveness_memory:
+  name: "Type Memory (Effectiveness Cache)"
+  description: "Cached type effectiveness from previous battles"
+  template: |
+    Our Type: {our_type} vs Enemy: {enemy_type}
+    Cached Effectiveness: {cached_effectiveness}
+    Best Move From Memory: {best_cached_move}
+    
+    use_cached_strategy({best_cached_move})
+    {{"type_match": "{cached_effectiveness}", "move": "{best_cached_move}", "damage_expected": "high"}}
+  variables:
+    - our_type
+    - enemy_type
+    - cached_effectiveness
+    - best_cached_move
+  estimated_tokens: 40
+  version: '2.0_memory'
+
+# FUNCTION-BASED ULTRA-COMPACT TEMPLATES
+
+battle_func_memory:
+  name: "Battle Function Chain (Memory-Enhanced)"
+  description: "Function execution with memory integration"
+  template: |
+    exec_chain([
+      check_hp_status({our_pokemon}),
+      query_memory("battle", {battle_context}), 
+      apply_learned_strategy({memory_result}),
+      execute_buttons({button_sequence})
+    ])
+    
+    return: {{"chain_executed": true, "strategy": "memory", "output": {final_buttons}}}
+  variables:
+    - our_pokemon
+    - battle_context
+    - memory_result
+    - button_sequence
+    - final_buttons
+  estimated_tokens: 55
+  version: '2.0_memory'
+
+# STATE MACHINE MEMORY TEMPLATES
+
+state_memory_micro:
+  name: "State Memory Micro"
+  description: "State transitions with memory patterns"
+  template: |
+    State: {current_state}
+    Memory Pattern: {state_transition_memory}
+    
+    transition({state_transition_memory}.next_state)
+    {{"from": "{current_state}", "to": "{next_state}", "pattern": "learned"}}
+  variables:
+    - current_state
+    - state_transition_memory
+    - next_state
+  estimated_tokens: 30
+  version: '2.0_memory'
+
+# NEO4J QUERY TEMPLATES
+
+neo4j_battle_query:
+  name: "Neo4j Battle Query (Direct)"
+  description: "Direct Neo4j query for battle decisions"
+  template: |
+    MATCH (t:Task {name: "battle"})-[:SUCCESS_IN]->(c:Context {hp_range: "{hp_range}", level_diff: "{level_diff}"})
+    RETURN t.best_action, t.success_rate
+    
+    apply_query_result({query_result})
+    {{"neo4j_result": true, "action": "{best_action}", "confidence": {success_rate}}}
+  variables:
+    - hp_range
+    - level_diff
+    - query_result
+    - best_action
+    - success_rate
+  estimated_tokens: 50
+  version: '2.0_memory'
+
+# HYBRID TEMPLATES (Memory + Compact Decision)
+
+hybrid_memory_decision:
+  name: "Hybrid Memory Decision"
+  description: "Memory query + immediate decision in one template"
+  template: |
+    Context: {context_hash}
+    Memory: {memory_lookup} 
+    
+    IF memory.exists: use({memory_lookup}.action)
+    ELSE: decide_new({context_hash}) AND save_result()
+    
+    {{"source": "memory", "action": "{memory_action}", "learn": {should_save}}}
+  variables:
+    - context_hash
+    - memory_lookup
+    - memory_action
+    - should_save
+  estimated_tokens: 45
+  version: '2.0_memory'

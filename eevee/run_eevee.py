@@ -49,9 +49,15 @@ try:
     from diary_generator import PokemonEpisodeDiary
     from visual_analysis import VisualAnalysis
     from evee_logger import get_comprehensive_logger
+    
+    # PHASE 2: Memory Integration
+    from memory_integration import create_memory_enhanced_eevee
+    MEMORY_INTEGRATION_AVAILABLE = True
+    
 except ImportError as e:
-    print(f"⚠️  Core Eevee components not available: {e}")
+    print(f"WARNING:  Core Eevee components not available: {e}")
     print("Starting with basic implementation...")
+    MEMORY_INTEGRATION_AVAILABLE = False
     # We'll implement basic functionality inline if needed
 
 # Get debug logger at top level for clean logging
@@ -190,7 +196,7 @@ class InteractiveController:
         
     def _input_handler(self):
         """Background thread that handles user input"""
-        print("\n=� Interactive mode active. Commands:")
+        print("\n- Interactive mode active. Commands:")
         print("   /pause - Pause gameplay")
         print("   /resume - Resume gameplay") 
         print("   /status - Show current status")
@@ -200,7 +206,7 @@ class InteractiveController:
         
         while self.running:
             try:
-                user_input = input("\n<� You: ").strip()
+                user_input = input("\n- You: ").strip()
                 if user_input:
                     self.input_queue.put(user_input)
             except (EOFError, KeyboardInterrupt):
@@ -246,7 +252,7 @@ class ContinuousGameplay:
             vision_model = 'gemini-2.0-flash-exp' if provider == 'gemini' else 'pixtral-12b-2409'
             print(f"✅ Visual analysis system initialized ({vision_model} + mistral-large-latest)")
         except Exception as e:
-            print(f"⚠️ Visual analysis unavailable: {e}")
+            print(f"WARNING: Visual analysis unavailable: {e}")
             self.visual_analyzer = None
             self.use_visual_analysis = False
         
@@ -295,14 +301,14 @@ class ContinuousGameplay:
         
         print(f"🎮 Starting continuous Pokemon gameplay")
         print(f"📁 Session: {session_id}")
-        print(f"<� Goal: {goal}")
-        print(f"=� Max turns: {max_turns}")
+        print(f"- Goal: {goal}")
+        print(f"- Max turns: {max_turns}")
         print(f"= Turn delay: {self.turn_delay}s")
         
         if self.interactive:
             self.interactive_controller = InteractiveController()
             self.interactive_controller.start_input_thread()
-            print(f"=� Interactive mode enabled - type commands anytime")
+            print(f"- Interactive mode enabled - type commands anytime")
         
         print("=" * 60)
         
@@ -389,7 +395,7 @@ class ContinuousGameplay:
         """Export session data as JSONL file for Mistral fine-tuning"""
         try:
             if not self.session or not hasattr(self.session, 'turns_data'):
-                print("⚠️ No turn data available for export")
+                print("WARNING: No turn data available for export")
                 return
             
             # Create runs directory for this session
@@ -419,7 +425,7 @@ class ContinuousGameplay:
                 json.dump(metadata, f, indent=2)
                 
         except Exception as e:
-            print(f"⚠️ Failed to export fine-tuning dataset: {e}")
+            print(f"WARNING: Failed to export fine-tuning dataset: {e}")
     
     def _capture_game_context(self) -> Dict[str, Any]:
         """Capture current game state via screenshot"""
@@ -497,7 +503,7 @@ class ContinuousGameplay:
                         print(f"✅ Visual analysis complete")
                     
             except Exception as e:
-                print(f"⚠️ Visual analysis failed: {e}")
+                print(f"WARNING: Visual analysis failed: {e}")
                 print(f"💀 CRITICAL: Cannot proceed without visual analysis - terminating script")
                 # Clear metadata on failure
                 self._last_visual_prompt = ''
@@ -574,7 +580,7 @@ class ContinuousGameplay:
                             if debug_logger:
                                 debug_logger.log_debug('WARNING', 'No button_presses in JSON response')
                             else:
-                                print("⚠️ No button_presses in JSON response")
+                                print("WARNING: No button_presses in JSON response")
                             api_result["button_presses"] = ["b"]  # Simple fallback
                     except json.JSONDecodeError as e:
                         from evee_logger import get_comprehensive_logger
@@ -582,7 +588,7 @@ class ContinuousGameplay:
                         if debug_logger:
                             debug_logger.log_debug('ERROR', f'JSON parsing failed: {e}')
                         else:
-                            print(f"⚠️ JSON parsing failed: {e}")
+                            print(f"WARNING: JSON parsing failed: {e}")
                         api_result["button_presses"] = ["b"]  # Simple fallback
                 else:
                     from evee_logger import get_comprehensive_logger
@@ -590,7 +596,7 @@ class ContinuousGameplay:
                     if debug_logger:
                         debug_logger.log_debug('WARNING', 'No JSON format found in response')
                     else:
-                        print("⚠️ No JSON format found in response")
+                        print("WARNING: No JSON format found in response")
                     api_result["button_presses"] = ["b"]  # Simple fallback
             
             if api_result["error"]:
@@ -613,7 +619,7 @@ class ContinuousGameplay:
                     debug_logger.log_debug('INFO', f"Actions provided: {'Yes' if api_result.get('button_presses') else 'No'}")
                 else:
                     print(f"📊 API Response: {len(analysis_text)} chars")
-                    print(f"🔧 Actions provided: {'Yes' if api_result.get('button_presses') else 'No'}")
+                    print(f"INIT: Actions provided: {'Yes' if api_result.get('button_presses') else 'No'}")
             
             # Always show enhanced analysis logging for better debugging
             self._log_enhanced_analysis(turn_number, analysis_text, button_sequence)
@@ -659,8 +665,8 @@ class ContinuousGameplay:
                 debug_logger.log_debug('WARNING', f'AI tried to press {len(actions)} buttons: {actions}')
                 debug_logger.log_debug('WARNING', 'Limiting to first 3 buttons for step-by-step learning')
             else:
-                print(f"⚠️ AI tried to press {len(actions)} buttons: {actions}")
-                print(f"⚠️ Limiting to first 3 buttons for step-by-step learning")
+                print(f"WARNING: AI tried to press {len(actions)} buttons: {actions}")
+                print(f"WARNING: Limiting to first 3 buttons for step-by-step learning")
             actions = actions[:3]
         
         # Additional validation: ensure valid button names
@@ -670,11 +676,11 @@ class ContinuousGameplay:
             if isinstance(action, str) and action.lower() in valid_buttons:
                 validated_actions.append(action.lower())
             else:
-                print(f"⚠️ Invalid button '{action}' ignored")
+                print(f"WARNING: Invalid button '{action}' ignored")
         
         # Fallback to 'b' if no valid actions (safer default for exiting menus)
         if not validated_actions:
-            print(f"⚠️ No valid buttons found, using default 'b' (exit menus)")
+            print(f"WARNING: No valid buttons found, using default 'b' (exit menus)")
             validated_actions = ['b']
         
         # Note: Movement validation is handled in the AI prompt stage, not here
@@ -704,7 +710,7 @@ class ContinuousGameplay:
             if debug_logger:
                 debug_logger.log_debug('ERROR', f'Action execution failed: {e}')
             else:
-                print(f"⚠️  Action execution failed: {e}")
+                print(f"WARNING:  Action execution failed: {e}")
             return {
                 "success": False,
                 "actions_executed": [],
@@ -736,7 +742,7 @@ class ContinuousGameplay:
                     if debug_logger:
                         debug_logger.log_debug('ERROR', f'Memory storage failed: {e}')
                     else:
-                        print(f"⚠️  Memory storage failed: {e}")
+                        print(f"WARNING:  Memory storage failed: {e}")
     
     def _parse_ai_analysis_json(self, ai_analysis: str) -> Dict[str, Any]:
         """Parse JSON from ai_analysis string into structured data"""
@@ -814,7 +820,7 @@ class ContinuousGameplay:
             
         except Exception as e:
             if self.eevee.debug:
-                print(f"⚠️ Failed to update session data file: {e}")
+                print(f"WARNING: Failed to update session data file: {e}")
     
     def _log_complete_turn_data(self, turn_number: int, game_context: Dict[str, Any], 
                                ai_result: Dict[str, Any], execution_result: Dict[str, Any], 
@@ -867,7 +873,7 @@ class ContinuousGameplay:
                 print(f"📊 Turn {turn_number} logged: {len(turn_data.__dict__)} data fields, fine-tuning: {'✅' if turn_data.include_in_fine_tuning else '❌'}")
                 
         except Exception as e:
-            print(f"⚠️ Failed to log complete turn data: {e}")
+            print(f"WARNING: Failed to log complete turn data: {e}")
             if self.eevee.debug:
                 import traceback
                 traceback.print_exc()
@@ -973,7 +979,7 @@ class ContinuousGameplay:
                 json.dump(enhanced_session_data, f, indent=2, default=str)
                 
         except Exception as e:
-            print(f"⚠️ Failed to save enhanced session data: {e}")
+            print(f"WARNING: Failed to save enhanced session data: {e}")
     
     def _handle_user_input(self):
         """Handle real-time user input during gameplay"""
@@ -1014,8 +1020,8 @@ class ContinuousGameplay:
     
     def _handle_user_task(self, task: str):
         """Handle user task during gameplay"""
-        print(f"<� User task received: {task}")
-        print("=� Task will influence AI decision in next turn")
+        print(f"- User task received: {task}")
+        print("- Task will influence AI decision in next turn")
         
         # Store task for AI context
         if hasattr(self, '_user_tasks'):
@@ -1025,7 +1031,7 @@ class ContinuousGameplay:
     
     def _show_status(self):
         """Show current gameplay status"""
-        print(f"\n=� Gameplay Status:")
+        print(f"\n- Gameplay Status:")
         print(f"   Turn: {self.session.turns_completed}/{self.session.max_turns}")
         print(f"   Status: {'� Paused' if self.paused else '� Running'}")
         print(f"   Goal: {self.session.goal}")
@@ -1034,13 +1040,13 @@ class ContinuousGameplay:
     
     def _show_help(self):
         """Show available commands"""
-        print(f"\n=� Available Commands:")
+        print(f"\n- Available Commands:")
         print(f"   /pause  - Pause gameplay")
         print(f"   /resume - Resume gameplay")
         print(f"   /status - Show current status")
         print(f"   /quit   - Stop gameplay")
         print(f"   /help   - Show this help")
-        print(f"\n=� Or type any Pokemon task for the AI to consider")
+        print(f"\n- Or type any Pokemon task for the AI to consider")
     
     def _get_memory_context(self) -> str:
         """Get relevant memory context for AI with spatial memory"""
@@ -1419,7 +1425,7 @@ class ContinuousGameplay:
         # Check for immediate loop patterns
         recent_actions = self._get_recent_actions_summary()
         if "consecutive" in recent_actions.lower():
-            print(f"⚠️  LOOP WARNING: {recent_actions}")
+            print(f"WARNING:  LOOP WARNING: {recent_actions}")
         
     def _log_strategic_decision_clean_output(self, result: Dict[str, Any]) -> None:
         """Output clean JSON for strategic decisions to console"""
@@ -1581,7 +1587,7 @@ class ContinuousGameplay:
                 else:
                     # Fallback: Use original context detection when visual analysis unavailable
                     if self.eevee.verbose:
-                        print(f"⚠️ No visual template recommendation, using context detection")
+                        print(f"WARNING: No visual template recommendation, using context detection")
                     
                     # Add fallback values for visual analysis variables that templates may require
                     variables.update({
@@ -1645,9 +1651,9 @@ Use the pokemon_controller tool with your chosen button sequence."""
                         print(f"   📌 Template version: {version}")
                 
             except Exception as e:
-                # 🔧 FIX: No fallback! Fix the actual issue and retry with safe defaults
+                # INIT: FIX: No fallback! Fix the actual issue and retry with safe defaults
                 if self.eevee.verbose:
-                    print(f"⚠️ Prompt manager failed: {e}")
+                    print(f"WARNING: Prompt manager failed: {e}")
                     print(f"🔄 Retrying with safe template selection...")
                 
                 # Use safe default template instead of fallback
@@ -1717,10 +1723,10 @@ Use the pokemon_controller tool with your chosen button sequence."""
                 print(f"📖 Pokemon episode diary saved: {diary_path}")
                 print(f"🎬 Episode #{day_number}: {session_data.get('goal', 'Pokemon Adventure')} completed!")
             else:
-                print("⚠️  No turn data available for diary generation")
+                print("WARNING:  No turn data available for diary generation")
                 
         except Exception as e:
-            print(f"⚠️  Failed to generate Pokemon episode diary: {e}")
+            print(f"WARNING:  Failed to generate Pokemon episode diary: {e}")
             if hasattr(self.eevee, 'debug') and self.eevee.debug:
                 import traceback
                 traceback.print_exc()
@@ -1750,7 +1756,7 @@ Use the pokemon_controller tool with your chosen button sequence."""
             recent_turns = self.session_turns[-self.episode_review_frequency:] if hasattr(self, 'session_turns') else []
             
             if not recent_turns:
-                print("⚠️ No recent turns available for analysis")
+                print("WARNING: No recent turns available for analysis")
                 return
             
             # Run AI-powered analysis and template improvement
@@ -1760,7 +1766,7 @@ Use the pokemon_controller tool with your chosen button sequence."""
                 changes_applied = improvement_result["changes_applied"]
                 
                 if changes_applied > 0:
-                    print(f"\n🔧 AI-POWERED PROMPT LEARNING: Applied {changes_applied} improvements")
+                    print(f"\nINIT: AI-POWERED PROMPT LEARNING: Applied {changes_applied} improvements")
                     
                     for change in improvement_result.get("changes", []):
                         print(f"   📝 {change['template']} v{change['old_version']} → v{change['new_version']}")
@@ -1807,7 +1813,7 @@ Use the pokemon_controller tool with your chosen button sequence."""
                     print(f"   Error details: {improvement_result['error']}")
                 
         except Exception as e:
-            print(f"⚠️ Periodic episode review failed: {e}")
+            print(f"WARNING: Periodic episode review failed: {e}")
             if hasattr(self.eevee, 'debug') and self.eevee.debug:
                 import traceback
                 traceback.print_exc()
@@ -2227,7 +2233,7 @@ Focus on Pokemon-specific gameplay understanding. A score of 0.75 means "good pe
             )
             
             if api_result["error"]:
-                print(f"⚠️ AI analysis failed: {api_result['error']}")
+                print(f"WARNING: AI analysis failed: {api_result['error']}")
                 return []
             
             # Parse the AI response to extract template improvement recommendations
@@ -2235,7 +2241,7 @@ Focus on Pokemon-specific gameplay understanding. A score of 0.75 means "good pe
             return self._parse_template_analysis_response(analysis_text, candidates)
             
         except Exception as e:
-            print(f"⚠️ Template analysis failed: {e}")
+            print(f"WARNING: Template analysis failed: {e}")
             return []
     
     def _build_template_analysis_prompt(self, candidates: List[Dict], recent_turns: List[Dict]) -> str:
@@ -2345,7 +2351,7 @@ Focus on templates that are actively causing Pokemon game failures, not just low
                     })
                     
             except Exception as e:
-                print(f"⚠️ Failed to parse template analysis section: {e}")
+                print(f"WARNING: Failed to parse template analysis section: {e}")
                 continue
         
         return improvements_needed
@@ -2415,24 +2421,24 @@ Return ONLY the improved template content, ready to replace the current template
             )
             
             if api_result["error"]:
-                print(f"⚠️ Template improvement failed: {api_result['error']}")
+                print(f"WARNING: Template improvement failed: {api_result['error']}")
                 return ""
             
             improved_content = api_result.get("text", "").strip()
             
             # Basic validation - ensure the improved template is different and substantial
             if len(improved_content) < 100:
-                print(f"⚠️ Improved template too short: {len(improved_content)} chars")
+                print(f"WARNING: Improved template too short: {len(improved_content)} chars")
                 return ""
             
             if improved_content == current_template.get('template', ''):
-                print(f"⚠️ Improved template identical to original")
+                print(f"WARNING: Improved template identical to original")
                 return ""
             
             return improved_content
             
         except Exception as e:
-            print(f"⚠️ Template improvement with AI failed: {e}")
+            print(f"WARNING: Template improvement with AI failed: {e}")
             return ""
     
     def _get_current_template_content(self, template_name: str) -> Dict[str, Any]:
@@ -2443,7 +2449,7 @@ Return ONLY the improved template content, ready to replace the current template
                     return self.eevee.prompt_manager.base_prompts.get(template_name, {})
             return {}
         except Exception as e:
-            print(f"⚠️ Failed to get template content for {template_name}: {e}")
+            print(f"WARNING: Failed to get template content for {template_name}: {e}")
             return {}
     
     def _save_improved_template(self, template_name: str, improved_content: str, reasoning: str) -> Dict[str, Any]:
@@ -2485,7 +2491,7 @@ Return ONLY the improved template content, ready to replace the current template
                 }
             
         except Exception as e:
-            print(f"⚠️ Failed to save improved template {template_name}: {e}")
+            print(f"WARNING: Failed to save improved template {template_name}: {e}")
         
         return None
     
@@ -2551,7 +2557,7 @@ Return ONLY the improved template content, ready to replace the current template
                 print(f"   📋 Detailed review saved: {review_file}")
                 
         except Exception as e:
-            print(f"⚠️ Failed to save periodic review: {e}")
+            print(f"WARNING: Failed to save periodic review: {e}")
     
     def _check_emergency_review_needed(self, current_turn: int) -> bool:
         """Check if emergency review needed due to catastrophic performance"""
@@ -2604,7 +2610,7 @@ Return ONLY the improved template content, ready to replace the current template
                 f.write(f"{'='*60}\n")
         
         except Exception as e:
-            print(f"⚠️ Failed to log learning event: {e}")
+            print(f"WARNING: Failed to log learning event: {e}")
     
 
 def parse_arguments():
@@ -2775,29 +2781,29 @@ def setup_environment():
 
 def print_startup_banner(args):
     """Print Eevee v1 startup banner"""
-    print("=. " + "="*60)
-    print("=. EEVEE v1 - AI Pokemon Task Execution System")
-    print("=. " + "="*60)
+    print("=" + "="*61)
+    print("= EEVEE v1 - AI Pokemon Task Execution System")
+    print("=" + "="*61)
     
     if args.task:
-        print(f"=� Mode: Single Task Execution")
-        print(f"<� Task: {args.task}")
+        print(f"- Mode: Single Task Execution")
+        print(f"- Task: {args.task}")
     else:
-        print(f"<� Mode: Continuous Gameplay with Interactive Chat")
-        print(f"<� Goal: {args.goal}")
-        print(f"=� Max turns: {args.max_turns}")
+        print(f"- Mode: Continuous Gameplay with Interactive Chat")
+        print(f"- Goal: {args.goal}")
+        print(f"- Max turns: {args.max_turns}")
         interactive = not args.no_interactive
-        print(f"=� Interactive: {' Enabled' if interactive else 'L Disabled'}")
+        print(f"- Interactive: {' Enabled' if interactive else ' Disabled'}")
     
     print(f"> Model: {args.model}")
-    print(f">� Memory Session: {args.memory_session}")
-    print(f"<� Window: {args.window_title}")
-    print("=. " + "="*60)
+    print(f"- Memory Session: {args.memory_session}")
+    print(f"- Window: {args.window_title}")
+    print("=" + "="*61)
 
 
 def execute_single_task(eevee: EeveeAgent, task: str) -> Dict[str, Any]:
     """Execute a single task and return results"""
-    print(f"<� Executing task: {task}")
+    print(f"- Executing task: {task}")
     
     try:
         # Use task executor if available
@@ -2886,7 +2892,7 @@ def save_session_report(session_summary: Dict[str, Any], eevee_dir: Path):
     with open(report_file, 'w') as f:
         json.dump(session_summary, f, indent=2)
     
-    print(f"=� Session report saved: {report_file}")
+    print(f"- Session report saved: {report_file}")
     return report_file
 
 
@@ -2899,7 +2905,7 @@ def main():
         print_startup_banner(args)
         
         # Initialize Eevee agent
-        print("=� Initializing Eevee AI system...")
+        print("- Initializing Eevee AI system...")
         
         try:
             eevee = EeveeAgent(
@@ -2912,13 +2918,26 @@ def main():
                 enable_okr=args.enable_okr
             )
             print(" Eevee agent initialized successfully")
+            
+            # PHASE 2: Enhance with memory system
+            if MEMORY_INTEGRATION_AVAILABLE and args.neo4j_memory:
+                print("🧠 PHASE 2: Enhancing Eevee with memory integration...")
+                try:
+                    success = create_memory_enhanced_eevee(eevee, args.memory_session)
+                    if success:
+                        print("✅ Memory-enhanced Eevee activated!")
+                    else:
+                        print("WARNING: Memory enhancement failed, continuing with standard mode")
+                except Exception as e:
+                    print(f"WARNING: Memory integration error: {e}, continuing with standard mode")
+                    
         except Exception as e:
             print(f"L Failed to initialize Eevee agent: {e}")
             sys.exit(1)
         
         # Clear memory if requested
         if args.clear_memory and eevee.memory:
-            print(f">� Clearing memory session: {args.memory_session}")
+            print(f"- Clearing memory session: {args.memory_session}")
             eevee.memory.clear_session()
         
         # Determine execution mode
@@ -2936,18 +2955,18 @@ def main():
                 report_file = eevee_dir / "reports" / f"task_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
                 with open(report_file, 'w') as f:
                     json.dump(result, f, indent=2)
-                print(f"=� Report saved: {report_file}")
+                print(f"- Report saved: {report_file}")
             
         else:
             # Continuous gameplay mode (default)
             interactive = not args.no_interactive  # Interactive by default
             
-            print(f"\n<� Starting continuous Pokemon gameplay...")
-            print(f"<� Goal: {args.goal}")
-            print(f"=� Interactive mode: {' Enabled' if interactive else 'L Disabled'}")
+            print(f"\n- Starting continuous Pokemon gameplay...")
+            print(f"- Goal: {args.goal}")
+            print(f"- Interactive mode: {' Enabled' if interactive else ' Disabled'}")
             
             if interactive:
-                print(f"\n=� While playing, you can:")
+                print(f"\n- While playing, you can:")
                 print(f"   - Type /pause to pause")
                 print(f"   - Type /status to check progress")
                 print(f"   - Type any task for the AI to consider")
@@ -2967,10 +2986,10 @@ def main():
                 session_summary = gameplay.run_continuous_loop()
                 
                 # Print final results
-                print(f"\n<� Gameplay session completed!")
-                print(f"=� Status: {session_summary['status']}")
+                print(f"\n- Gameplay session completed!")
+                print(f"- Status: {session_summary['status']}")
                 print(f"= Turns: {session_summary['turns_completed']}/{session_summary['max_turns']}")
-                print(f"=� User interactions: {session_summary['user_interactions']}")
+                print(f"- User interactions: {session_summary['user_interactions']}")
                 
                 # OLD EPISODE REVIEWER SYSTEM - DISABLED (replaced by AI-powered periodic review)
                 # The new AI-powered review system runs during gameplay every N turns
@@ -2982,7 +3001,7 @@ def main():
                 #         reviewer = EpisodeReviewer(eevee_dir)
                 #         [... old episode review code disabled ...]
                 #     except Exception as e:
-                #         print(f"⚠️ Episode review failed: {e}")
+                #         print(f"WARNING: Episode review failed: {e}")
                 
                 print(f"\n✅ AI-powered learning system handled prompt improvements during gameplay")
                 

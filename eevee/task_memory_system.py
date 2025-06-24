@@ -62,10 +62,10 @@ class SimplifiedTaskMemory:
             self._connect()
     
     def _connect(self):
-        """Simple connection with no authentication by default"""
+        """Simple connection with graceful fallback"""
         try:
-            # Try connection without auth first (common in dev)
-            self.driver = GraphDatabase.driver(self.neo4j_uri)
+            # Try connection with no auth (common in dev/testing)
+            self.driver = GraphDatabase.driver(self.neo4j_uri, auth=None)
             
             # Test connection
             with self.driver.session() as session:
@@ -75,9 +75,11 @@ class SimplifiedTaskMemory:
                 self._setup_schema()
                 
         except Exception as e:
+            # Graceful fallback for testing
             print(f"⚠️  Neo4j not available: {e}")
-            print("📝 Using in-memory fallback")
+            print("📝 Using in-memory fallback (normal for testing)")
             self.connected = False
+            self.driver = None
     
     def _setup_schema(self):
         """Create simple schema for task tracking"""
