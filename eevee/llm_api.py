@@ -167,6 +167,7 @@ class GeminiProvider(BaseLLMProvider):
             if debug_logger:
                 debug_logger.log_debug('ERROR', f'Function declaration failed for Gemini: {e}')
             else:
+
                 print(f"⚠️ Function declaration failed for Gemini: {e}")
             self.pokemon_function_declaration = None
             self.pokemon_tool = None
@@ -251,28 +252,6 @@ class GeminiProvider(BaseLLMProvider):
                 result.model = model_name
                 result.response_time = time.time() - start_time
                 
-                # Log warning if response is empty
-                if not result.text:
-                    try:
-                        from evee_logger import get_comprehensive_logger
-                        debug_logger = get_comprehensive_logger()
-                        if debug_logger:
-                            debug_logger.log_debug('WARNING', f'Gemini returned empty response for model {model_name}')
-                        else:
-                            print(f"⚠️ Gemini returned empty response for model {model_name}")
-                    except ImportError:
-                        print(f"⚠️ Gemini returned empty response for model {model_name}")
-                    if hasattr(response, 'prompt_feedback'):
-                        if debug_logger:
-                            debug_logger.log_debug('INFO', f'Prompt feedback: {response.prompt_feedback}')
-                        else:
-                            print(f"   Prompt feedback: {response.prompt_feedback}")
-                    if hasattr(response, 'candidates') and not response.candidates:
-                        if debug_logger:
-                            debug_logger.log_debug('INFO', 'No candidates in response')
-                        else:
-                            print(f"   No candidates in response")
-                
                 self._record_api_success()
                 return result
                 
@@ -304,15 +283,7 @@ class GeminiProvider(BaseLLMProvider):
                         error=f"{type(e).__name__}: {str(e)}"
                     )
                 
-                # Log to debug system - fail fast, no excessive error handling
-                if debug_logger:
-                    debug_logger.log_debug('ERROR', f'GEMINI API ERROR - Attempt {attempt + 1}/{max_retries}')
-                    debug_logger.log_debug('ERROR', f'Model: {model_name}, Error: {type(e).__name__}: {str(e)}')
-                    if hasattr(e, 'details'):
-                        debug_logger.log_debug('ERROR', f'Error Details: {e.details}')
-                    if hasattr(e, 'reason'):
-                        debug_logger.log_debug('ERROR', f'Error Reason: {e.reason}')
-                
+
                 # Handle rate limiting with model switching
                 if any(keyword in error_msg for keyword in ["429", "rate limit", "quota"]):
                     if debug_logger:

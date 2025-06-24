@@ -471,12 +471,6 @@ class ContinuousGameplay:
         movement_data = None
         if self.use_visual_analysis and self.visual_analyzer:
             try:
-                if self.eevee.verbose:
-                    if debug_logger:
-                        debug_logger.log_debug('INFO', 'Stage 1: Running visual analysis...')
-                    else:
-                        print(f"🔍 Stage 1: Running visual analysis...")
-                
                 # Get session name for logging
                 session_name = getattr(self.session, 'session_id', None)
                 
@@ -494,15 +488,10 @@ class ContinuousGameplay:
                     self._last_visual_response = meta.get('raw_response', '')
                     self._last_visual_processing_time = meta.get('processing_time_ms')
                 
-                if self.eevee.verbose:
-                    from evee_logger import get_comprehensive_logger
-                    debug_logger = get_comprehensive_logger()
-                    if debug_logger:
-                        debug_logger.log_debug('INFO', 'Visual analysis complete')
-                    else:
-                        print(f"✅ Visual analysis complete")
                     
             except Exception as e:
+                import traceback
+                print(traceback.format_exc())
                 print(f"WARNING: Visual analysis failed: {e}")
                 print(f"💀 CRITICAL: Cannot proceed without visual analysis - terminating script")
                 # Clear metadata on failure
@@ -524,14 +513,6 @@ class ContinuousGameplay:
         
         # STAGE 2: Strategic Decision (mistral-large-latest) - No image needed, uses movement validation data
         try:
-            if self.eevee.verbose:
-                from evee_logger import get_comprehensive_logger
-                debug_logger = get_comprehensive_logger()
-                if debug_logger:
-                    debug_logger.log_debug('INFO', 'Stage 2: Strategic decision (mistral-large-latest)...')
-                else:
-                    print(f"🧠 Stage 2: Strategic decision (mistral-large-latest)...")
-            
             # Import centralized LLM API
             from llm_api import call_llm
             import time

@@ -11,7 +11,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
-
+# Import prompt manager to get universal template
+from prompt_manager import PromptManager
+            
 # Add path for importing from the main project
 project_root = Path(__file__).parent.parent  # eevee/ -> claude-plays-pokemon/
 sys.path.append(str(project_root))
@@ -62,10 +64,7 @@ class VisualAnalysis:
         """
         # Initialize comprehensive logger if not already done
         from evee_logger import get_comprehensive_logger, init_comprehensive_logger
-        debug_logger = get_comprehensive_logger()
-        if debug_logger is None and session_name:
-            debug_logger = init_comprehensive_logger(session_name=session_name)
-        
+
         # Increment step counter
         self.step_counter += 1
         
@@ -170,28 +169,7 @@ class VisualAnalysis:
             model = get_model_for_task('screenshot_analysis')
             hybrid_config = get_hybrid_config()
             
-            # Debug logging for hybrid mode
-            debug_logger = get_comprehensive_logger()
-            if debug_logger:
-                debug_logger.log_hybrid_routing(
-                    task_type='visual',
-                    provider=provider,
-                    model=model,
-                    decision_reason=f"Hybrid mode enabled: {hybrid_config['enabled']}"
-                )
-            
-            # Validate provider
-            if provider not in ['gemini', 'mistral']:
-                if debug_logger:
-                    debug_logger.log_debug('ERROR', f"Invalid provider '{provider}', falling back to mistral")
-                else:
-                    print(f"⚠️ Invalid provider '{provider}', falling back to mistral")
-                provider = 'mistral'
-                model = 'pixtral-12b-2409'
-            
-            # Import prompt manager to get universal template
-            from prompt_manager import PromptManager
-            
+
             # Initialize prompt manager and get appropriate template
             prompt_manager = PromptManager()
             
@@ -207,23 +185,14 @@ class VisualAnalysis:
             
             if not template_content:
                 error_msg = f"{template_name} template not found"
-                if debug_logger:
-                    debug_logger.log_debug('ERROR', f"Template missing: {error_msg}")
                 raise RuntimeError(error_msg)
             
             # Use provider-specific template
             prompt = template_content
-            
-            if debug_logger:
-                debug_logger.log_debug('INFO', f"Using template: {template_name} for provider: {provider}")
-            
+
             # Log hybrid mode configuration
             if verbose and hybrid_config['enabled']:
                 print(f"🔀 HYBRID MODE: Visual analysis using {provider} ({model})")
-            
-            # Enhanced debug logging before API call
-            if debug_logger:
-                debug_logger.log_debug('INFO', f"Starting visual analysis: {provider} ({model})")
             
             response = call_llm(
                 prompt=prompt,
@@ -268,43 +237,6 @@ class VisualAnalysis:
                     print(f"   Error Message: {error_details['error_value']}")
                 print(f"   Response Attributes: {error_details['response_attributes']}")
                 
-                if debug_logger:
-                    debug_logger.log_gemini_debug(
-                        call_type="EMPTY_RESPONSE_ERROR",
-                        request_data={'provider': provider, 'model': model},
-                        response_data=error_details,
-                        error="Empty response from Gemini - delaying 2 minutes"
-                    )
-                
-                # Delay for 2 minutes
-                print(f"⏳ Waiting 2 minutes before continuing...")
-                time.sleep(120)  # 2 minutes
-            
-            # Log response metrics
-            if debug_logger:
-                debug_logger.log_debug('INFO', f"Visual analysis response: {provider} {model} - {response_length} chars in {processing_time:.1f}ms")
-            
-            if verbose:
-                if debug_logger:
-                    debug_logger.log_debug('INFO', f"{provider.title()} visual_context_analyzer template used ({model})")
-                    debug_logger.log_debug('INFO', f"Response received: {response_length} chars")
-                else:
-                    print(f"📤 {provider.title()} visual_context_analyzer template used ({model})")
-                    print(f"📥 Response received: {response_length} chars")
-                
-                # Final warning if still empty after retries
-                if response_length == 0:
-                    if debug_logger:
-                        debug_logger.log_debug('WARNING', f"Empty response from {provider} after delay", {
-                            'response_type': str(type(response)),
-                            'error': getattr(response, 'error', None)
-                        })
-                    else:
-                        print(f"⚠️  WARNING: Empty response from {provider} after delay")
-                        print(f"   Response type: {type(response)}")
-                        if hasattr(response, 'error') and response.error:
-                            print(f"   Error: {response.error}")
-            
             return {
                 "success": True,
                 "response": response_text,  # Use the safely extracted text
