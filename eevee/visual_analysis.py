@@ -326,7 +326,7 @@ class VisualAnalysis:
             }
     
     def _parse_movement_response(self, response_text: str) -> Dict:
-        """Parse universal visual analysis response with new JSON structure"""
+        """Parse flexible visual analysis response with dynamic scene data"""
         import json  # Import at function level to be available in except block
         from evee_logger import get_comprehensive_logger
         
@@ -356,48 +356,43 @@ class VisualAnalysis:
             if debug_logger:
                 debug_logger.log_debug('INFO', f"JSON parsing successful - Response: {response_preview}")
             
-            # Extract universal format structure
+            # Extract MANDATORY core fields
             result["scene_type"] = parsed_data.get("scene_type", "navigation")
             result["recommended_template"] = parsed_data.get("recommended_template", "ai_directed_navigation")
+            result["valid_buttons"] = parsed_data.get("valid_buttons", [])
+            result["confidence"] = parsed_data.get("confidence", "medium")
             
-            # Extract context-specific data (handle both full and simplified formats)
-            battle_data = parsed_data.get("battle_data", {})
-            navigation_data = parsed_data.get("navigation_data", {})
-            menu_data = parsed_data.get("menu_data", {})
-            valid_buttons = parsed_data.get("valid_buttons", [])
+            # Pass through ALL dynamic scene data (everything except core fields)
+            core_fields = {"scene_type", "recommended_template", "valid_buttons", "confidence", "raw_pixtral_response"}
+            for key, value in parsed_data.items():
+                if key not in core_fields:
+                    result[key] = value
             
-            # If using simplified format (Gemini), generate sensible defaults
-            if not valid_buttons and not battle_data and not navigation_data:
-                # Generate default valid_buttons based on scene type
+            # Generate default valid_buttons if missing (fallback for empty responses)
+            if not result["valid_buttons"]:
                 scene_type = result["scene_type"]
                 if scene_type == "battle":
-                    valid_buttons = [
+                    result["valid_buttons"] = [
                         {"key": "A", "action": "select_option", "result": "battle_action"},
                         {"key": "→", "action": "cursor_right", "result": "move_cursor"},
                         {"key": "↓", "action": "cursor_down", "result": "move_cursor"}
                     ]
                 elif scene_type == "menu":
-                    valid_buttons = [
+                    result["valid_buttons"] = [
                         {"key": "A", "action": "confirm", "result": "advance_text"},
                         {"key": "B", "action": "cancel", "result": "go_back"}
                     ]
                 else:  # navigation
-                    valid_buttons = [
+                    result["valid_buttons"] = [
                         {"key": "↑", "action": "move_up", "result": "character_movement"},
                         {"key": "↓", "action": "move_down", "result": "character_movement"},
                         {"key": "←", "action": "move_left", "result": "character_movement"},
                         {"key": "→", "action": "move_right", "result": "character_movement"}
                     ]
             
-            # Store structured data for strategic processing
-            result["battle_data"] = battle_data
-            result["navigation_data"] = navigation_data  
-            result["menu_data"] = menu_data
-            result["valid_buttons"] = valid_buttons
-            
             # Extract valid movements from valid_buttons for backward compatibility
             movement_actions = []
-            for button in valid_buttons:
+            for button in result["valid_buttons"]:
                 key = button.get("key", "")
                 action = button.get("action", "")
                 if "move" in action.lower() and key in ["↑", "↓", "←", "→", "up", "down", "left", "right"]:
@@ -417,23 +412,24 @@ class VisualAnalysis:
                 else:
                     result["recommended_template"] = "ai_directed_navigation"
             
-            # Set confidence and spatial context for backward compatibility
-            if valid_buttons or battle_data or navigation_data:
-                result["confidence"] = "high"  # Full format implies good parsing
-            else:
-                result["confidence"] = "medium"  # Simplified format, generated defaults
-                
-            result["spatial_context"] = f"Scene: {result['scene_type']}, Valid buttons: {len(valid_buttons)}"
-            result["character_position"] = navigation_data.get("player_pos", "")
-            
-            # Enhanced visual description based on scene type
+            # Add backward compatibility fields based on dynamic scene data
             scene_type = result["scene_type"]
+            
+            # Generate spatial context from dynamic data
+            button_count = len(result["valid_buttons"])
+            result["spatial_context"] = f"Scene: {scene_type}, Valid buttons: {button_count}"
+            
+            # Extract character position from dynamic navigation data if available
+            result["character_position"] = result.get("player_position", result.get("player_pos", ""))
+            
+            # Enhanced visual description based on scene type and available data
+            confidence = result.get("confidence", "medium")
             if scene_type == "battle":
-                result["visual_description"] = f"Battle scene detected - {result.get('confidence', 'medium')} confidence"
+                result["visual_description"] = f"Battle scene detected - {confidence} confidence"
             elif scene_type == "menu":
-                result["visual_description"] = f"Menu/dialogue scene detected - {result.get('confidence', 'medium')} confidence"
+                result["visual_description"] = f"Menu/dialogue scene detected - {confidence} confidence"
             else:
-                result["visual_description"] = f"Navigation scene detected - {result.get('confidence', 'medium')} confidence"
+                result["visual_description"] = f"Navigation scene detected - {confidence} confidence"
                 
             result["template_reason"] = f"Scene type '{scene_type}' → template '{result['recommended_template']}'"
                 
@@ -442,7 +438,7 @@ class VisualAnalysis:
             if debug_logger:
                 debug_logger.log_debug('ERROR', f"JSON parsing failed: {str(e)} - Response: {response_preview}")
             
-            # Fallback parsing for non-JSON responses
+            # Fallback parsing for non-JSON responses - provide minimal viable structure
             result["scene_type"] = "navigation"
             result["recommended_template"] = "ai_directed_navigation"
             result["confidence"] = "low"
@@ -451,10 +447,12 @@ class VisualAnalysis:
             result["visual_description"] = "Failed to parse response"
             result["template_reason"] = f"JSON parsing failed: {e}"
             result["valid_movements"] = ["up", "down", "left", "right"]
-            result["battle_data"] = {}
-            result["navigation_data"] = {}
-            result["menu_data"] = {}
-            result["valid_buttons"] = []
+            result["valid_buttons"] = [
+                {"key": "↑", "action": "move_up", "result": "character_movement"},
+                {"key": "↓", "action": "move_down", "result": "character_movement"},
+                {"key": "←", "action": "move_left", "result": "character_movement"},
+                {"key": "→", "action": "move_right", "result": "character_movement"}
+            ]
             
         return result
     
@@ -614,25 +612,21 @@ class VisualAnalysis:
         # Extract the core visual analysis data for clean output
         visual_output = {}
         
-        # Core fields that should always be shown
-        if 'scene_type' in movement_data:
-            visual_output['scene_type'] = movement_data['scene_type']
+        # Always include core mandatory fields
+        core_fields = ['scene_type', 'recommended_template', 'valid_buttons', 'confidence']
+        for field in core_fields:
+            if field in movement_data:
+                visual_output[field] = movement_data[field]
         
-        if 'recommended_template' in movement_data:
-            visual_output['recommended_template'] = movement_data['recommended_template']
+        # Include all dynamic scene-specific data (everything except internal fields)
+        internal_fields = {
+            'raw_pixtral_response', 'valid_movements', 'spatial_context', 
+            'character_position', 'visual_description', 'template_reason'
+        }
         
-        # Context-specific data
-        if 'battle_data' in movement_data and movement_data['battle_data']:
-            visual_output['battle_data'] = movement_data['battle_data']
-            
-        if 'navigation_data' in movement_data and movement_data['navigation_data']:
-            visual_output['navigation_data'] = movement_data['navigation_data']
-            
-        if 'menu_data' in movement_data and movement_data['menu_data']:
-            visual_output['menu_data'] = movement_data['menu_data']
-        
-        if 'valid_buttons' in movement_data and movement_data['valid_buttons']:
-            visual_output['valid_buttons'] = movement_data['valid_buttons']
+        for key, value in movement_data.items():
+            if key not in core_fields and key not in internal_fields and value:
+                visual_output[key] = value
         
         # Use logger for clean console output
         logger = get_comprehensive_logger()

@@ -1421,14 +1421,6 @@ class ContinuousGameplay:
         if "consecutive" in recent_actions.lower():
             print(f"⚠️  LOOP WARNING: {recent_actions}")
         
-        # Show full AI reasoning
-        print(f"💭 FULL AI REASONING:")
-        if analysis_text and analysis_text.strip():
-            print(f"   {analysis_text}")
-        else:
-            print(f"   ⚠️ Empty response from AI")
-        print(f"{'='*60}")
-    
     def _log_strategic_decision_clean_output(self, result: Dict[str, Any]) -> None:
         """Output clean JSON for strategic decisions to console"""
         # Only output clean JSON if we have clean_output mode enabled

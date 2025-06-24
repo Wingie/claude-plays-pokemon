@@ -89,35 +89,74 @@ stuck_recovery:
   - task
   version: '5.0'
 battle_analysis:
-  name: Pokemon Battle Analysis (JSON Response)
-  description: Analyze Pokemon battle situations using spatial context and provide strategic decisions
+  name: Pokemon Strategic Battle Analysis (Enhanced Multi-Turn JSON Response)
+  description: Analyze Pokemon battle situations with HP management, level difference logic, and multi-turn planning
   template: |
-    Pokemon Battle Analysis
+    Pokemon Strategic Battle Analysis (Enhanced)
     
     GOAL: {task}
     RECENT ACTIONS: {recent_actions}
     
-    **VISUAL CONTEXT PROVIDED:**
+    **RICH BATTLE CONTEXT PROVIDED:**
     Scene Type: {scene_type}
-    Spatial Context: {spatial_context}
-    Character Position: {character_position}
-    Visual Description: {visual_description}
-    Valid Movements: {valid_movements}
+    Battle Phase: {battle_phase}
+    Our Pokemon: {our_pokemon}
+    Enemy Pokemon: {enemy_pokemon}
+    Available Moves: {move_options}
+    Cursor Position: {cursor_on}
+    Valid Buttons: {valid_buttons}
     Confidence: {confidence}
     
-    **BATTLE ANALYSIS INSTRUCTIONS:**
+    **ENHANCED BATTLE STRATEGY:**
     
-    Use the visual context above to analyze the Pokemon battle situation:
-    - Use visual_description to identify battle phase and UI elements
-    - Consider spatial_context for menu navigation and positioning
-    - Analyze battle state from character_position and scene details
-    - If confidence is low, use safer battle decisions
+    **PRIORITY DECISION TREE:**
+    1. **SURVIVAL PRIORITY** (HP < 30%): Heal, switch, or defensive moves
+    2. **EFFICIENCY PRIORITY** (Enemy level < Our level/2): Finish quickly with any damaging move
+    3. **STRATEGIC PRIORITY** (Close levels): Use type effectiveness and optimal moves
+    4. **EMERGENCY PRIORITY** (HP < 15%): Immediate healing or switching required
     
-    **BATTLE STRATEGY:**
-    - Battle intro/text: Press A to advance (based on visual_description)
-    - Main battle menu: Navigate using spatial_context to FIGHT option
-    - Move selection: Use visual layout for menu navigation
-    - Battle animations: Press A to continue based on scene_type
+    **HP MANAGEMENT LOGIC:**
+    - HP > 70%: Aggressive strategy, focus on damage
+    - HP 30-70%: Balanced strategy, consider type effectiveness
+    - HP < 30%: Survival strategy, prioritize healing/switching
+    - HP < 15%: Emergency mode, immediate action required
+    
+    **LEVEL DIFFERENCE STRATEGY:**
+    - Our level 2x+ enemy level: Use any damaging move to finish quickly
+    - Our level 1.5x+ enemy level: Prefer damaging moves over status
+    - Similar levels (±2): Optimize type effectiveness
+    - Enemy higher level: Consider defensive options
+    
+    **MULTI-TURN BATTLE PLANNING:**
+    - Plan 2-3 turns ahead based on HP trajectory
+    - Consider move PP (Power Points) for longer battles
+    - Anticipate enemy actions based on their type/level
+    - Plan healing/switching windows
+    
+    **TASK-BASED MOVE SELECTION:**
+    - **FINISH_WEAK**: Against low-level enemies, use any damaging move
+    - **HEAL_CRITICAL**: When HP critical, navigate to BAG for healing items
+    - **SWITCH_STRATEGIC**: When type disadvantage severe, switch Pokemon
+    - **OPTIMIZE_DAMAGE**: When healthy, use type-effective moves
+    
+    **COMPACT ACTION ARRAYS:**
+    - Navigation: ["up", "down", "left", "right"] for cursor movement
+    - Selection: ["a"] to confirm choices
+    - Escape: ["b"] to back out of menus
+    - Combined: ["down", "a"] for move to option and select
+    
+    **BATTLE PHASES (Enhanced):**
+    - main_menu: Navigate to FIGHT/BAG/POKEMON based on priority
+    - move_selection: Choose move based on HP/level analysis
+    - battle_animation: Press A to continue, prepare next turn strategy
+    - battle_text: Press A to advance, analyze results for next decision
+    
+    **TYPE EFFECTIVENESS (Contextual):**
+    - Electric vs Water/Flying: SUPER EFFECTIVE (2x damage)
+    - Water vs Fire/Ground/Rock: SUPER EFFECTIVE (2x damage)
+    - Fire vs Grass/Bug/Ice: SUPER EFFECTIVE (2x damage)
+    - Normal moves: Neutral but reliable damage
+    - Status moves (GROWL, LEER): Only use if strategic advantage
     
     **VALID BUTTONS:**
     - Movement: "up", "down", "left", "right"
@@ -127,10 +166,14 @@ battle_analysis:
     Return ONLY a JSON object with no additional text:
     
     {{
-      "button_presses": ["a"],
-      "reasoning": "Battle menu detected in visual context, selecting FIGHT option",
-      "observations": "Four-option battle menu visible with spatial layout information",
-      "context_detected": "battle",
+      "battle_plan": [
+        {{"turn": 1, "action": ["a"], "goal": "finish_weak", "reasoning": "Level 9 vs Level 3 - any damage move will KO"}},
+        {{"turn": 2, "action": ["bag", "down", "a"], "goal": "heal_if_survive", "reasoning": "Backup healing if battle continues"}}
+      ],
+      "immediate_action": ["a"],
+      "strategy_priority": "efficiency",
+      "hp_status": "critical",
+      "level_advantage": "major",
       "confidence": "high"
     }}
     
@@ -139,10 +182,12 @@ battle_analysis:
   - task
   - recent_actions
   - scene_type
-  - spatial_context
-  - character_position
-  - visual_description
-  - valid_movements
+  - battle_phase
+  - our_pokemon
+  - enemy_pokemon
+  - move_options
+  - cursor_on
+  - valid_buttons
   - confidence
   version: '6.0'
 pokemon_party_analysis:
@@ -342,28 +387,44 @@ visual_context_analyzer:
   version: '2.0'
 
 visual_context_analyzer_gemini:
-  name: Gemini Scene Analyzer (Pokemon GBA v1)
-  description: Production-ready visual analysis template optimized for Gemini with pokemon_gba_v1 format
+  name: Gemini Flexible Scene Analyzer (Pokemon GBA v2)
+  description: Flexible visual analysis template - mandatory core fields + dynamic scene-specific data
   template: |
     Pokemon Game Boy Advance Screenshot Analysis
 
     This is a screenshot from a classic Pokemon GBA video game (educational/nostalgic gaming content). Please analyze the game interface and extract the current game state.
 
-    Analyze the Pokemon GBA game screen and detect what type of scene this is:
+    **MANDATORY CORE FIELDS (always include):**
+    - scene_type: "battle|navigation|menu|transition"  
+    - recommended_template: "ai_directed_battle|ai_directed_navigation"
+    - valid_buttons: Array of available button options with key/action/result
+    - confidence: "high|medium|low"
+
+    **DYNAMIC SCENE DATA (add whatever fields make sense):**
+    Structure the data optimally for this specific scene type. Examples:
+
+    **Battle scenes:** Add pokemon names, HP, levels, cursor position, battle phase, move options, status effects
+    **Navigation scenes:** Add terrain, player position, nearby objects, path options, NPCs, buildings
+    **Menu scenes:** Add menu type (pokedex/bag/party), items visible, cursor position, dialogue text
+    **Town scenes:** Add location type, buildings visible, interactable objects
+
+    **RESPONSE FORMAT:**
+    Return JSON only with core fields + whatever scene-specific fields are relevant:
 
     {{
-      "scene_type": "battle|navigation|menu",
-      "battle_data": {{"our_pokemon": {{"name": "NAME", "hp": "X/Y", "level": 0}}, "enemy_pokemon": {{"name": "NAME", "hp": "X/Y", "level": 0}}, "cursor_position": "FIGHT"}},
-      "navigation_data": {{"player_pos": "x,y", "terrain": "grass|water|path", "npcs_visible": [], "obstacles": []}},
-      "menu_data": {{"dialogue_text": "text", "interaction_type": "npc|sign|item"}},
+      "scene_type": "battle",
+      "our_pokemon": {{"name": "PIKACHU", "hp": "22/35", "level": 12}},
+      "enemy_pokemon": {{"name": "RATTATA", "level": 8}},
+      "battle_phase": "main_menu",
+      "cursor_on": "FIGHT",
       "valid_buttons": [
-        {{"key": "A", "action": "specific_action", "result": "what_happens"}},
-        {{"key": "→", "action": "move_right_or_cursor", "result": "movement_or_menu"}},
-        {{"key": "↓", "action": "move_down_or_cursor", "result": "movement_or_menu"}}
+        {{"key": "A", "action": "select_fight", "result": "open_move_menu"}},
+        {{"key": "→", "action": "cursor_right", "result": "select_bag"}}
       ],
-      "recommended_template": "ai_directed_navigation|ai_directed_battle"
+      "recommended_template": "ai_directed_battle",
+      "confidence": "high"
     }}
 
-    FILL ONLY RELEVANT SECTIONS. JSON ONLY.
+    Add whatever fields make sense for this scene. Don't force empty/null fields. JSON ONLY.
   variables: []
-  version: '2.0'
+  version: '3.0'
