@@ -249,7 +249,7 @@ class ContinuousGameplay:
             self.use_visual_analysis = True
             import os
             provider = os.getenv('LLM_PROVIDER', 'mistral').lower()
-            vision_model = 'gemini-2.0-flash-exp' if provider == 'gemini' else 'pixtral-12b-2409'
+            vision_model = 'gemini-2.0-flash-exp' if provider == 'hybrid' else 'pixtral-12b-2409'
             print(f"✅ Visual analysis system initialized ({vision_model} + mistral-large-latest)")
         except Exception as e:
             print(f"WARNING: Visual analysis unavailable: {e}")
@@ -572,12 +572,7 @@ class ContinuousGameplay:
                             print(f"WARNING: JSON parsing failed: {e}")
                         api_result["button_presses"] = ["b"]  # Simple fallback
                 else:
-                    from evee_logger import get_comprehensive_logger
-                    debug_logger = get_comprehensive_logger()
-                    if debug_logger:
-                        debug_logger.log_debug('WARNING', 'No JSON format found in response')
-                    else:
-                        print("WARNING: No JSON format found in response")
+                    print("WARNING: No JSON format found in response : {0}",api_result["text"])
                     api_result["button_presses"] = ["b"]  # Simple fallback
             
             if api_result["error"]:
@@ -590,17 +585,6 @@ class ContinuousGameplay:
             # Enhanced logging with clear observation-to-action chain
             analysis_text = api_result.get("text", "No analysis provided")
             button_sequence = api_result.get("button_presses", ["a"])
-            
-            # Essential info only  
-            if self.eevee.verbose:
-                from evee_logger import get_comprehensive_logger
-                debug_logger = get_comprehensive_logger()
-                if debug_logger:
-                    debug_logger.log_debug('INFO', f"API Response: {len(analysis_text)} chars")
-                    debug_logger.log_debug('INFO', f"Actions provided: {'Yes' if api_result.get('button_presses') else 'No'}")
-                else:
-                    print(f"📊 API Response: {len(analysis_text)} chars")
-                    print(f"INIT: Actions provided: {'Yes' if api_result.get('button_presses') else 'No'}")
             
             # Always show enhanced analysis logging for better debugging
             self._log_enhanced_analysis(turn_number, analysis_text, button_sequence)

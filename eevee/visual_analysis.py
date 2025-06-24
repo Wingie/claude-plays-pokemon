@@ -493,23 +493,10 @@ class VisualAnalysis:
         if session_name is None:
             import time
             session_name = f"session_{int(time.time())}"
-            if debug_logger:
-                debug_logger.log_debug('WARNING', f"Visual analysis: No session_name provided, creating: {session_name}")
-            else:
-                print(f"⚠️ Visual analysis: No session_name provided, creating: {session_name}")
         elif not session_name.startswith("session_"):
             # Ensure session name has proper prefix  
             session_name = f"session_{session_name}"
-            if debug_logger:
-                debug_logger.log_debug('INFO', f"Visual analysis: Using session folder: {session_name}")
-            else:
-                print(f"🔧 Visual analysis: Using session folder: {session_name}")
-        else:
-            if debug_logger:
-                debug_logger.log_debug('INFO', f"Visual analysis: Using existing session folder: {session_name}")
-            else:
-                print(f"✅ Visual analysis: Using existing session folder: {session_name}")
-        
+
         return self.runs_dir / session_name
     
     def reset_step_counter(self) -> None:
