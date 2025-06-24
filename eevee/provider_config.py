@@ -34,7 +34,7 @@ TASK_MODEL_MAPPING = {
 
 def get_model_for_task(task_type: str) -> str:
     """
-    Get the assigned model for any task type
+    Get the assigned model for any task type, considering hybrid mode
     
     Args:
         task_type: Task type from TASK_MODEL_MAPPING keys
@@ -42,11 +42,33 @@ def get_model_for_task(task_type: str) -> str:
     Returns:
         Specific model name to use for this task
     """
+    # Check if we're in hybrid mode
+    hybrid_mode = os.getenv('HYBRID_MODE', 'false').lower() == 'true'
+    llm_provider = os.getenv('LLM_PROVIDER', 'gemini').lower()
+    
+    if hybrid_mode and llm_provider == 'hybrid':
+        # Hybrid mode: select model based on provider assignment
+        if task_type in ["screenshot_analysis", "battle_decisions", "menu_analysis"]:
+            # Visual tasks use visual provider
+            visual_provider = os.getenv('VISUAL_PROVIDER', 'gemini').lower()
+            if visual_provider == 'gemini':
+                return os.getenv('GEMINI_DEFAULT_MODEL', 'gemini-2.0-flash-exp')
+            else:
+                return os.getenv('MISTRAL_VISION_MODEL', 'pixtral-12b-2409')
+        else:
+            # Strategic tasks use strategic provider  
+            strategic_provider = os.getenv('STRATEGIC_PROVIDER', 'mistral').lower()
+            if strategic_provider == 'mistral':
+                return os.getenv('MISTRAL_DEFAULT_MODEL', 'mistral-large-latest')
+            else:
+                return os.getenv('GEMINI_DEFAULT_MODEL', 'gemini-2.0-flash-exp')
+    
+    # Non-hybrid mode: use original mapping
     return TASK_MODEL_MAPPING.get(task_type, "mistral-large-latest")
 
 def get_provider_for_task(task_type: str) -> str:
     """
-    Auto-detect provider from the assigned model for a task
+    Get provider for task type, considering hybrid mode configuration
     
     Args:
         task_type: Task type from TASK_MODEL_MAPPING keys
@@ -54,6 +76,18 @@ def get_provider_for_task(task_type: str) -> str:
     Returns:
         Provider name ("mistral" or "gemini")
     """
+    # Check if we're in hybrid mode
+    hybrid_mode = os.getenv('HYBRID_MODE', 'false').lower() == 'true'
+    llm_provider = os.getenv('LLM_PROVIDER', 'gemini').lower()
+    
+    if hybrid_mode and llm_provider == 'hybrid':
+        # Hybrid mode: use different providers for different tasks
+        if task_type in ["screenshot_analysis", "battle_decisions", "menu_analysis"]:
+            return os.getenv('VISUAL_PROVIDER', 'gemini').lower()
+        else:
+            return os.getenv('STRATEGIC_PROVIDER', 'mistral').lower()
+    
+    # Non-hybrid mode: use original logic
     model = get_model_for_task(task_type)
     if "pixtral" in model or "mistral" in model:
         return "mistral"
@@ -166,6 +200,12 @@ class ProviderConfig:
         self.primary_provider = os.getenv('LLM_PROVIDER', 'gemini').lower()
         self.fallback_provider = os.getenv('FALLBACK_PROVIDER', 'mistral').lower()
         self.auto_fallback = os.getenv('AUTO_FALLBACK', 'true').lower() == 'true'
+        
+        # Hybrid Mode Configuration
+        self.hybrid_mode = os.getenv('HYBRID_MODE', 'false').lower() == 'true'
+        self.visual_provider = os.getenv('VISUAL_PROVIDER', 'gemini').lower()
+        self.strategic_provider = os.getenv('STRATEGIC_PROVIDER', 'mistral').lower()
+        self.template_provider = os.getenv('TEMPLATE_PROVIDER', 'mistral').lower()
         
         # Model Preferences
         self.gemini_default = os.getenv('GEMINI_DEFAULT_MODEL', 'gemini-2.0-flash-exp')
@@ -348,10 +388,56 @@ class ProviderConfig:
         print(f"Primary Provider: {self.primary_provider}")
         print(f"Fallback Provider: {self.fallback_provider}")
         print(f"Auto Fallback: {self.auto_fallback}")
+        
+        if self.hybrid_mode and self.primary_provider == 'hybrid':
+            print(f"🔀 HYBRID MODE: Enabled")
+            print(f"   Visual Provider: {self.visual_provider}")
+            print(f"   Strategic Provider: {self.strategic_provider}")
+            print(f"   Template Provider: {self.template_provider}")
+        
         print(f"Available Providers: {self.get_available_providers()}")
         print(f"Template Selection Model: {self.template_selection_model}")
         print(f"Gameplay Model: {self.gameplay_model}")
         print("=" * 50)
+
+def get_hybrid_config() -> dict:
+    """
+    Get hybrid mode configuration from environment
+    
+    Returns:
+        Dictionary with hybrid mode settings
+    """
+    return {
+        'enabled': os.getenv('HYBRID_MODE', 'false').lower() == 'true' and 
+                  os.getenv('LLM_PROVIDER', 'gemini').lower() == 'hybrid',
+        'visual_provider': os.getenv('VISUAL_PROVIDER', 'gemini').lower(),
+        'strategic_provider': os.getenv('STRATEGIC_PROVIDER', 'mistral').lower(),
+        'template_provider': os.getenv('TEMPLATE_PROVIDER', 'mistral').lower()
+    }
+
+def get_provider_for_hybrid_task(task_category: str) -> str:
+    """
+    Get provider for task category in hybrid mode
+    
+    Args:
+        task_category: 'visual', 'strategic', or 'template'
+        
+    Returns:
+        Provider name for the task category
+    """
+    hybrid_config = get_hybrid_config()
+    
+    if not hybrid_config['enabled']:
+        return os.getenv('LLM_PROVIDER', 'gemini').lower()
+    
+    if task_category == 'visual':
+        return hybrid_config['visual_provider']
+    elif task_category == 'strategic':
+        return hybrid_config['strategic_provider']
+    elif task_category == 'template':
+        return hybrid_config['template_provider']
+    else:
+        return hybrid_config['strategic_provider']  # Default to strategic
 
 # Global configuration instance
 _global_config = None

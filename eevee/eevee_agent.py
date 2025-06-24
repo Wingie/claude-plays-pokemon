@@ -107,6 +107,12 @@ class EeveeAgent:
             available_providers = self.llm_manager.get_available_providers()
             current_provider = self.llm_manager.current_provider
             
+            # Safety check for current_provider
+            if current_provider is None:
+                current_provider = available_providers[0] if available_providers else "unknown"
+                if available_providers:
+                    self.llm_manager.set_provider(current_provider)
+            
             # Get available models from current provider
             provider_status = self.llm_manager.get_provider_status()
             if current_provider in provider_status:
@@ -114,7 +120,18 @@ class EeveeAgent:
             
             if self.verbose:
                 print(f"🤖 LLM API initialized with providers: {available_providers}")
-                print(f"🎯 Using {current_provider.upper()} provider (from .env configuration)")
+                
+                # Check for hybrid mode
+                hybrid_mode = os.getenv('HYBRID_MODE', 'false').lower() == 'true'
+                llm_provider = os.getenv('LLM_PROVIDER', 'gemini').lower()
+                
+                if hybrid_mode and llm_provider == 'hybrid':
+                    visual_provider = os.getenv('VISUAL_PROVIDER', 'gemini')
+                    strategic_provider = os.getenv('STRATEGIC_PROVIDER', 'mistral')
+                    print(f"🔀 HYBRID MODE: Visual={visual_provider}, Strategic={strategic_provider}")
+                else:
+                    print(f"🎯 Using {current_provider.upper()} provider (from .env configuration)")
+                    
                 print(f"📋 Available models: {self.available_models}")
             
             if not available_providers:

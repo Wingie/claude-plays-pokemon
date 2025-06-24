@@ -486,11 +486,13 @@ class ContinuousGameplay:
                     
             except Exception as e:
                 print(f"⚠️ Visual analysis failed: {e}")
-                movement_data = None
+                print(f"💀 CRITICAL: Cannot proceed without visual analysis - terminating script")
                 # Clear metadata on failure
                 self._last_visual_prompt = ''
                 self._last_visual_response = f'Error: {e}'
                 self._last_visual_processing_time = None
+                # Re-raise the exception to crash the script as required
+                raise RuntimeError(f"Visual analysis failure is fatal - cannot proceed without visual data: {e}") from e
         
         # STAGE 2: Strategic Decision (mistral-large-latest) - Build context-aware prompt
         memory_context = self._get_memory_context()
@@ -1475,6 +1477,16 @@ class ContinuousGameplay:
                     # Fallback: Use original context detection when visual analysis unavailable
                     if self.eevee.verbose:
                         print(f"⚠️ No visual template recommendation, using context detection")
+                    
+                    # Add fallback values for visual analysis variables that templates may require
+                    variables.update({
+                        "scene_type": "navigation",
+                        "spatial_context": "Visual analysis unavailable - using fallback navigation",
+                        "character_position": "unknown",
+                        "visual_description": "No visual analysis data available",
+                        "valid_movements": ["up", "down", "left", "right"],
+                        "confidence": "low"
+                    })
                     
                     prompt_type, playbooks = self._determine_prompt_context(memory_context)
                     prompt = prompt_manager.get_prompt(

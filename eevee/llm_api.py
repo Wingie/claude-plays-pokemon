@@ -110,6 +110,26 @@ class GeminiProvider(BaseLLMProvider):
         genai.configure(api_key=self.api_key)
         self.genai = genai
         
+        # Configure safety settings for gaming content (most permissive for Pokemon gameplay)
+        self.safety_settings = [
+            {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_NONE"
+            },
+            {
+                "category": "HARM_CATEGORY_HATE_SPEECH", 
+                "threshold": "BLOCK_NONE"
+            },
+            {
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_NONE"
+            },
+            {
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "threshold": "BLOCK_NONE"
+            }
+        ]
+        
         # Model instances cache
         self._model_cache = {}
         
@@ -151,7 +171,7 @@ class GeminiProvider(BaseLLMProvider):
     
     def get_default_model(self, capability: ModelCapability) -> str:
         """Get default Gemini model for given capability"""
-        return "gemini-2.0-flash-exp"  # Best performing model
+        return "gemini-2.0-flash-exp"  # Test experimental model for safety differences
     
     def _get_model_instance(self, model_name: str):
         """Get cached model instance"""
@@ -205,19 +225,61 @@ class GeminiProvider(BaseLLMProvider):
                     response = model.generate_content(
                         content_parts,
                         generation_config=generation_config,
-                        tools=[self.pokemon_tool]
+                        tools=[self.pokemon_tool],
+                        safety_settings=self.safety_settings
                     )
                 else:
                     response = model.generate_content(
                         content_parts,
-                        generation_config=generation_config
+                        generation_config=generation_config,
+                        safety_settings=self.safety_settings
                     )
                 
-                # Process response
+                # Process response with detailed debugging
+                print(f"🔍 DEBUG: Raw response type: {type(response)}")
+                print(f"🔍 DEBUG: Response attributes: {[attr for attr in dir(response) if not attr.startswith('_')]}")
+                
+                if hasattr(response, 'candidates'):
+                    print(f"🔍 DEBUG: Candidates count: {len(response.candidates) if response.candidates else 0}")
+                    if response.candidates:
+                        candidate = response.candidates[0]
+                        print(f"🔍 DEBUG: First candidate finish_reason: {getattr(candidate, 'finish_reason', 'NONE')}")
+                        
+                        # Check safety ratings on candidate
+                        if hasattr(candidate, 'safety_ratings') and candidate.safety_ratings:
+                            print(f"🔍 DEBUG: Candidate safety ratings:")
+                            for rating in candidate.safety_ratings:
+                                category = getattr(rating, 'category', 'UNKNOWN')
+                                probability = getattr(rating, 'probability', 'UNKNOWN')
+                                blocked = getattr(rating, 'blocked', False)
+                                print(f"   {category}: {probability} (blocked: {blocked})")
+                
+                # Check prompt feedback
+                if hasattr(response, 'prompt_feedback'):
+                    feedback = response.prompt_feedback
+                    print(f"🔍 DEBUG: Prompt feedback exists: {feedback is not None}")
+                    if feedback:
+                        if hasattr(feedback, 'block_reason'):
+                            print(f"🔍 DEBUG: Block reason: {getattr(feedback, 'block_reason', 'NONE')}")
+                        if hasattr(feedback, 'safety_ratings') and feedback.safety_ratings:
+                            print(f"🔍 DEBUG: Prompt safety ratings:")
+                            for rating in feedback.safety_ratings:
+                                category = getattr(rating, 'category', 'UNKNOWN')
+                                probability = getattr(rating, 'probability', 'UNKNOWN')
+                                print(f"   {category}: {probability}")
+                
                 result = self._process_gemini_response(response, request.use_tools)
                 result.provider = "gemini"
                 result.model = model_name
                 result.response_time = time.time() - start_time
+                
+                # Log warning if response is empty
+                if not result.text:
+                    print(f"⚠️ Gemini returned empty response for model {model_name}")
+                    if hasattr(response, 'prompt_feedback'):
+                        print(f"   Prompt feedback: {response.prompt_feedback}")
+                    if hasattr(response, 'candidates') and not response.candidates:
+                        print(f"   No candidates in response")
                 
                 self._record_api_success()
                 return result
@@ -225,30 +287,77 @@ class GeminiProvider(BaseLLMProvider):
             except Exception as e:
                 error_msg = str(e).lower()
                 
+                # Log detailed error information for each retry attempt
+                from evee_logger import get_comprehensive_logger
+                logger = get_comprehensive_logger()
+                
+                error_data = {
+                    'attempt': f"{attempt + 1}/{max_retries}",
+                    'model': model_name,
+                    'error_type': type(e).__name__,
+                    'error_message': str(e),
+                    'full_exception': repr(e)
+                }
+                
+                if hasattr(e, 'details'):
+                    error_data['error_details'] = str(e.details)
+                if hasattr(e, 'reason'):
+                    error_data['error_reason'] = str(e.reason)
+                
+                if logger:
+                    logger.log_gemini_debug(
+                        call_type=f"RETRY_ATTEMPT_{attempt + 1}",
+                        request_data={'model': model_name, 'prompt_length': len(request.prompt)},
+                        response_data={},
+                        error=f"{type(e).__name__}: {str(e)}"
+                    )
+                
+                # Also print to console for immediate feedback
+                print(f"🚨 GEMINI API ERROR - Attempt {attempt + 1}/{max_retries}")
+                print(f"   Model: {model_name}")
+                print(f"   Error Type: {type(e).__name__}")
+                print(f"   Error Message: {str(e)}")
+                print(f"   Full Exception: {repr(e)}")
+                if hasattr(e, 'details'):
+                    print(f"   Error Details: {e.details}")
+                if hasattr(e, 'reason'):
+                    print(f"   Error Reason: {e.reason}")
+                
                 # Handle rate limiting with model switching
                 if any(keyword in error_msg for keyword in ["429", "rate limit", "quota"]):
+                    print(f"   📊 RATE LIMIT DETECTED - Adding {model_name} to rate limited models")
                     self.rate_limited_models.add(model_name)
                     
                     # Try to switch to different model
                     available = [m for m in available_models.keys() if m not in self.rate_limited_models]
                     if available:
+                        print(f"   🔄 SWITCHING MODEL: {model_name} → {available[0]}")
                         model_name = available[0]
                         continue
                     else:
                         # All models rate limited, wait
                         retry_delay = self._parse_retry_delay(str(e), base_delay * (2 ** attempt))
+                        print(f"   ⏳ ALL MODELS RATE LIMITED - Waiting {retry_delay}s before retry")
                         time.sleep(retry_delay)
                         continue
                 
                 # Handle other retryable errors
                 elif any(keyword in error_msg for keyword in ["timeout", "connection", "network"]):
+                    print(f"   🌐 NETWORK/TIMEOUT ERROR - Retryable")
                     if attempt < max_retries - 1:
                         retry_delay = base_delay * (2 ** attempt)
+                        print(f"   ⏳ Waiting {retry_delay}s before retry {attempt + 2}")
                         time.sleep(retry_delay)
                         continue
                 
+                # Non-retryable errors or authentication issues
+                else:
+                    print(f"   ❌ NON-RETRYABLE ERROR - Error type: {type(e).__name__}")
+                    print(f"   💡 Likely cause: API key, model availability, or authentication issue")
+                
                 # Final attempt or non-retryable error
                 if attempt == max_retries - 1:
+                    print(f"   💀 FINAL ATTEMPT FAILED - Recording API failure and returning error response")
                     self._record_api_failure()
                     return LLMResponse(
                         text="",
@@ -260,6 +369,7 @@ class GeminiProvider(BaseLLMProvider):
                     )
         
         # Should never reach here
+        print(f"💀 UNEXPECTED: Reached end of retry loop without returning - This should not happen")
         self._record_api_failure()
         return LLMResponse(
             text="",
@@ -287,7 +397,59 @@ class GeminiProvider(BaseLLMProvider):
                             result.text = f"Pressing {button.upper()} button for Pokemon game control"
         else:
             # Handle text-only response
-            result.text = response.text if response.text else ""
+            # Try different ways to extract text from Gemini response
+            try:
+                if hasattr(response, 'text') and response.text:
+                    result.text = response.text
+                elif hasattr(response, 'candidates') and response.candidates:
+                    # Try to extract text from candidates even if safety-blocked
+                    candidate = response.candidates[0]
+                    
+                    # Check if content exists despite safety blocking
+                    if hasattr(candidate, 'content') and candidate.content:
+                        if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                            for part in candidate.content.parts:
+                                if hasattr(part, 'text') and part.text:
+                                    result.text = part.text
+                                    break
+                    
+                    # If no content but candidate exists, check for finish_reason and safety ratings
+                    if not result.text and hasattr(candidate, 'finish_reason'):
+                        finish_reason = candidate.finish_reason
+                        print(f"⚠️ Gemini response blocked with finish_reason: {finish_reason}")
+                        
+                        # Extract safety ratings for detailed blocking information
+                        if hasattr(candidate, 'safety_ratings') and candidate.safety_ratings:
+                            print(f"   🛡️ SAFETY RATINGS:")
+                            for rating in candidate.safety_ratings:
+                                category = getattr(rating, 'category', 'UNKNOWN')
+                                probability = getattr(rating, 'probability', 'UNKNOWN')
+                                blocked = getattr(rating, 'blocked', False)
+                                print(f"     {category}: {probability} (blocked: {blocked})")
+                        
+                        # Check for prompt feedback (input blocking)
+                        if hasattr(response, 'prompt_feedback') and response.prompt_feedback:
+                            feedback = response.prompt_feedback
+                            if hasattr(feedback, 'block_reason') and feedback.block_reason:
+                                print(f"   🚫 PROMPT BLOCKED: {feedback.block_reason}")
+                            if hasattr(feedback, 'safety_ratings') and feedback.safety_ratings:
+                                print(f"   📝 PROMPT SAFETY RATINGS:")
+                                for rating in feedback.safety_ratings:
+                                    category = getattr(rating, 'category', 'UNKNOWN')
+                                    probability = getattr(rating, 'probability', 'UNKNOWN')
+                                    print(f"     {category}: {probability}")
+                        
+                        # Try to get any partial content that might exist
+                        if hasattr(candidate, 'content') and candidate.content:
+                            print(f"   Content object exists: {type(candidate.content)}")
+                            if hasattr(candidate.content, 'parts'):
+                                print(f"   Parts exist: {len(candidate.content.parts) if candidate.content.parts else 0}")
+            except Exception as text_extraction_error:
+                print(f"⚠️ Error extracting text from Gemini response: {text_extraction_error}")
+            
+            # If still no text, set empty string
+            if not result.text:
+                result.text = ""
         
         # Parse buttons from text if no function calls
         if result.text and not result.button_presses:
@@ -549,8 +711,16 @@ class LLMAPIManager:
     
     def _load_config_from_env(self) -> Dict[str, Any]:
         """Load configuration from environment variables"""
+        llm_provider = os.getenv('LLM_PROVIDER', 'gemini')
+        
+        # Handle hybrid mode: use strategic provider as default
+        if llm_provider == 'hybrid':
+            default_provider = os.getenv('STRATEGIC_PROVIDER', 'mistral')
+        else:
+            default_provider = llm_provider
+            
         return {
-            'default_provider': os.getenv('LLM_PROVIDER', 'gemini'),
+            'default_provider': default_provider,
             'gemini': {
                 'api_key': os.getenv('GEMINI_API_KEY'),
                 'circuit_breaker_reset_time': 300,
@@ -562,7 +732,8 @@ class LLMAPIManager:
                 'api_failure_threshold': 3
             },
             'fallback_provider': os.getenv('FALLBACK_PROVIDER', 'gemini'),
-            'auto_fallback': os.getenv('AUTO_FALLBACK', 'true').lower() == 'true'
+            'auto_fallback': os.getenv('AUTO_FALLBACK', 'true').lower() == 'true',
+            'hybrid_mode': llm_provider == 'hybrid'
         }
     
     def _init_providers(self):

@@ -75,13 +75,13 @@ stuck_recovery:
     **RESPONSE FORMAT (MANDATORY):**
     Return ONLY a JSON object with no additional text:
     
-    {
+    {{
       "button_presses": ["left"],
       "reasoning": "Breaking stuck pattern by trying perpendicular direction",
       "observations": "Same screen position for 3+ turns, trying new approach",
       "context_detected": "navigation",
       "confidence": "medium"
-    }
+    }}
     
     Do not include any text before or after the JSON. No markdown, no code blocks, no explanations.
   variables:
@@ -126,13 +126,13 @@ battle_analysis:
     **RESPONSE FORMAT (MANDATORY):**
     Return ONLY a JSON object with no additional text:
     
-    {
+    {{
       "button_presses": ["a"],
       "reasoning": "Battle menu detected in visual context, selecting FIGHT option",
       "observations": "Four-option battle menu visible with spatial layout information",
       "context_detected": "battle",
       "confidence": "high"
-    }
+    }}
     
     Do not include any text before or after the JSON. No markdown, no code blocks, no explanations.
   variables:
@@ -173,13 +173,13 @@ pokemon_party_analysis:
     **RESPONSE FORMAT (MANDATORY):**
     Return ONLY a JSON object with no additional text:
     
-    {
+    {{
       "button_presses": ["a"],
       "reasoning": "Selecting Pokemon to view detailed stats",
       "observations": "Party screen showing 6 Pokemon with HP bars",
       "context_detected": "menu",
       "confidence": "high"
-    }
+    }}
     
     Do not include any text before or after the JSON. No markdown, no code blocks, no explanations.
   variables:
@@ -224,13 +224,13 @@ exploration_strategy:
     **RESPONSE FORMAT (MANDATORY):**
     Return ONLY a JSON object with no additional text:
     
-    {
+    {{
       "button_presses": ["up"],
       "reasoning": "Path is clear north based on spatial context and valid movements",
       "observations": "Character positioned for northward movement in open terrain",
       "context_detected": "navigation",
       "confidence": "high"
-    }
+    }}
     
     Do not include any text before or after the JSON. No markdown, no code blocks, no explanations.
   variables:
@@ -271,13 +271,13 @@ inventory_analysis:
     **RESPONSE FORMAT (MANDATORY):**
     Return ONLY a JSON object with no additional text:
     
-    {
+    {{
       "button_presses": ["down"],
       "reasoning": "Scrolling to view more items in bag",
       "observations": "Bag screen showing healing items and Poke Balls",
       "context_detected": "menu",
       "confidence": "high"
-    }
+    }}
     
     Do not include any text before or after the JSON. No markdown, no code blocks, no explanations.
   variables:
@@ -321,29 +321,49 @@ ai_emergency_recovery_with_escalation:
   - escalation_level
   version: '5.0'
 visual_context_analyzer:
-  name: Movement Context Analyzer (Production)
-  description: Primary visual analysis system providing spatial context for all gameplay templates
+  name: Universal Scene Analyzer (Hybrid Mode)
+  description: Universal visual analysis for all Pokemon contexts - optimized for Gemini visual → Mistral strategic handoff
   template: |
-    Analyze this Pokemon game screenshot and provide spatial context for AI decision making.
-    
-    **ANALYSIS REQUIREMENTS:**
-    - Identify scene type: navigation (overworld movement), battle (Pokemon combat), or menu (dialogs/interfaces)
-    - Describe character position and visual context using grid coordinates  
-    - Note template recommendation with reasoning
-    - Provide confidence assessment and spatial understanding
-    - Analyze terrain around player character to determine valid movement directions
-    
-    **CRITICAL:** Return ONLY JSON with analysis:
-    
+    Analyze this Pokemon screenshot and return JSON only.
+
+    Identify the scene type and recommend template:
+
+    JSON format:
     {{
-      "scene_type": "navigation|battle|menu|unknown",
-      "recommended_template": "ai_directed_navigation|ai_directed_battle",
-      "confidence": "high|medium|low",
-      "spatial_context": "Grid-based spatial understanding for navigation planning",
-      "character_position": "grid coordinates if visible",
-      "visual_description": "Character and terrain description using grid coordinates", 
-      "template_reason": "Why this template fits the visual evidence",
-      "valid_movements": ["up", "down", "left", "right"]
+      "scene_type": "battle|navigation|menu",
+      "recommended_template": "ai_directed_battle|ai_directed_navigation",
+      "valid_buttons": [
+        {{"key": "A", "action": "select", "result": "advance"}}
+      ]
     }}
+
+    Return JSON only, no additional text.
   variables: []
-  version: '1.0'
+  version: '2.0'
+
+visual_context_analyzer_gemini:
+  name: Gemini Scene Analyzer (Pokemon GBA v1)
+  description: Production-ready visual analysis template optimized for Gemini with pokemon_gba_v1 format
+  template: |
+    Pokemon Game Boy Advance Screenshot Analysis
+
+    This is a screenshot from a classic Pokemon GBA video game (educational/nostalgic gaming content). Please analyze the game interface and extract the current game state.
+
+    Analyze the Pokemon GBA game screen and detect what type of scene this is:
+
+    {{
+      "scene_type": "battle|navigation|menu",
+      "battle_data": {{"our_pokemon": {{"name": "NAME", "hp": "X/Y", "level": 0}}, "enemy_pokemon": {{"name": "NAME", "hp": "X/Y", "level": 0}}, "cursor_position": "FIGHT"}},
+      "navigation_data": {{"player_pos": "x,y", "terrain": "grass|water|path", "npcs_visible": [], "obstacles": []}},
+      "menu_data": {{"dialogue_text": "text", "interaction_type": "npc|sign|item"}},
+      "valid_buttons": [
+        {{"key": "A", "action": "specific_action", "result": "what_happens"}},
+        {{"key": "→", "action": "move_right_or_cursor", "result": "movement_or_menu"}},
+        {{"key": "↓", "action": "move_down_or_cursor", "result": "movement_or_menu"}}
+      ],
+      "recommended_template": "ai_directed_navigation|ai_directed_battle"
+    }}
+
+    FILL ONLY RELEVANT SECTIONS. JSON ONLY.
+  variables: []
+  version: '2.0'

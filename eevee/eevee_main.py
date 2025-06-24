@@ -26,7 +26,7 @@ sys.path.append(str(project_root / "gemini-multimodal-playground" / "standalone"
 
 try:
     from pokemon_controller import PokemonController, read_image_to_base64
-    from gemini_api import GeminiAPI
+    from llm_api import call_llm
 except ImportError as e:
     print(f"Error importing required modules: {e}")
     print("Make sure you're running from the correct environment with dependencies installed")
@@ -42,12 +42,8 @@ class EeveeAnalyzer:
         """Initialize Eevee with game connection and AI"""
         self.window_title = window_title
         
-        # Initialize Gemini API
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment variables")
-        
-        self.gemini = GeminiAPI(api_key)
+        # LLM API is initialized globally via call_llm()
+        # No local initialization needed
         self.controller = PokemonController(window_title=window_title)
         
         # Create analysis directory
@@ -95,26 +91,15 @@ If this is not the Pokemon menu, describe what menu or screen we're currently vi
 Format your response as a clear analysis with sections for each point above."""
 
         try:
-            response = self.gemini.messages.create(
-                model="gemini-flash-2.0-exp",
-                messages=[
-                    {"role": "user", "content": party_prompt},
-                    {
-                        "role": "user", 
-                        "content": [{
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/jpeg",
-                                "data": image_data
-                            }
-                        }]
-                    }
-                ],
-                max_tokens=1000
+            response = call_llm(
+                prompt=party_prompt,
+                image_data=image_data,
+                max_tokens=1000,
+                model="gemini-2.0-flash-exp",
+                provider="gemini"
             )
             
-            analysis = response.content[0].text if response.content else "No analysis generated"
+            analysis = response.text if response.text else "No analysis generated"
             
             # Save analysis
             analysis_file = self.analysis_dir / f"party_analysis_{timestamp}.txt"
@@ -176,26 +161,15 @@ Provide detailed analysis of:
 Format as a structured analysis with clear sections."""
 
         try:
-            response = self.gemini.messages.create(
-                model="gemini-flash-2.0-exp", 
-                messages=[
-                    {"role": "user", "content": location_prompt},
-                    {
-                        "role": "user",
-                        "content": [{
-                            "type": "image", 
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/jpeg", 
-                                "data": image_data
-                            }
-                        }]
-                    }
-                ],
-                max_tokens=1000
+            response = call_llm(
+                prompt=location_prompt,
+                image_data=image_data,
+                max_tokens=1000,
+                model="gemini-2.0-flash-exp",
+                provider="gemini"
             )
             
-            analysis = response.content[0].text if response.content else "No analysis generated"
+            analysis = response.text if response.text else "No analysis generated"
             
             # Save analysis
             analysis_file = self.analysis_dir / f"location_analysis_{timestamp}.txt"
@@ -226,26 +200,15 @@ Provide a detailed analysis focused specifically on this task. Look carefully at
 If the current screen doesn't show information relevant to this task, suggest what actions might be needed to gather the required information."""
 
         try:
-            response = self.gemini.messages.create(
-                model="gemini-flash-2.0-exp",
-                messages=[
-                    {"role": "user", "content": custom_prompt},
-                    {
-                        "role": "user",
-                        "content": [{
-                            "type": "image",
-                            "source": {
-                                "type": "base64", 
-                                "media_type": "image/jpeg",
-                                "data": image_data
-                            }
-                        }]
-                    }
-                ],
-                max_tokens=1000
+            response = call_llm(
+                prompt=custom_prompt,
+                image_data=image_data,
+                max_tokens=1000,
+                model="gemini-2.0-flash-exp",
+                provider="gemini"
             )
             
-            analysis = response.content[0].text if response.content else "No analysis generated"
+            analysis = response.text if response.text else "No analysis generated"
             
             # Save analysis
             safe_task_name = "".join(c for c in task_description if c.isalnum() or c in (' ', '-', '_')).rstrip()[:50]

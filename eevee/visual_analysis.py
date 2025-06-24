@@ -60,6 +60,12 @@ class VisualAnalysis:
         Returns:
             Dictionary with movement validation data and object detection
         """
+        # Initialize comprehensive logger if not already done
+        from evee_logger import get_comprehensive_logger, init_comprehensive_logger
+        debug_logger = get_comprehensive_logger()
+        if debug_logger is None and session_name:
+            debug_logger = init_comprehensive_logger(session_name=session_name)
+        
         # Increment step counter
         self.step_counter += 1
         
@@ -146,34 +152,73 @@ class VisualAnalysis:
             raise RuntimeError(f"Failed to add grid overlay: {e}")
     
     def _call_pixtral_for_analysis(self, grid_image_base64: str, verbose: bool = False) -> Dict:
-        """Call visual_context_analyzer template for enhanced movement analysis"""
+        """Call visual_context_analyzer template with hybrid mode support"""
         try:
             import time
             start_time = time.time()
             
-            # Use environment-configured provider for visual analysis
-            import os
-            provider = os.getenv('LLM_PROVIDER', 'mistral').lower()
+            # Import provider configuration for hybrid mode
+            from provider_config import get_provider_for_hybrid_task, get_model_for_task, get_hybrid_config
+            from evee_logger import get_comprehensive_logger
             
-            # Import prompt manager to get raw template
+            # Get provider and model for visual analysis in hybrid mode
+            provider = get_provider_for_hybrid_task('visual')
+            model = get_model_for_task('screenshot_analysis')
+            hybrid_config = get_hybrid_config()
+            
+            # Debug logging for hybrid mode
+            debug_logger = get_comprehensive_logger()
+            if debug_logger:
+                debug_logger.log_hybrid_routing(
+                    task_type='visual',
+                    provider=provider,
+                    model=model,
+                    decision_reason=f"Hybrid mode enabled: {hybrid_config['enabled']}"
+                )
+            
+            # Validate provider
+            if provider not in ['gemini', 'mistral']:
+                if debug_logger:
+                    debug_logger.log_debug('ERROR', f"Invalid provider '{provider}', falling back to mistral")
+                print(f"⚠️ Invalid provider '{provider}', falling back to mistral")
+                provider = 'mistral'
+                model = 'pixtral-12b-2409'
+            
+            # Import prompt manager to get universal template
             from prompt_manager import PromptManager
             
-            # Initialize prompt manager and get raw template
+            # Initialize prompt manager and get appropriate template
             prompt_manager = PromptManager()
-            template_data = prompt_manager.base_prompts.get("visual_context_analyzer", {})
+            
+            # Use Gemini-specific template for Gemini provider
+            if provider == 'gemini':
+                template_data = prompt_manager.base_prompts.get("visual_context_analyzer_gemini", {})
+                template_name = "visual_context_analyzer_gemini"
+            else:
+                template_data = prompt_manager.base_prompts.get("visual_context_analyzer", {})
+                template_name = "visual_context_analyzer"
+            
             template_content = template_data.get("template", "")
             
             if not template_content:
-                raise RuntimeError(f"visual_context_analyzer template not found for provider: {provider}")
+                error_msg = f"{template_name} template not found"
+                if debug_logger:
+                    debug_logger.log_debug('ERROR', f"Template missing: {error_msg}")
+                raise RuntimeError(error_msg)
             
-            # Use the proven movement_context_analyzer prompt based on provider
-            if provider == 'gemini':
-                model = "gemini-2.0-flash-exp"  # Gemini's vision model
-                prompt = template_content  # Clean Gemini template
-            else:
-                model = "pixtral-12b-2409"  # Mistral's vision model
-                provider = "mistral"
-                prompt = template_content  # Mistral template with grid explanation
+            # Use provider-specific template
+            prompt = template_content
+            
+            if debug_logger:
+                debug_logger.log_debug('INFO', f"Using template: {template_name} for provider: {provider}")
+            
+            # Log hybrid mode configuration
+            if verbose and hybrid_config['enabled']:
+                print(f"🔀 HYBRID MODE: Visual analysis using {provider} ({model})")
+            
+            # Enhanced debug logging before API call
+            if debug_logger:
+                debug_logger.log_debug('INFO', f"Starting visual analysis: {provider} ({model})")
             
             response = call_llm(
                 prompt=prompt,
@@ -185,15 +230,74 @@ class VisualAnalysis:
             
             processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
             
+            # Safely extract response text
+            response_text = ""
+            if hasattr(response, 'text'):
+                response_text = response.text if response.text is not None else ""
+            elif isinstance(response, str):
+                response_text = response
+            else:
+                response_text = str(response) if response is not None else ""
+            
+            response_length = len(response_text)
+            
+            # Check for empty response and log detailed error
+            if response_length == 0:
+                # Log detailed error information
+                error_details = {
+                    'provider': provider,
+                    'model': model,
+                    'response_type': type(response).__name__,
+                    'response_attributes': dir(response) if response else 'None',
+                    'has_error_attr': hasattr(response, 'error'),
+                    'error_value': getattr(response, 'error', 'No error attribute'),
+                    'response_str': str(response) if response else 'None'
+                }
+                
+                print(f"🚨 GEMINI ERROR DETECTED - DELAYING 2 MINUTES")
+                print(f"   Provider: {error_details['provider']}")
+                print(f"   Model: {error_details['model']}")
+                print(f"   Response Type: {error_details['response_type']}")
+                print(f"   Response Object: {error_details['response_str']}")
+                if error_details['has_error_attr']:
+                    print(f"   Error Message: {error_details['error_value']}")
+                print(f"   Response Attributes: {error_details['response_attributes']}")
+                
+                if debug_logger:
+                    debug_logger.log_gemini_debug(
+                        call_type="EMPTY_RESPONSE_ERROR",
+                        request_data={'provider': provider, 'model': model},
+                        response_data=error_details,
+                        error="Empty response from Gemini - delaying 2 minutes"
+                    )
+                
+                # Delay for 2 minutes
+                print(f"⏳ Waiting 2 minutes before continuing...")
+                time.sleep(120)  # 2 minutes
+            
+            # Log response metrics
+            if debug_logger:
+                debug_logger.log_debug('INFO', f"Visual analysis response: {provider} {model} - {response_length} chars in {processing_time:.1f}ms")
+            
             if verbose:
                 print(f"📤 {provider.title()} visual_context_analyzer template used ({model})")
-                print(f"📥 Response received: {len(response.text) if response.text else 0} chars")
+                print(f"📥 Response received: {response_length} chars")
+                
+                # Final warning if still empty after retries
+                if response_length == 0:
+                    print(f"⚠️  WARNING: Empty response from {provider} after delay")
+                    print(f"   Response type: {type(response)}")
+                    if hasattr(response, 'error') and response.error:
+                        print(f"   Error: {response.error}")
             
             return {
                 "success": True,
-                "response": response.text if hasattr(response, 'text') else str(response),
+                "response": response_text,  # Use the safely extracted text
                 "prompt_sent": prompt,  # Store the template prompt
                 "processing_time_ms": processing_time,
+                "provider_used": provider,
+                "model_used": model,
+                "hybrid_mode": hybrid_config['enabled'],
                 "error": None
             }
             
@@ -207,12 +311,17 @@ class VisualAnalysis:
             }
     
     def _parse_movement_response(self, response_text: str) -> Dict:
-        """Parse visual_context_analyzer response with 8-key JSON structure"""
+        """Parse universal visual analysis response with new JSON structure"""
+        import json  # Import at function level to be available in except block
+        from evee_logger import get_comprehensive_logger
         
         # Always include raw response for AI analysis
         result = {
             "raw_pixtral_response": response_text
         }
+        
+        debug_logger = get_comprehensive_logger()
+        response_preview = response_text[:100] if response_text else "EMPTY"
         
         # Try to parse JSON response
         try:
@@ -221,19 +330,69 @@ class VisualAnalysis:
             if clean_response.startswith("```json"):
                 clean_response = clean_response.replace("```json", "").replace("```", "").strip()
             
-            # Parse JSON
-            import json
+            # Check for empty response
+            if not clean_response:
+                raise ValueError("Empty response from visual analysis")
+            
+            # Parse JSON  
             parsed_data = json.loads(clean_response)
             
-            # Extract visual_context_analyzer 8-key structure
-            result["scene_type"] = parsed_data.get("scene_type", "unknown")
+            # Log successful JSON parsing
+            if debug_logger:
+                debug_logger.log_debug('INFO', f"JSON parsing successful - Response: {response_preview}")
+            
+            # Extract universal format structure
+            result["scene_type"] = parsed_data.get("scene_type", "navigation")
             result["recommended_template"] = parsed_data.get("recommended_template", "ai_directed_navigation")
-            result["confidence"] = parsed_data.get("confidence", "low")
-            result["spatial_context"] = parsed_data.get("spatial_context", "")
-            result["character_position"] = parsed_data.get("character_position", "")
-            result["visual_description"] = parsed_data.get("visual_description", "")
-            result["template_reason"] = parsed_data.get("template_reason", "")
-            result["valid_movements"] = parsed_data.get("valid_movements", ["up", "down", "left", "right"])
+            
+            # Extract context-specific data (handle both full and simplified formats)
+            battle_data = parsed_data.get("battle_data", {})
+            navigation_data = parsed_data.get("navigation_data", {})
+            menu_data = parsed_data.get("menu_data", {})
+            valid_buttons = parsed_data.get("valid_buttons", [])
+            
+            # If using simplified format (Gemini), generate sensible defaults
+            if not valid_buttons and not battle_data and not navigation_data:
+                # Generate default valid_buttons based on scene type
+                scene_type = result["scene_type"]
+                if scene_type == "battle":
+                    valid_buttons = [
+                        {"key": "A", "action": "select_option", "result": "battle_action"},
+                        {"key": "→", "action": "cursor_right", "result": "move_cursor"},
+                        {"key": "↓", "action": "cursor_down", "result": "move_cursor"}
+                    ]
+                elif scene_type == "menu":
+                    valid_buttons = [
+                        {"key": "A", "action": "confirm", "result": "advance_text"},
+                        {"key": "B", "action": "cancel", "result": "go_back"}
+                    ]
+                else:  # navigation
+                    valid_buttons = [
+                        {"key": "↑", "action": "move_up", "result": "character_movement"},
+                        {"key": "↓", "action": "move_down", "result": "character_movement"},
+                        {"key": "←", "action": "move_left", "result": "character_movement"},
+                        {"key": "→", "action": "move_right", "result": "character_movement"}
+                    ]
+            
+            # Store structured data for strategic processing
+            result["battle_data"] = battle_data
+            result["navigation_data"] = navigation_data  
+            result["menu_data"] = menu_data
+            result["valid_buttons"] = valid_buttons
+            
+            # Extract valid movements from valid_buttons for backward compatibility
+            movement_actions = []
+            for button in valid_buttons:
+                key = button.get("key", "")
+                action = button.get("action", "")
+                if "move" in action.lower() and key in ["↑", "↓", "←", "→", "up", "down", "left", "right"]:
+                    # Map arrow symbols to direction names
+                    direction_map = {"↑": "up", "↓": "down", "←": "left", "→": "right"}
+                    direction = direction_map.get(key, key)
+                    if direction in ["up", "down", "left", "right"]:
+                        movement_actions.append(direction)
+            
+            result["valid_movements"] = movement_actions if movement_actions else ["up", "down", "left", "right"]
             
             # Ensure recommended_template uses ai_directed format
             template = result["recommended_template"]
@@ -242,10 +401,34 @@ class VisualAnalysis:
                     result["recommended_template"] = "ai_directed_battle"
                 else:
                     result["recommended_template"] = "ai_directed_navigation"
+            
+            # Set confidence and spatial context for backward compatibility
+            if valid_buttons or battle_data or navigation_data:
+                result["confidence"] = "high"  # Full format implies good parsing
+            else:
+                result["confidence"] = "medium"  # Simplified format, generated defaults
+                
+            result["spatial_context"] = f"Scene: {result['scene_type']}, Valid buttons: {len(valid_buttons)}"
+            result["character_position"] = navigation_data.get("player_pos", "")
+            
+            # Enhanced visual description based on scene type
+            scene_type = result["scene_type"]
+            if scene_type == "battle":
+                result["visual_description"] = f"Battle scene detected - {result.get('confidence', 'medium')} confidence"
+            elif scene_type == "menu":
+                result["visual_description"] = f"Menu/dialogue scene detected - {result.get('confidence', 'medium')} confidence"
+            else:
+                result["visual_description"] = f"Navigation scene detected - {result.get('confidence', 'medium')} confidence"
+                
+            result["template_reason"] = f"Scene type '{scene_type}' → template '{result['recommended_template']}'"
                 
         except (json.JSONDecodeError, KeyError) as e:
+            # Log failed JSON parsing
+            if debug_logger:
+                debug_logger.log_debug('ERROR', f"JSON parsing failed: {str(e)} - Response: {response_preview}")
+            
             # Fallback parsing for non-JSON responses
-            result["scene_type"] = "unknown"
+            result["scene_type"] = "navigation"
             result["recommended_template"] = "ai_directed_navigation"
             result["confidence"] = "low"
             result["spatial_context"] = "Failed to parse response"
@@ -253,6 +436,10 @@ class VisualAnalysis:
             result["visual_description"] = "Failed to parse response"
             result["template_reason"] = f"JSON parsing failed: {e}"
             result["valid_movements"] = ["up", "down", "left", "right"]
+            result["battle_data"] = {}
+            result["navigation_data"] = {}
+            result["menu_data"] = {}
+            result["valid_buttons"] = []
             
         return result
     
