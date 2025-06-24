@@ -48,10 +48,14 @@ try:
     # from utils.navigation_enhancement import NavigationEnhancer  # REMOVED - Pure AI autonomy
     from diary_generator import PokemonEpisodeDiary
     from visual_analysis import VisualAnalysis
+    from evee_logger import get_comprehensive_logger
 except ImportError as e:
     print(f"⚠️  Core Eevee components not available: {e}")
     print("Starting with basic implementation...")
     # We'll implement basic functionality inline if needed
+
+# Get debug logger at top level for clean logging
+debug_logger = get_comprehensive_logger()
 
 
 @dataclass
@@ -462,7 +466,10 @@ class ContinuousGameplay:
         if self.use_visual_analysis and self.visual_analyzer:
             try:
                 if self.eevee.verbose:
-                    print(f"🔍 Stage 1: Running visual analysis...")
+                    if debug_logger:
+                        debug_logger.log_debug('INFO', 'Stage 1: Running visual analysis...')
+                    else:
+                        print(f"🔍 Stage 1: Running visual analysis...")
                 
                 # Get session name for logging
                 session_name = getattr(self.session, 'session_id', None)
@@ -482,7 +489,12 @@ class ContinuousGameplay:
                     self._last_visual_processing_time = meta.get('processing_time_ms')
                 
                 if self.eevee.verbose:
-                    print(f"✅ Visual analysis complete")
+                    from evee_logger import get_comprehensive_logger
+                    debug_logger = get_comprehensive_logger()
+                    if debug_logger:
+                        debug_logger.log_debug('INFO', 'Visual analysis complete')
+                    else:
+                        print(f"✅ Visual analysis complete")
                     
             except Exception as e:
                 print(f"⚠️ Visual analysis failed: {e}")
@@ -507,7 +519,12 @@ class ContinuousGameplay:
         # STAGE 2: Strategic Decision (mistral-large-latest) - No image needed, uses movement validation data
         try:
             if self.eevee.verbose:
-                print(f"🧠 Stage 2: Strategic decision (mistral-large-latest)...")
+                from evee_logger import get_comprehensive_logger
+                debug_logger = get_comprehensive_logger()
+                if debug_logger:
+                    debug_logger.log_debug('INFO', 'Stage 2: Strategic decision (mistral-large-latest)...')
+                else:
+                    print(f"🧠 Stage 2: Strategic decision (mistral-large-latest)...")
             
             # Import centralized LLM API
             from llm_api import call_llm
@@ -552,13 +569,28 @@ class ContinuousGameplay:
                         if "button_presses" in json_data:
                             api_result["button_presses"] = json_data["button_presses"]
                         else:
-                            print("⚠️ No button_presses in JSON response")
+                            from evee_logger import get_comprehensive_logger
+                            debug_logger = get_comprehensive_logger()
+                            if debug_logger:
+                                debug_logger.log_debug('WARNING', 'No button_presses in JSON response')
+                            else:
+                                print("⚠️ No button_presses in JSON response")
                             api_result["button_presses"] = ["b"]  # Simple fallback
                     except json.JSONDecodeError as e:
-                        print(f"⚠️ JSON parsing failed: {e}")
+                        from evee_logger import get_comprehensive_logger
+                        debug_logger = get_comprehensive_logger()
+                        if debug_logger:
+                            debug_logger.log_debug('ERROR', f'JSON parsing failed: {e}')
+                        else:
+                            print(f"⚠️ JSON parsing failed: {e}")
                         api_result["button_presses"] = ["b"]  # Simple fallback
                 else:
-                    print("⚠️ No JSON format found in response")
+                    from evee_logger import get_comprehensive_logger
+                    debug_logger = get_comprehensive_logger()
+                    if debug_logger:
+                        debug_logger.log_debug('WARNING', 'No JSON format found in response')
+                    else:
+                        print("⚠️ No JSON format found in response")
                     api_result["button_presses"] = ["b"]  # Simple fallback
             
             if api_result["error"]:
@@ -574,8 +606,14 @@ class ContinuousGameplay:
             
             # Essential info only  
             if self.eevee.verbose:
-                print(f"📊 API Response: {len(analysis_text)} chars")
-                print(f"🔧 Actions provided: {'Yes' if api_result.get('button_presses') else 'No'}")
+                from evee_logger import get_comprehensive_logger
+                debug_logger = get_comprehensive_logger()
+                if debug_logger:
+                    debug_logger.log_debug('INFO', f"API Response: {len(analysis_text)} chars")
+                    debug_logger.log_debug('INFO', f"Actions provided: {'Yes' if api_result.get('button_presses') else 'No'}")
+                else:
+                    print(f"📊 API Response: {len(analysis_text)} chars")
+                    print(f"🔧 Actions provided: {'Yes' if api_result.get('button_presses') else 'No'}")
             
             # Always show enhanced analysis logging for better debugging
             self._log_enhanced_analysis(turn_number, analysis_text, button_sequence)
@@ -591,6 +629,9 @@ class ContinuousGameplay:
             if isinstance(prompt_data, dict) and "template_used" in prompt_data:
                 result["template_used"] = prompt_data["template_used"]
                 result["template_version"] = prompt_data.get("template_version", "unknown")
+            
+            # Clean console output for strategic decisions (if enabled)
+            self._log_strategic_decision_clean_output(result)
             
             return result, movement_data
             
@@ -612,8 +653,14 @@ class ContinuousGameplay:
         
         # VALIDATION: Enforce 1-3 button maximum as requested by user
         if len(actions) > 3:
-            print(f"⚠️ AI tried to press {len(actions)} buttons: {actions}")
-            print(f"⚠️ Limiting to first 3 buttons for step-by-step learning")
+            from evee_logger import get_comprehensive_logger
+            debug_logger = get_comprehensive_logger()
+            if debug_logger:
+                debug_logger.log_debug('WARNING', f'AI tried to press {len(actions)} buttons: {actions}')
+                debug_logger.log_debug('WARNING', 'Limiting to first 3 buttons for step-by-step learning')
+            else:
+                print(f"⚠️ AI tried to press {len(actions)} buttons: {actions}")
+                print(f"⚠️ Limiting to first 3 buttons for step-by-step learning")
             actions = actions[:3]
         
         # Additional validation: ensure valid button names
@@ -652,7 +699,12 @@ class ContinuousGameplay:
             }
             
         except Exception as e:
-            print(f"�  Action execution failed: {e}")
+            from evee_logger import get_comprehensive_logger
+            debug_logger = get_comprehensive_logger()
+            if debug_logger:
+                debug_logger.log_debug('ERROR', f'Action execution failed: {e}')
+            else:
+                print(f"⚠️  Action execution failed: {e}")
             return {
                 "success": False,
                 "actions_executed": [],
@@ -679,7 +731,12 @@ class ContinuousGameplay:
                 )
             except Exception as e:
                 if self.eevee.debug:
-                    print(f"�  Memory storage failed: {e}")
+                    from evee_logger import get_comprehensive_logger
+                    debug_logger = get_comprehensive_logger()
+                    if debug_logger:
+                        debug_logger.log_debug('ERROR', f'Memory storage failed: {e}')
+                    else:
+                        print(f"⚠️  Memory storage failed: {e}")
     
     def _parse_ai_analysis_json(self, ai_analysis: str) -> Dict[str, Any]:
         """Parse JSON from ai_analysis string into structured data"""
@@ -1371,6 +1428,62 @@ class ContinuousGameplay:
         else:
             print(f"   ⚠️ Empty response from AI")
         print(f"{'='*60}")
+    
+    def _log_strategic_decision_clean_output(self, result: Dict[str, Any]) -> None:
+        """Output clean JSON for strategic decisions to console"""
+        # Only output clean JSON if we have clean_output mode enabled
+        # For now, we'll check if the comprehensive logger is available
+        from evee_logger import get_comprehensive_logger
+        
+        # Extract the core strategic decision data for clean output
+        strategic_output = {}
+        
+        if 'action' in result:
+            strategic_output['button_presses'] = result['action']
+        
+        if 'reasoning' in result:
+            strategic_output['reasoning'] = result['reasoning']
+        
+        if 'analysis' in result and result['analysis'] != result.get('reasoning', ''):
+            strategic_output['analysis'] = result['analysis']
+        
+        # Try to extract JSON structure if it exists in the reasoning/analysis
+        try:
+            import json
+            import re
+            
+            # Look for JSON in the response
+            text = result.get('reasoning', '') or result.get('analysis', '')
+            
+            # Try to find JSON block
+            json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text)
+            if json_match:
+                try:
+                    parsed_json = json.loads(json_match.group())
+                    # If we found valid JSON, use it as the strategic output
+                    strategic_output.update(parsed_json)
+                except json.JSONDecodeError:
+                    pass  # Use the fallback structure above
+        except Exception:
+            pass  # Use the fallback structure above
+        
+        # Add default fields if they're missing
+        if 'confidence' not in strategic_output:
+            strategic_output['confidence'] = 'medium'
+        
+        if 'context_detected' not in strategic_output:
+            strategic_output['context_detected'] = 'navigation'
+        
+        # Use logger for clean console output
+        logger = get_comprehensive_logger()
+        if logger:
+            logger.log_strategic_decision_console(strategic_output)
+        else:
+            # Fallback if no logger available
+            import json
+            print("=== STRATEGIC DECISION ===")
+            print(json.dumps(strategic_output, indent=2, ensure_ascii=False))
+            print()
     
     def _extract_section(self, text: str, keywords: List[str]) -> str:
         """Extract a section from AI response based on keywords"""
@@ -2162,7 +2275,7 @@ Turns analyzed: {}
 """
             
             for i, turn in enumerate(failure_turns[:2], 1):  # Show 2 failure examples
-                ai_analysis = turn.get("ai_analysis", "No analysis")[:200] + "..."
+                ai_analysis = turn.get("ai_analysis", "No analysis")
                 button_presses = turn.get("button_presses", [])
                 prompt += f"""
 Failure {i}:

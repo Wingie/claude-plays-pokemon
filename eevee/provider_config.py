@@ -198,8 +198,9 @@ class ProviderConfig:
         
         # Provider Selection
         self.primary_provider = os.getenv('LLM_PROVIDER', 'gemini').lower()
-        self.fallback_provider = os.getenv('FALLBACK_PROVIDER', 'mistral').lower()
-        self.auto_fallback = os.getenv('AUTO_FALLBACK', 'true').lower() == 'true'
+        # Fallback provider functionality removed per user request
+        # self.fallback_provider = os.getenv('FALLBACK_PROVIDER', 'mistral').lower()
+        # self.auto_fallback = os.getenv('AUTO_FALLBACK', 'true').lower() == 'true'
         
         # Hybrid Mode Configuration
         self.hybrid_mode = os.getenv('HYBRID_MODE', 'false').lower() == 'true'
@@ -236,8 +237,7 @@ class ProviderConfig:
         """
         return {
             'default_provider': self.primary_provider,
-            'fallback_provider': self.fallback_provider,
-            'auto_fallback': self.auto_fallback,
+            # Fallback provider options removed per user request
             'gemini': {
                 'api_key': self.gemini_api_key,
                 'circuit_breaker_reset_time': self.circuit_breaker_reset_time,
@@ -308,9 +308,7 @@ class ProviderConfig:
         if self.primary_provider not in validation_result['available_providers']:
             validation_result['warnings'].append(f"Primary provider '{self.primary_provider}' has no API key")
         
-        # Check fallback provider availability
-        if self.auto_fallback and self.fallback_provider not in validation_result['available_providers']:
-            validation_result['warnings'].append(f"Fallback provider '{self.fallback_provider}' has no API key")
+        # Fallback provider validation removed per user request
         
         # Check model configurations
         if self.primary_provider == 'gemini' and not self.gemini_api_key:
@@ -330,7 +328,7 @@ class ProviderConfig:
         """
         return {
             'current_provider': self.primary_provider,
-            'fallback_provider': self.fallback_provider,
+            # 'fallback_provider': removed,
             'prompt_style': get_provider_prompt_style(self.primary_provider),
             'template_path': get_prompt_template_path(self.primary_provider),
             'verbose': self.eevee_verbose
@@ -386,8 +384,7 @@ class ProviderConfig:
         print("🔧 Provider Configuration Summary")
         print("=" * 50)
         print(f"Primary Provider: {self.primary_provider}")
-        print(f"Fallback Provider: {self.fallback_provider}")
-        print(f"Auto Fallback: {self.auto_fallback}")
+        # Fallback provider info removed per user request
         
         if self.hybrid_mode and self.primary_provider == 'hybrid':
             print(f"🔀 HYBRID MODE: Enabled")

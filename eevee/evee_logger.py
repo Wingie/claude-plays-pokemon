@@ -91,7 +91,7 @@ Model: {model}
 Screenshot: {screenshot_path or 'N/A'}
 Prompt Length: {len(prompt)} chars
 Response Length: {len(response)} chars
-Response Preview: {response[:200]}...
+Response Preview: {response}...
 --- FULL PROMPT ---
 {prompt}
 --- FULL RESPONSE ---
@@ -150,6 +150,22 @@ Decision Reason: {decision_reason}
         self.debug_file.write(log_entry)
         self.debug_file.flush()
     
+    def log_visual_analysis_console(self, visual_data: dict):
+        """Pretty-print visual analysis JSON to console only"""
+        import json
+        
+        print("=== VISUAL ANALYSIS ===")
+        print(json.dumps(visual_data, indent=2, ensure_ascii=False))
+        print()  # Add blank line for readability
+    
+    def log_strategic_decision_console(self, decision_data: dict):
+        """Pretty-print strategic decision JSON to console only"""
+        import json
+        
+        print("=== STRATEGIC DECISION ===")
+        print(json.dumps(decision_data, indent=2, ensure_ascii=False))
+        print()  # Add blank line for readability
+    
     def _timestamp(self) -> str:
         """Get formatted timestamp"""
         return datetime.now().strftime("%H:%M:%S.%f")[:-3]
@@ -161,8 +177,7 @@ Decision Reason: {decision_reason}
         
         formatted = ""
         for key, value in data.items():
-            if isinstance(value, str) and len(value) > 200:
-                value = value[:200] + "..."
+            # Show full value without truncation
             formatted += f"  {key}: {value}\n"
         return formatted
     

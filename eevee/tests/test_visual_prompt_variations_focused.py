@@ -291,12 +291,10 @@ JSON ONLY."""
                     else:
                         # Fallback to raw response if JSON parsing fails
                         print("📋 RAW RESPONSE:")
-                        preview = result['response'].replace('\n', ' ')[:200] + "..." if len(result['response']) > 200 else result['response']
-                        print(preview)
+                        print(result['response'])
                 except (json.JSONDecodeError, AttributeError) as e:
                     print("📋 RAW RESPONSE (JSON parse failed):")
-                    preview = result['response'].replace('\n', ' ')[:200] + "..." if len(result['response']) > 200 else result['response']
-                    print(preview)
+                    print(result['response'])
                 
             else:
                 print(f"❌ Failed: {result['error']}")

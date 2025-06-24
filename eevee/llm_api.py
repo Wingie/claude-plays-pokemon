@@ -14,6 +14,13 @@ from enum import Enum
 from dataclasses import dataclass
 from datetime import datetime
 
+# Import debug logger at top level for clean logging
+try:
+    from evee_logger import get_comprehensive_logger
+    debug_logger = get_comprehensive_logger()
+except ImportError:
+    debug_logger = None
+
 class LLMProvider(Enum):
     """Supported LLM providers"""
     GEMINI = "gemini"
@@ -157,7 +164,10 @@ class GeminiProvider(BaseLLMProvider):
             )
             self.pokemon_tool = Tool(function_declarations=[self.pokemon_function_declaration])
         except Exception as e:
-            print(f"⚠️ Function declaration failed for Gemini: {e}")
+            if debug_logger:
+                debug_logger.log_debug('ERROR', f'Function declaration failed for Gemini: {e}')
+            else:
+                print(f"⚠️ Function declaration failed for Gemini: {e}")
             self.pokemon_function_declaration = None
             self.pokemon_tool = None
     
@@ -235,39 +245,7 @@ class GeminiProvider(BaseLLMProvider):
                         safety_settings=self.safety_settings
                     )
                 
-                # Process response with detailed debugging
-                print(f"🔍 DEBUG: Raw response type: {type(response)}")
-                print(f"🔍 DEBUG: Response attributes: {[attr for attr in dir(response) if not attr.startswith('_')]}")
-                
-                if hasattr(response, 'candidates'):
-                    print(f"🔍 DEBUG: Candidates count: {len(response.candidates) if response.candidates else 0}")
-                    if response.candidates:
-                        candidate = response.candidates[0]
-                        print(f"🔍 DEBUG: First candidate finish_reason: {getattr(candidate, 'finish_reason', 'NONE')}")
-                        
-                        # Check safety ratings on candidate
-                        if hasattr(candidate, 'safety_ratings') and candidate.safety_ratings:
-                            print(f"🔍 DEBUG: Candidate safety ratings:")
-                            for rating in candidate.safety_ratings:
-                                category = getattr(rating, 'category', 'UNKNOWN')
-                                probability = getattr(rating, 'probability', 'UNKNOWN')
-                                blocked = getattr(rating, 'blocked', False)
-                                print(f"   {category}: {probability} (blocked: {blocked})")
-                
-                # Check prompt feedback
-                if hasattr(response, 'prompt_feedback'):
-                    feedback = response.prompt_feedback
-                    print(f"🔍 DEBUG: Prompt feedback exists: {feedback is not None}")
-                    if feedback:
-                        if hasattr(feedback, 'block_reason'):
-                            print(f"🔍 DEBUG: Block reason: {getattr(feedback, 'block_reason', 'NONE')}")
-                        if hasattr(feedback, 'safety_ratings') and feedback.safety_ratings:
-                            print(f"🔍 DEBUG: Prompt safety ratings:")
-                            for rating in feedback.safety_ratings:
-                                category = getattr(rating, 'category', 'UNKNOWN')
-                                probability = getattr(rating, 'probability', 'UNKNOWN')
-                                print(f"   {category}: {probability}")
-                
+
                 result = self._process_gemini_response(response, request.use_tools)
                 result.provider = "gemini"
                 result.model = model_name
@@ -275,11 +253,25 @@ class GeminiProvider(BaseLLMProvider):
                 
                 # Log warning if response is empty
                 if not result.text:
-                    print(f"⚠️ Gemini returned empty response for model {model_name}")
+                    try:
+                        from evee_logger import get_comprehensive_logger
+                        debug_logger = get_comprehensive_logger()
+                        if debug_logger:
+                            debug_logger.log_debug('WARNING', f'Gemini returned empty response for model {model_name}')
+                        else:
+                            print(f"⚠️ Gemini returned empty response for model {model_name}")
+                    except ImportError:
+                        print(f"⚠️ Gemini returned empty response for model {model_name}")
                     if hasattr(response, 'prompt_feedback'):
-                        print(f"   Prompt feedback: {response.prompt_feedback}")
+                        if debug_logger:
+                            debug_logger.log_debug('INFO', f'Prompt feedback: {response.prompt_feedback}')
+                        else:
+                            print(f"   Prompt feedback: {response.prompt_feedback}")
                     if hasattr(response, 'candidates') and not response.candidates:
-                        print(f"   No candidates in response")
+                        if debug_logger:
+                            debug_logger.log_debug('INFO', 'No candidates in response')
+                        else:
+                            print(f"   No candidates in response")
                 
                 self._record_api_success()
                 return result
@@ -312,52 +304,57 @@ class GeminiProvider(BaseLLMProvider):
                         error=f"{type(e).__name__}: {str(e)}"
                     )
                 
-                # Also print to console for immediate feedback
-                print(f"🚨 GEMINI API ERROR - Attempt {attempt + 1}/{max_retries}")
-                print(f"   Model: {model_name}")
-                print(f"   Error Type: {type(e).__name__}")
-                print(f"   Error Message: {str(e)}")
-                print(f"   Full Exception: {repr(e)}")
-                if hasattr(e, 'details'):
-                    print(f"   Error Details: {e.details}")
-                if hasattr(e, 'reason'):
-                    print(f"   Error Reason: {e.reason}")
+                # Log to debug system - fail fast, no excessive error handling
+                if debug_logger:
+                    debug_logger.log_debug('ERROR', f'GEMINI API ERROR - Attempt {attempt + 1}/{max_retries}')
+                    debug_logger.log_debug('ERROR', f'Model: {model_name}, Error: {type(e).__name__}: {str(e)}')
+                    if hasattr(e, 'details'):
+                        debug_logger.log_debug('ERROR', f'Error Details: {e.details}')
+                    if hasattr(e, 'reason'):
+                        debug_logger.log_debug('ERROR', f'Error Reason: {e.reason}')
                 
                 # Handle rate limiting with model switching
                 if any(keyword in error_msg for keyword in ["429", "rate limit", "quota"]):
-                    print(f"   📊 RATE LIMIT DETECTED - Adding {model_name} to rate limited models")
+                    if debug_logger:
+                        debug_logger.log_debug('WARNING', f'RATE LIMIT DETECTED - Adding {model_name} to rate limited models')
                     self.rate_limited_models.add(model_name)
                     
                     # Try to switch to different model
                     available = [m for m in available_models.keys() if m not in self.rate_limited_models]
                     if available:
-                        print(f"   🔄 SWITCHING MODEL: {model_name} → {available[0]}")
+                        if debug_logger:
+                            debug_logger.log_debug('INFO', f'SWITCHING MODEL: {model_name} → {available[0]}')
                         model_name = available[0]
                         continue
                     else:
                         # All models rate limited, wait
                         retry_delay = self._parse_retry_delay(str(e), base_delay * (2 ** attempt))
-                        print(f"   ⏳ ALL MODELS RATE LIMITED - Waiting {retry_delay}s before retry")
+                        if debug_logger:
+                            debug_logger.log_debug('WARNING', f'ALL MODELS RATE LIMITED - Waiting {retry_delay}s before retry')
                         time.sleep(retry_delay)
                         continue
                 
                 # Handle other retryable errors
                 elif any(keyword in error_msg for keyword in ["timeout", "connection", "network"]):
-                    print(f"   🌐 NETWORK/TIMEOUT ERROR - Retryable")
+                    if debug_logger:
+                        debug_logger.log_debug('WARNING', 'NETWORK/TIMEOUT ERROR - Retryable')
                     if attempt < max_retries - 1:
                         retry_delay = base_delay * (2 ** attempt)
-                        print(f"   ⏳ Waiting {retry_delay}s before retry {attempt + 2}")
+                        if debug_logger:
+                            debug_logger.log_debug('INFO', f'Waiting {retry_delay}s before retry {attempt + 2}')
                         time.sleep(retry_delay)
                         continue
                 
                 # Non-retryable errors or authentication issues
                 else:
-                    print(f"   ❌ NON-RETRYABLE ERROR - Error type: {type(e).__name__}")
-                    print(f"   💡 Likely cause: API key, model availability, or authentication issue")
+                    if debug_logger:
+                        debug_logger.log_debug('ERROR', f'NON-RETRYABLE ERROR - Error type: {type(e).__name__}')
+                        debug_logger.log_debug('ERROR', 'Likely cause: API key, model availability, or authentication issue')
                 
                 # Final attempt or non-retryable error
                 if attempt == max_retries - 1:
-                    print(f"   💀 FINAL ATTEMPT FAILED - Recording API failure and returning error response")
+                    if debug_logger:
+                        debug_logger.log_debug('ERROR', 'FINAL ATTEMPT FAILED - Recording API failure and returning error response')
                     self._record_api_failure()
                     return LLMResponse(
                         text="",
@@ -369,7 +366,8 @@ class GeminiProvider(BaseLLMProvider):
                     )
         
         # Should never reach here
-        print(f"💀 UNEXPECTED: Reached end of retry loop without returning - This should not happen")
+        if debug_logger:
+            debug_logger.log_debug('ERROR', 'UNEXPECTED: Reached end of retry loop without returning - This should not happen')
         self._record_api_failure()
         return LLMResponse(
             text="",
@@ -731,8 +729,7 @@ class LLMAPIManager:
                 'circuit_breaker_reset_time': 300,
                 'api_failure_threshold': 3
             },
-            'fallback_provider': os.getenv('FALLBACK_PROVIDER', 'gemini'),
-            'auto_fallback': os.getenv('AUTO_FALLBACK', 'true').lower() == 'true',
+            # Fallback provider options removed per user request
             'hybrid_mode': llm_provider == 'hybrid'
         }
     
@@ -814,17 +811,8 @@ class LLMAPIManager:
         provider = self.providers[provider_name]
         response = provider.call_api(request)
         
-        # Handle auto-fallback if enabled and current call failed
-        if (response.error and 
-            self.config.get('auto_fallback', False) and 
-            len(self.providers) > 1):
-            
-            fallback_provider = self.config.get('fallback_provider')
-            if fallback_provider and fallback_provider != provider_name and fallback_provider in self.providers:
-                print(f"🔄 Auto-fallback: {provider_name} → {fallback_provider}")
-                fallback_request = request
-                fallback_request.model_preference = None  # Use provider default
-                response = self.providers[fallback_provider].call_api(fallback_request)
+        # Fallback provider functionality removed per user request
+        # System will fail fast instead of falling back to different providers
         
         return response
     

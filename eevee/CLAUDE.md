@@ -30,3 +30,38 @@ EeveeAgent (game control) → PromptManager (AI templates) → LLM API (multi-pr
 
 ### **Strategic Insights**
 - **ok! always start making a plan to present if you find an issue**
+
+### **Code Quality Guidelines**
+
+#### **Import Management**
+- **Import at top level**: Never import modules inside functions. Always import at the top of the file
+- **Fail fast**: Don't wrap every operation in try/except blocks. Let errors bubble up naturally
+- **Clean logging**: Import debug logger once at top level, not repeatedly in every function
+
+#### **Error Handling Philosophy**  
+- **No fallback providers**: System should fail fast instead of falling back to different providers
+- **Minimal error wrapping**: Don't catch and re-wrap exceptions unnecessarily
+- **Debug logging**: Use centralized debug logger, not console prints with emojis in production code
+
+#### **Examples**
+```python
+# ❌ BAD - importing inside function with excessive try/except
+def some_function():
+    try:
+        from evee_logger import get_comprehensive_logger
+        debug_logger = get_comprehensive_logger()
+        if debug_logger:
+            debug_logger.log_debug('INFO', 'message')
+        else:
+            print("emoji message")
+    except ImportError:
+        print("fallback message")
+
+# ✅ GOOD - clean imports and simple error handling
+from evee_logger import get_comprehensive_logger
+debug_logger = get_comprehensive_logger()
+
+def some_function():
+    if debug_logger:
+        debug_logger.log_debug('INFO', 'message')
+```

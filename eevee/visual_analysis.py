@@ -48,7 +48,7 @@ class VisualAnalysis:
         # Step counter for file naming
         self.step_counter = 0
         
-    def analyze_current_scene(self, screenshot_base64: str = None, verbose: bool = False, session_name: str = None) -> Dict:
+    def analyze_current_scene(self, screenshot_base64: str = None, verbose: bool = False, session_name: str = None, clean_output: bool = False) -> Dict:
         """
         Analyze current game scene for movement validation and object detection
         
@@ -100,6 +100,10 @@ class VisualAnalysis:
         
         if verbose:
             self._log_analysis_results(movement_data)
+        
+        # Clean console output for production use
+        if clean_output:
+            self._log_clean_console_output(movement_data)
         
         return movement_data
     
@@ -180,7 +184,8 @@ class VisualAnalysis:
             if provider not in ['gemini', 'mistral']:
                 if debug_logger:
                     debug_logger.log_debug('ERROR', f"Invalid provider '{provider}', falling back to mistral")
-                print(f"⚠️ Invalid provider '{provider}', falling back to mistral")
+                else:
+                    print(f"⚠️ Invalid provider '{provider}', falling back to mistral")
                 provider = 'mistral'
                 model = 'pixtral-12b-2409'
             
@@ -280,15 +285,25 @@ class VisualAnalysis:
                 debug_logger.log_debug('INFO', f"Visual analysis response: {provider} {model} - {response_length} chars in {processing_time:.1f}ms")
             
             if verbose:
-                print(f"📤 {provider.title()} visual_context_analyzer template used ({model})")
-                print(f"📥 Response received: {response_length} chars")
+                if debug_logger:
+                    debug_logger.log_debug('INFO', f"{provider.title()} visual_context_analyzer template used ({model})")
+                    debug_logger.log_debug('INFO', f"Response received: {response_length} chars")
+                else:
+                    print(f"📤 {provider.title()} visual_context_analyzer template used ({model})")
+                    print(f"📥 Response received: {response_length} chars")
                 
                 # Final warning if still empty after retries
                 if response_length == 0:
-                    print(f"⚠️  WARNING: Empty response from {provider} after delay")
-                    print(f"   Response type: {type(response)}")
-                    if hasattr(response, 'error') and response.error:
-                        print(f"   Error: {response.error}")
+                    if debug_logger:
+                        debug_logger.log_debug('WARNING', f"Empty response from {provider} after delay", {
+                            'response_type': str(type(response)),
+                            'error': getattr(response, 'error', None)
+                        })
+                    else:
+                        print(f"⚠️  WARNING: Empty response from {provider} after delay")
+                        print(f"   Response type: {type(response)}")
+                        if hasattr(response, 'error') and response.error:
+                            print(f"   Error: {response.error}")
             
             return {
                 "success": True,
@@ -464,7 +479,13 @@ class VisualAnalysis:
                 f.write(image_bytes)
                 
         except Exception as e:
-            print(f"⚠️ Failed to save grid image: {e}")
+            # Use debug logger if available, otherwise fallback to print
+            from evee_logger import get_comprehensive_logger
+            debug_logger = get_comprehensive_logger()
+            if debug_logger:
+                debug_logger.log_debug('ERROR', f"Failed to save grid image: {e}")
+            else:
+                print(f"⚠️ Failed to save grid image: {e}")
     
     def _save_analysis_results(self, movement_data: Dict, raw_response: str, session_name: str = None) -> None:
         """Save visual analysis results to runs directory"""
@@ -525,20 +546,39 @@ class VisualAnalysis:
                 f.write("\n--- END RAW RESPONSE ---\n")
                 
         except Exception as e:
-            print(f"⚠️ Failed to save analysis results: {e}")
+            # Use debug logger if available, otherwise fallback to print
+            from evee_logger import get_comprehensive_logger
+            debug_logger = get_comprehensive_logger()
+            if debug_logger:
+                debug_logger.log_debug('ERROR', f"Failed to save analysis results: {e}")
+            else:
+                print(f"⚠️ Failed to save analysis results: {e}")
     
     def _get_session_dir(self, session_name: str = None) -> Path:
         """Get or create session directory for logging"""
+        # Use debug logger if available for session management logs
+        from evee_logger import get_comprehensive_logger
+        debug_logger = get_comprehensive_logger()
+        
         if session_name is None:
             import time
             session_name = f"session_{int(time.time())}"
-            print(f"⚠️ Visual analysis: No session_name provided, creating: {session_name}")
+            if debug_logger:
+                debug_logger.log_debug('WARNING', f"Visual analysis: No session_name provided, creating: {session_name}")
+            else:
+                print(f"⚠️ Visual analysis: No session_name provided, creating: {session_name}")
         elif not session_name.startswith("session_"):
             # Ensure session name has proper prefix  
             session_name = f"session_{session_name}"
-            print(f"🔧 Visual analysis: Using session folder: {session_name}")
+            if debug_logger:
+                debug_logger.log_debug('INFO', f"Visual analysis: Using session folder: {session_name}")
+            else:
+                print(f"🔧 Visual analysis: Using session folder: {session_name}")
         else:
-            print(f"✅ Visual analysis: Using existing session folder: {session_name}")
+            if debug_logger:
+                debug_logger.log_debug('INFO', f"Visual analysis: Using existing session folder: {session_name}")
+            else:
+                print(f"✅ Visual analysis: Using existing session folder: {session_name}")
         
         return self.runs_dir / session_name
     
@@ -548,10 +588,59 @@ class VisualAnalysis:
     
     def _log_analysis_results(self, movement_data: Dict) -> None:
         """Log analysis results to console for debugging"""
-        print(f"🔍 Visual Analysis Results:")
-        print(f"   Step: {self.step_counter}")
-        if 'raw_pixtral_response' in movement_data:
-            response_preview = movement_data['raw_pixtral_response'][:100]
-            print(f"   Response Preview: {response_preview}...")
+        from evee_logger import get_comprehensive_logger
+        debug_logger = get_comprehensive_logger()
+        
+        if debug_logger:
+            debug_logger.log_debug('INFO', f"Visual Analysis Results - Step: {self.step_counter}")
+            if 'raw_pixtral_response' in movement_data:
+                response_preview = movement_data['raw_pixtral_response'][:100]
+                debug_logger.log_debug('INFO', f"Response Preview: {response_preview}...")
+            else:
+                debug_logger.log_debug('INFO', f"Movement Data Keys: {list(movement_data.keys())}")
         else:
-            print(f"   Movement Data Keys: {list(movement_data.keys())}")
+            print(f"🔍 Visual Analysis Results:")
+            print(f"   Step: {self.step_counter}")
+            if 'raw_pixtral_response' in movement_data:
+                response_preview = movement_data['raw_pixtral_response'][:100]
+                print(f"   Response Preview: {response_preview}...")
+            else:
+                print(f"   Movement Data Keys: {list(movement_data.keys())}")
+    
+    def _log_clean_console_output(self, movement_data: Dict) -> None:
+        """Output clean JSON for visual analysis to console"""
+        from evee_logger import get_comprehensive_logger
+        
+        # Extract the core visual analysis data for clean output
+        visual_output = {}
+        
+        # Core fields that should always be shown
+        if 'scene_type' in movement_data:
+            visual_output['scene_type'] = movement_data['scene_type']
+        
+        if 'recommended_template' in movement_data:
+            visual_output['recommended_template'] = movement_data['recommended_template']
+        
+        # Context-specific data
+        if 'battle_data' in movement_data and movement_data['battle_data']:
+            visual_output['battle_data'] = movement_data['battle_data']
+            
+        if 'navigation_data' in movement_data and movement_data['navigation_data']:
+            visual_output['navigation_data'] = movement_data['navigation_data']
+            
+        if 'menu_data' in movement_data and movement_data['menu_data']:
+            visual_output['menu_data'] = movement_data['menu_data']
+        
+        if 'valid_buttons' in movement_data and movement_data['valid_buttons']:
+            visual_output['valid_buttons'] = movement_data['valid_buttons']
+        
+        # Use logger for clean console output
+        logger = get_comprehensive_logger()
+        if logger:
+            logger.log_visual_analysis_console(visual_output)
+        else:
+            # Fallback if no logger available
+            import json
+            print("=== VISUAL ANALYSIS ===")
+            print(json.dumps(visual_output, indent=2, ensure_ascii=False))
+            print()

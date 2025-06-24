@@ -22,16 +22,9 @@ sys.path.append(str(project_root))
 sys.path.append(str(project_root / "gemini-multimodal-playground" / "standalone"))
 
 try:
-    # Try to import SkyEmu controller first, fallback to regular controller
-    try:
-        from skyemu_controller import SkyEmuController, read_image_to_base64
-        CONTROLLER_TYPE = "skyemu"
-        print("🚀 Using SkyEmu controller")
-    except ImportError:
-        from pokemon_controller import PokemonController, read_image_to_base64
-        CONTROLLER_TYPE = "pokemon"
-        print("🔄 Using standard Pokemon controller")
-    
+
+    from skyemu_controller import SkyEmuController, read_image_to_base64
+    CONTROLLER_TYPE = "skyemu"
     from dotenv import load_dotenv
     
     # Import centralized LLM API
@@ -88,12 +81,7 @@ class EeveeAgent:
         self.last_failure_time = 0
         self.circuit_breaker_open = False
         
-        if self.verbose:
-            print(f"🔮 EeveeAgent initialized")
-            print(f"   Model: {self.current_model} (fallbacks: {', '.join(self.available_models[1:])})")
-            print(f"   Memory Session: {self.memory_session}")
-            print(f"   Window: {self.window_title}")
-    
+
     def _init_ai_components(self):
         """Initialize AI components and APIs"""
         # Initialize centralized LLM API manager with environment configuration
@@ -118,7 +106,6 @@ class EeveeAgent:
             if current_provider in provider_status:
                 self.available_models = provider_status[current_provider]['available_models']
             
-            if self.verbose:
                 print(f"🤖 LLM API initialized with providers: {available_providers}")
                 
                 # Check for hybrid mode
@@ -154,8 +141,6 @@ class EeveeAgent:
         try:
             from prompt_manager import PromptManager
             self.prompt_manager = PromptManager()
-            if self.verbose:
-                print("📖 PromptManager initialized with playbook system")
         except ImportError:
             self.prompt_manager = None
             if self.debug:
@@ -191,7 +176,7 @@ class EeveeAgent:
             # Auto-detect task type based on context
             task_type = detect_task_type(
                 has_image=bool(image_data),
-                context=prompt[:200]  # Use first 200 chars of prompt for context
+                context=prompt # Use first 200 chars of prompt for context
             )
             
             # Get the assigned model and provider for this task
