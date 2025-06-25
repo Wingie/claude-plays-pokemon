@@ -199,9 +199,6 @@ eevee/prompts/base/base_prompts.yaml    # Auto-updated templates
 
 ## Integration Points
 
-### Template Selection System
-Uses existing `_determine_prompt_context()` logic to ensure only active templates are improved.
-
 ### Memory System  
 Integrates with existing session management and logging.
 
