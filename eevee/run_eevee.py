@@ -296,6 +296,30 @@ class ContinuousGameplay:
         with open(self.session_data_file, 'w') as f:
             json.dump(initial_session_data, f, indent=2)
         
+        # Create Neo4j session for persistent memory
+        try:
+            from neo4j_singleton import Neo4jSingleton
+            neo4j = Neo4jSingleton()
+            writer = neo4j.get_writer()
+            
+            if writer and writer.driver:
+                session_data = {
+                    "session_id": session_id,
+                    "start_time": self.session.start_time,
+                    "goal": goal,
+                    "max_turns": max_turns,
+                    "status": "active"
+                }
+                success = writer.create_session(session_data)
+                if success:
+                    print(f"✅ Neo4j session created: {session_id}")
+                else:
+                    print(f"⚠️ Neo4j session creation failed")
+            else:
+                print(f"⚠️ Neo4j writer not available")
+        except Exception as e:
+            print(f"⚠️ Neo4j session creation error: {e}")
+        
         print(f"🎮 Starting continuous Pokemon gameplay")
         print(f"📁 Session: {session_id}")
         print(f"- Goal: {goal}")
@@ -1725,6 +1749,31 @@ Use the pokemon_controller tool with your chosen button sequence."""
             "last_action": self.session.last_action,
             "diary_path": diary_path
         }
+        
+        # Update Neo4j session status and cleanup
+        try:
+            from neo4j_singleton import Neo4jSingleton
+            neo4j = Neo4jSingleton()
+            writer = neo4j.get_writer()
+            
+            if writer and writer.driver:
+                update_success = writer.update_session(self.session.session_id, {
+                    "status": "completed",
+                    "turns_completed": self.session.turns_completed,
+                    "end_time": end_time
+                })
+                if update_success:
+                    print(f"✅ Neo4j session updated: {self.session.session_id}")
+                else:
+                    print(f"⚠️ Neo4j session update failed")
+                
+                # Close Neo4j connection
+                neo4j.close()
+                print(f"✅ Neo4j connection closed")
+            else:
+                print(f"⚠️ Neo4j writer not available for cleanup")
+        except Exception as e:
+            print(f"⚠️ Neo4j session cleanup error: {e}")
         
         return summary
     
