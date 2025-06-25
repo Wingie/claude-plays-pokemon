@@ -128,14 +128,25 @@ class EeveeAgent:
             print(f"❌ Failed to initialize LLM API: {e}")
             raise
         
-        # Initialize memory system when available
+        # Initialize memory system (now mandatory with Neo4j)
         try:
             from memory_system import MemorySystem
-            self.memory = MemorySystem(self.memory_session, enable_neo4j=self.enable_neo4j)
-        except ImportError:
-            self.memory = None
-            if self.debug:
-                print("⚠️  MemorySystem not available, using basic memory")
+            print("🧠 Initializing memory system with mandatory Neo4j...")
+            self.memory = MemorySystem(self.memory_session, enable_neo4j=True)
+            
+            # Test Neo4j connection
+            if not self._test_neo4j_connection():
+                raise Exception("Neo4j connection test failed - Neo4j is required for operation")
+            
+            print("✅ Memory system with Neo4j initialized successfully")
+        except ImportError as e:
+            print(f"❌ CRITICAL: MemorySystem not available: {e}")
+            print("Neo4j memory system is required for operation")
+            raise
+        except Exception as e:
+            print(f"❌ CRITICAL: Memory system initialization failed: {e}")
+            print("Neo4j is required for operation")
+            raise
         
         # Initialize prompt manager when available
         try:
@@ -2110,3 +2121,43 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
         except Exception as e:
             if self.debug:
                 print(f"⚠️ Failed to update OKR progress: {e}")
+    
+    def _test_neo4j_connection(self) -> bool:
+        """
+        Test Neo4j connection to ensure it's available
+        
+        Returns:
+            True if Neo4j is connected and working, False otherwise
+        """
+        try:
+            if not self.memory or not hasattr(self.memory, 'neo4j_memory') or not self.memory.neo4j_memory:
+                print("❌ Neo4j memory not initialized in memory system")
+                return False
+            
+            # Test basic Neo4j connectivity
+            neo4j_memory = self.memory.neo4j_memory
+            if not neo4j_memory.connected:
+                print("❌ Neo4j not connected")
+                return False
+            
+            # Test Neo4j functionality with compact reader
+            try:
+                from neo4j_compact_reader import Neo4jCompactReader
+                reader = Neo4jCompactReader()
+                connection_test = reader.test_connection()
+                reader.close()
+                
+                if connection_test:
+                    print("✅ Neo4j connection test successful")
+                    return True
+                else:
+                    print("❌ Neo4j connection test failed")
+                    return False
+                    
+            except Exception as reader_error:
+                print(f"❌ Neo4j compact reader test failed: {reader_error}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Neo4j connection test error: {e}")
+            return False

@@ -1,57 +1,66 @@
-# Memory Integration Comprehensive Specification
+# Memory Integration Fresh Start Specification
 
 ## Overview
-Incremental integration of Neo4j memory system with existing Eevee AI using prompt-focused improvements and step-by-step testing.
+Complete Neo4j memory system integration with Eevee AI after cleaning up previous implementation attempts. Focus on proper singleton pattern, base64 screenshot storage, and automatic cleanup.
 
-## Current System Analysis
+## Current System Status
 
 ### ✅ Working Components
 - **Neo4j Connection**: Connected to `bolt://localhost:7687`
-- **Compact Memory Tools**: `compact_memory_tools.py` with remember/recall/learn functions
-- **Hybrid Mode**: Visual=Gemini, Strategic=Mistral working correctly
-- **TaskExecutor**: Fixed `execute_task()` method implemented
-- **Compact Reasoning**: CamelCase format implemented (`north_clear_path` vs verbose)
+- **Neo4jWriter**: Complete CRUD operations (`neo4j_writer.py`)
+- **Neo4jCompactReader**: Data retrieval (`neo4j_compact_reader.py`)
+- **EeveeAgent**: Neo4j connection testing (`_test_neo4j_connection()`)
+- **Mandatory Neo4j**: System fails without Neo4j (flags removed)
 
-### 🔄 Integration Points
-- **Neo4j Data**: `gamememory.py` with `get_recent_turns(limit)` method
-- **Visual Analysis**: Clean JSON from Gemini visual analysis
-- **Strategic Decisions**: Mistral using compact reasoning format
-- **Memory Context**: Need to inject last 4 turns into decision prompts
+### ❌ Problems Requiring Cleanup
+- **Wrongly placed `_store_turn_in_neo4j()` method** (lines 1108-1148 in run_eevee.py)
+- **Modified `_record_turn_action()` signature** incorrectly (line 1084)
+- **Missing singleton pattern** for Neo4j writer
+- **No session lifecycle management** in Neo4j
+- **No memory retrieval integration**
 
-## Incremental Implementation Plan (25 Steps)
+### 🎯 Updated Requirements
+1. **Singleton Neo4j writer** (global scope, one connection per session)
+2. **Base64 screenshot storage** (not just paths)
+3. **Automatic session cleanup** (sessions die on exit)
+4. **Complete turn storage** (visual + strategic + execution data)
 
-### Phase 1: Neo4j Data Reader (6 steps)
-1. **Create Neo4j reader adapter** - Adapt `gamememory.py` methods for Eevee system
-2. **Test Neo4j data retrieval** - Verify `get_recent_turns(4)` returns valid data
-3. **Format last 4 turns to JSON** - Create compact summary format
-4. **Test JSON formatting** - Run 1 turn, verify format correctness
-5. **Add visual data extraction** - Extract current screenshot analysis to JSON
-6. **Test combined data** - Verify last 4 turns + current visual in single JSON
+## Implementation Plan - Cleanup First Approach
 
-### Phase 2: Memory-Driven Prompts (7 steps)
-7. **Create memory context template** - Add memory section to `exploration_strategy`
-8. **Test memory template** - Run 1 turn with memory context, verify prompt length
-9. **Optimize token usage** - Reduce memory context to <100 tokens
-10. **Test token optimization** - Verify decisions still work with compact memory
-11. **Add memory reasoning** - Update prompts to use memory in camelCase reasoning
-12. **Test memory reasoning** - Run 1 turn, verify camelCase memory-based decisions
-13. **Validate memory decisions** - Ensure memory improves decision quality
+### Phase 1: Code Cleanup (Priority 1)
+1. **Remove wrong implementation** - Delete `_store_turn_in_neo4j()` method (lines 1108-1148)
+2. **Restore original signature** - Fix `_record_turn_action()` method (line 1084)
+3. **Remove wrong call** - Delete call to `_store_turn_in_neo4j()` (line 1106)
+4. **Create Neo4j singleton** - New `neo4j_singleton.py` file with global scope pattern
+5. **Test cleanup** - Verify system runs without errors after cleanup
+6. **Commit cleanup** - Save clean state before adding new features
 
-### Phase 3: Decision Engine Enhancement (6 steps)
-14. **Integrate memory into visual analysis** - Add memory context to Gemini prompts
-15. **Test visual+memory** - Run 1 turn, verify Gemini uses memory correctly
-16. **Integrate memory into strategic decisions** - Add memory context to Mistral prompts
-17. **Test strategic+memory** - Run 1 turn, verify Mistral uses memory correctly
-18. **Create memory-driven button selection** - Focus on single button with memory reasoning
-19. **Test button selection** - Run 1 turn, verify single optimal button choice
+### Phase 2: Singleton Pattern & Session Lifecycle (Priority 2)
+7. **Implement singleton writer** - Global Neo4j writer instance with proper lifecycle
+8. **Add session creation** - Create Neo4j session nodes at gameplay start
+9. **Add session updates** - Update session status and cleanup on exit  
+10. **Test session lifecycle** - Run 1-turn session, verify Neo4j session created/closed
+11. **Add error handling** - Graceful degradation if Neo4j fails
+12. **Commit session management** - Save working session lifecycle
 
-### Phase 4: System Optimization (6 steps)
-20. **Optimize prompt injection** - Streamline how memory enters prompt pipeline
-21. **Test prompt efficiency** - Measure token usage vs decision quality
-22. **Add memory learning** - System learns from successful memory-driven decisions
-23. **Test memory learning** - Run 3 turns, verify learning improves decisions
-24. **Create memory feedback loop** - Decisions update memory for future turns
-25. **Test complete system** - Run 5 turns, verify full memory integration works
+### Phase 3: Complete Turn Storage (Priority 3)
+13. **Add turn storage hook** - Call after `_update_session_state()` with complete data
+14. **Implement storage method** - Store visual+strategic+execution+base64 screenshot
+15. **Add context extraction** - Extract battle context and location from AI analysis
+16. **Test turn storage** - Run 2-turn session, verify complete data in Neo4j
+17. **Optimize data format** - Ensure efficient storage and retrieval
+18. **Commit turn storage** - Save working turn storage system
+
+### Phase 4: Memory Context Retrieval (Priority 4)
+19. **Update memory context method** - Retrieve last 4 turns from Neo4j
+20. **Format compact JSON** - Use existing `neo4j_compact_reader` formatting
+21. **Integrate with prompts** - Inject memory context into AI decision prompts
+22. **Test memory flow** - Run 4-turn session, verify memory context in decisions
+23. **Optimize token usage** - Keep memory context under 100 tokens
+24. **Commit memory integration** - Save complete working system
+
+### Phase 5: Final Testing & Validation (Priority 5)
+25. **Complete system test** - Run full 4-turn session with all features enabled
 
 ## Memory Data Format
 

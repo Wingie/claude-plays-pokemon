@@ -16,7 +16,7 @@ Usage examples:
     python run_eevee.py --task "navigate to Pokemon Center" --save-report
     
     # Interactive mode with features:
-    python run_eevee.py --interactive --enable-okr --neo4j-memory
+    python run_eevee.py --interactive --enable-okr
     python run_eevee.py --continue  # Resume from last session
 """
 
@@ -239,9 +239,6 @@ class ContinuousGameplay:
         self.paused = False
         self.running = False
         self.turn_delay = 2.0  # Seconds between turns
-        
-        # Enhanced navigation system REMOVED - Pure AI autonomy preferred
-        # self.nav_enhancer = NavigationEnhancer(history_size=20, similarity_threshold=0.95)
         
         # Visual analysis system for movement validation (8x8 grid, every turn)
         try:
@@ -1082,7 +1079,7 @@ class ContinuousGameplay:
     
     
     def _record_turn_action(self, turn_number: int, observation: str, action: List[str], result: str):
-        """Record a turn's action for recent context with progress tracking"""
+        """Record a turn's action for recent context with progress tracking and Neo4j storage"""
         
         nav_progress = True  # Assume progress unless AI determines otherwise
         visual_similarity = 0.0
@@ -1101,6 +1098,25 @@ class ContinuousGameplay:
         self.recent_turns.append(turn_record)
         if len(self.recent_turns) > self.max_recent_turns:
             self.recent_turns.pop(0)
+        
+    
+    def _extract_location_from_observation(self, observation: str) -> str:
+        """Extract location information from observation text"""
+        # Simple location extraction - can be enhanced
+        observation_lower = observation.lower()
+        
+        # Common Pokemon locations
+        locations = [
+            "route", "forest", "cave", "city", "town", "center", "gym", 
+            "viridian", "pewter", "cerulean", "vermillion", "lavender", 
+            "celadon", "fuchsia", "saffron", "cinnabar", "pallet"
+        ]
+        
+        for location in locations:
+            if location in observation_lower:
+                return location.title()
+        
+        return "unknown"
     
     def _get_recent_actions_summary(self) -> str:
         """Build a summary of recent actions for AI context"""
@@ -2595,7 +2611,7 @@ Examples:
   %(prog)s --task "navigate to Pokemon Center" --save-report
   
   # With options:
-  %(prog)s --interactive --enable-okr --neo4j-memory
+  %(prog)s --interactive --enable-okr
   %(prog)s --continue --verbose
         """
     )
@@ -2708,11 +2724,6 @@ Examples:
         help="Enable OKR.md progress tracking (default: True)"
     )
     
-    parser.add_argument(
-        "--neo4j-memory",
-        action="store_true",
-        help="Use Neo4j for visual memory system"
-    )
     
     # Emulator Configuration
     parser.add_argument(
@@ -2879,22 +2890,27 @@ def main():
                 memory_session=args.memory_session,
                 verbose=args.verbose,
                 debug=args.debug,
-                enable_neo4j=args.neo4j_memory,
+                enable_neo4j=True,  # Neo4j is now mandatory
                 enable_okr=args.enable_okr
             )
             print(" Eevee agent initialized successfully")
             
-            # PHASE 2: Enhance with memory system
-            if MEMORY_INTEGRATION_AVAILABLE and args.neo4j_memory:
-                print("🧠 PHASE 2: Enhancing Eevee with memory integration...")
+            # PHASE 2: Enhance with memory system (now mandatory)
+            if MEMORY_INTEGRATION_AVAILABLE:
+                print("🧠 PHASE 2: Enhancing Eevee with mandatory memory integration...")
                 try:
                     success = create_memory_enhanced_eevee(eevee, args.memory_session)
                     if success:
                         print("✅ Memory-enhanced Eevee activated!")
                     else:
-                        print("WARNING: Memory enhancement failed, continuing with standard mode")
+                        print("❌ CRITICAL: Memory enhancement failed - Neo4j is required")
+                        sys.exit(1)
                 except Exception as e:
-                    print(f"WARNING: Memory integration error: {e}, continuing with standard mode")
+                    print(f"❌ CRITICAL: Memory integration error: {e} - Neo4j is required")
+                    sys.exit(1)
+            else:
+                print("❌ CRITICAL: Memory integration not available - check neo4j_compact_reader import")
+                sys.exit(1)
                     
         except Exception as e:
             print(f"L Failed to initialize Eevee agent: {e}")
