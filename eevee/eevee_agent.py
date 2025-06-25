@@ -2070,23 +2070,130 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
         """
         Get contextual OKR (Objectives & Key Results) for current game state
         
+        Enhanced with periodic review strategic context injection.
+        
         Returns:
-            String containing focused, immediate objectives
+            String containing focused objectives + strategic context from periodic analysis
         """
         if not self.enable_okr:
             return ""
         
+        context_parts = []
+        
+        # 1. Static OKR content from file
         try:
             okr_prompt_path = Path(__file__).parent / "prompts" / "okr_prompt.md"
             if okr_prompt_path.exists():
                 with open(okr_prompt_path, 'r') as f:
                     okr_content = f.read()
-                return f"\n{okr_content}\n"
+                context_parts.append(okr_content)
         except Exception as e:
             if self.debug:
                 print(f"⚠️ Failed to read OKR prompt: {e}")
         
+        # 2. Dynamic strategic context from periodic reviews
+        strategic_context = self._get_periodic_review_context()
+        if strategic_context:
+            context_parts.append(strategic_context)
+        
+        # 3. Current goal state from okr.json
+        goal_context = self._get_current_goal_context()
+        if goal_context:
+            context_parts.append(goal_context)
+        
+        if context_parts:
+            return "\n" + "\n\n".join(context_parts) + "\n"
+        
         return ""
+    
+    def _get_periodic_review_context(self) -> str:
+        """Generate strategic context from last periodic review"""
+        try:
+            if not hasattr(self, 'last_periodic_review') or not self.last_periodic_review:
+                return ""
+            
+            review = self.last_periodic_review
+            summary = review.get("summary", {})
+            
+            # Generate strategic context section
+            context = "# 📊 STRATEGIC CONTEXT (Periodic Analysis)\n\n"
+            
+            # Movement pattern analysis
+            movement_pattern = summary.get("movement_pattern", "Unknown")
+            key_insight = summary.get("key_insight", "No insights")
+            performance_score = summary.get("performance_score", 0.0)
+            recommendations = summary.get("recommendations", [])
+            goal_progress = summary.get("goal_progress", "Unknown progress")
+            
+            context += f"**Movement Analysis**: {movement_pattern}\n"
+            context += f"**Key Strategic Insight**: {key_insight}\n"
+            context += f"**Performance Score**: {performance_score:.2f}/1.0\n"
+            context += f"**Goal Progress**: {goal_progress}\n"
+            
+            if recommendations:
+                context += f"**Strategic Recommendations**: {', '.join(recommendations)}\n"
+            
+            # Add timing context
+            review_turn = review.get("turn", 0)
+            context += f"**Analysis From**: Turn {review_turn} (Recent periodic review)\n"
+            
+            # Add actionable guidance
+            context += "\n**STRATEGIC GUIDANCE FOR NEXT ACTIONS**:\n"
+            if "stuck" in key_insight.lower() or "loop" in key_insight.lower():
+                context += "- ⚠️ PATTERN DETECTED: AI showing repetitive behavior\n"
+                context += "- 🔄 ADAPTATION NEEDED: Try different directions or interaction\n"
+            elif "bias" in key_insight.lower():
+                context += "- 📍 DIRECTIONAL BIAS: Consider perpendicular movement options\n"
+            elif "good" in key_insight.lower() or "efficient" in key_insight.lower():
+                context += "- ✅ POSITIVE PATTERN: Current approach working well\n"
+            else:
+                context += "- 📋 STANDARD BEHAVIOR: Continue systematic exploration\n"
+            
+            return context
+            
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ Failed to generate periodic review context: {e}")
+            return ""
+    
+    def _get_current_goal_context(self) -> str:
+        """Get current goal state from okr.json"""
+        try:
+            okr_path = Path(__file__).parent / "okr.json"
+            if not okr_path.exists():
+                return ""
+            
+            with open(okr_path, 'r') as f:
+                okr_data = json.load(f)
+            
+            current_goal = okr_data.get("current_goal", {})
+            progress_analysis = okr_data.get("progress_analysis", {})
+            
+            if not current_goal:
+                return ""
+            
+            context = "# 🎯 CURRENT GOAL STATUS\n\n"
+            context += f"**Active Goal**: {current_goal.get('name', 'Unknown')}\n"
+            context += f"**Status**: {current_goal.get('status', 'unknown')}\n"
+            context += f"**Priority**: {current_goal.get('priority', 0)}/10\n"
+            context += f"**Progress**: {current_goal.get('progress_percentage', 0)}%\n"
+            
+            # Add progress insights
+            progress_desc = progress_analysis.get("progress_description", "")
+            if progress_desc:
+                context += f"**Progress Analysis**: {progress_desc}\n"
+            
+            # Add recommended actions
+            next_actions = progress_analysis.get("next_recommended_actions", [])
+            if next_actions:
+                context += f"**Recommended Actions**: {', '.join(next_actions[:2])}\n"
+            
+            return context
+            
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ Failed to read current goal context: {e}")
+            return ""
     
     def update_okr_progress(self, action: str, result: str, progress_note: str = ""):
         """

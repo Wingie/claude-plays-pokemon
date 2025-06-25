@@ -2599,11 +2599,12 @@ Return ONLY the improved template content, ready to replace the current template
         """
         Analyze recent turns and update goal hierarchy for autonomous planning
         
-        This is the core of the goal-oriented planning system:
+        Enhanced with comprehensive contextual analysis for strategic prompt injection:
         1. Analyze progress toward current goal
-        2. Determine if goal should be updated/replanned  
-        3. Generate updated okr.json with current active goal
-        4. Feed goal context into prompt templates for next turns
+        2. Generate movement pattern analysis
+        3. Create strategic context for decision-making
+        4. Store results for injection into strategic prompts
+        5. Update okr.json with current active goal
         """
         try:
             print(f"🎯 GOAL-ORIENTED PLANNING: Analyzing progress toward '{self.session.goal}'")
@@ -2617,20 +2618,30 @@ Return ONLY the improved template content, ready to replace the current template
             
             task_executor = self.eevee.task_executor
             
+            # NEW: Generate comprehensive strategic context analysis
+            strategic_context = self._generate_strategic_context_analysis(recent_turns, current_turn)
+            
             # Analyze recent turns for goal progress using AI
             progress_analysis = self._analyze_goal_progress_with_ai(recent_turns, self.session.goal)
             
             if not progress_analysis["success"]:
                 print(f"⚠️ Goal progress analysis failed: {progress_analysis.get('error', 'Unknown error')}")
-                return {"success": False, "error": "Goal progress analysis failed"}
+                # Still store strategic context even if goal analysis fails
+                self._store_last_periodic_review(strategic_context, current_turn)
+                return {"success": False, "error": "Goal progress analysis failed", "strategic_context": strategic_context}
+            
+            # Enhance progress analysis with strategic context
+            enhanced_analysis = {**progress_analysis, **strategic_context}
             
             # Determine if goal hierarchy needs updating
             needs_replanning = progress_analysis.get("needs_replanning", False)
             current_goal_status = progress_analysis.get("goal_status", "in_progress")
             
-            print(f"📊 Goal Progress Analysis:")
+            print(f"📊 Enhanced Analysis (Turn {current_turn}):")
             print(f"   Current Status: {current_goal_status}")
             print(f"   Progress Score: {progress_analysis.get('progress_score', 0)}/10")
+            print(f"   Movement Pattern: {strategic_context.get('movement_pattern_summary', 'Unknown')}")
+            print(f"   Strategic Insight: {strategic_context.get('key_insight', 'None')}")
             print(f"   Needs Replanning: {needs_replanning}")
             
             # Update or create goal hierarchy
@@ -2652,28 +2663,253 @@ Return ONLY the improved template content, ready to replace the current template
                     if okr_result["success"]:
                         print(f"✅ Goal hierarchy updated - Active: {okr_result['active_goal_name']}")
                         print(f"   Next Actions: {okr_result['next_actions']}")
-                        return {
+                        
+                        # Store enhanced context for strategic prompt injection
+                        final_result = {
                             "success": True,
                             "goal_hierarchy_updated": True,
                             "active_goal": okr_result['active_goal_name'],
-                            "okr_file_path": okr_result['okr_file_path']
+                            "okr_file_path": okr_result['okr_file_path'],
+                            "strategic_context": strategic_context,
+                            "enhanced_analysis": enhanced_analysis
                         }
+                        self._store_last_periodic_review(enhanced_analysis, current_turn)
+                        return final_result
                     else:
                         print(f"❌ Failed to generate okr.json: {okr_result.get('error')}")
+                        self._store_last_periodic_review(enhanced_analysis, current_turn)
                 else:
                     print(f"❌ Failed to create goal hierarchy from task: '{self.session.goal}'")
+                    self._store_last_periodic_review(enhanced_analysis, current_turn)
             else:
                 print(f"✅ Goal hierarchy is current - continuing with existing plan")
+                self._store_last_periodic_review(enhanced_analysis, current_turn)
             
             return {
                 "success": True,
                 "goal_hierarchy_updated": False,
-                "progress_analysis": progress_analysis
+                "progress_analysis": progress_analysis,
+                "strategic_context": strategic_context,
+                "enhanced_analysis": enhanced_analysis
             }
             
         except Exception as e:
             print(f"❌ Goal-oriented planning review failed: {e}")
             return {"success": False, "error": str(e)}
+    
+    def _generate_strategic_context_analysis(self, recent_turns: List[Dict], current_turn: int) -> Dict[str, Any]:
+        """
+        Generate comprehensive strategic context analysis for prompt injection
+        
+        Analyzes movement patterns, performance metrics, and strategic insights
+        to provide rich context for strategic decision-making prompts.
+        """
+        try:
+            analysis_timestamp = datetime.now().isoformat()
+            turns_analyzed = len(recent_turns)
+            
+            # Analyze movement patterns
+            movement_analysis = self._analyze_movement_patterns(recent_turns)
+            
+            # Generate performance metrics
+            performance_metrics = self._get_enhanced_performance_metrics(recent_turns)
+            
+            # Create strategic insights
+            strategic_insights = self._generate_strategic_insights(recent_turns, movement_analysis, performance_metrics)
+            
+            return {
+                "analysis_timestamp": analysis_timestamp,
+                "turns_analyzed": turns_analyzed,
+                "current_turn": current_turn,
+                "movement_pattern_summary": movement_analysis.get("summary", "Unknown pattern"),
+                "movement_patterns": movement_analysis,
+                "performance_score": performance_metrics.get("navigation_efficiency", 0.0),
+                "performance_metrics": performance_metrics,
+                "key_insight": strategic_insights.get("primary_insight", "No clear patterns detected"),
+                "strategic_recommendations": strategic_insights.get("recommendations", []),
+                "behavioral_analysis": strategic_insights.get("behavioral_analysis", "Standard exploration behavior"),
+                "adaptation_needed": strategic_insights.get("adaptation_needed", False)
+            }
+            
+        except Exception as e:
+            print(f"WARNING: Strategic context analysis failed: {e}")
+            return {
+                "analysis_timestamp": datetime.now().isoformat(),
+                "turns_analyzed": len(recent_turns),
+                "current_turn": current_turn,
+                "movement_pattern_summary": "Analysis failed",
+                "key_insight": "Unable to generate strategic context",
+                "strategic_recommendations": ["continue_current_strategy"],
+                "performance_score": 0.5,
+                "error": str(e)
+            }
+    
+    def _analyze_movement_patterns(self, recent_turns: List[Dict]) -> Dict[str, Any]:
+        """Analyze movement patterns from recent turns"""
+        try:
+            if not recent_turns:
+                return {"summary": "No turns to analyze", "pattern_type": "unknown"}
+            
+            # Extract button presses
+            actions = []
+            for turn in recent_turns:
+                button_presses = turn.get('button_presses', [])
+                if button_presses:
+                    actions.extend(button_presses)
+            
+            if not actions:
+                return {"summary": "No actions recorded", "pattern_type": "idle"}
+            
+            # Count action frequencies
+            action_counts = {}
+            for action in actions:
+                action_counts[action] = action_counts.get(action, 0) + 1
+            
+            # Detect patterns
+            total_actions = len(actions)
+            most_common_action = max(action_counts.items(), key=lambda x: x[1])
+            most_common_percentage = (most_common_action[1] / total_actions) * 100
+            
+            # Detect repetitive sequences
+            consecutive_same = 0
+            max_consecutive = 0
+            prev_action = None
+            
+            for action in actions:
+                if action == prev_action:
+                    consecutive_same += 1
+                    max_consecutive = max(max_consecutive, consecutive_same)
+                else:
+                    consecutive_same = 1
+                prev_action = action
+            
+            # Determine pattern type
+            if max_consecutive >= 4:
+                pattern_type = "stuck_loop"
+                summary = f"Repeating '{most_common_action[0]}' {max_consecutive} times consecutively"
+            elif most_common_percentage > 70:
+                pattern_type = "heavily_biased"
+                summary = f"Heavy bias toward '{most_common_action[0]}' ({most_common_percentage:.1f}%)"
+            elif len(set(actions)) == 1:
+                pattern_type = "single_action"
+                summary = f"Only using '{most_common_action[0]}'"
+            elif len(set(actions)) >= 4:
+                pattern_type = "diverse_exploration"
+                summary = f"Diverse movement using {len(set(actions))} different actions"
+            else:
+                pattern_type = "limited_exploration"
+                summary = f"Using {len(set(actions))} different actions"
+            
+            return {
+                "summary": summary,
+                "pattern_type": pattern_type,
+                "action_counts": action_counts,
+                "most_common_action": most_common_action[0],
+                "most_common_percentage": most_common_percentage,
+                "max_consecutive_same": max_consecutive,
+                "action_diversity": len(set(actions)),
+                "total_actions": total_actions
+            }
+            
+        except Exception as e:
+            return {"summary": f"Pattern analysis failed: {e}", "pattern_type": "error"}
+    
+    def _generate_strategic_insights(self, recent_turns: List[Dict], movement_analysis: Dict, performance_metrics: Dict) -> Dict[str, Any]:
+        """Generate strategic insights and recommendations"""
+        try:
+            insights = []
+            recommendations = []
+            adaptation_needed = False
+            
+            # Analyze based on movement patterns
+            pattern_type = movement_analysis.get("pattern_type", "unknown")
+            max_consecutive = movement_analysis.get("max_consecutive_same", 0)
+            action_diversity = movement_analysis.get("action_diversity", 0)
+            
+            if pattern_type == "stuck_loop":
+                insights.append(f"AI is stuck in a loop, repeating same action {max_consecutive} times")
+                recommendations.extend(["try_perpendicular_direction", "use_interaction_button", "backtrack_and_retry"])
+                adaptation_needed = True
+            elif pattern_type == "heavily_biased":
+                insights.append("AI showing strong directional bias, may be missing alternative paths")
+                recommendations.extend(["try_opposite_direction", "explore_perpendicular_paths"])
+                adaptation_needed = True
+            elif pattern_type == "single_action":
+                insights.append("AI using only one action type, very limited exploration")
+                recommendations.extend(["diversify_movement", "try_all_directions"])
+                adaptation_needed = True
+            elif action_diversity >= 4:
+                insights.append("AI showing good exploration diversity")
+                recommendations.append("continue_systematic_exploration")
+            
+            # Analyze performance metrics
+            nav_efficiency = performance_metrics.get("navigation_efficiency", 0.0)
+            if nav_efficiency < 0.3:
+                insights.append("Low navigation efficiency, possible navigation issues")
+                recommendations.append("reassess_navigation_strategy")
+                adaptation_needed = True
+            elif nav_efficiency > 0.7:
+                insights.append("Good navigation efficiency, making progress")
+                recommendations.append("maintain_current_approach")
+            
+            # Check for oscillation patterns
+            oscillations = performance_metrics.get("oscillations", 0)
+            if oscillations > 2:
+                insights.append(f"Detected {oscillations} oscillation patterns, AI may be indecisive")
+                recommendations.append("commit_to_direction")
+                adaptation_needed = True
+            
+            # Generate primary insight
+            if insights:
+                primary_insight = insights[0]
+            else:
+                primary_insight = "Standard exploration behavior, no major issues detected"
+            
+            # Generate behavioral analysis
+            behavioral_analysis = f"Movement pattern: {pattern_type}, Efficiency: {nav_efficiency:.2f}, Diversity: {action_diversity} actions"
+            
+            return {
+                "primary_insight": primary_insight,
+                "all_insights": insights,
+                "recommendations": recommendations[:3],  # Limit to top 3
+                "behavioral_analysis": behavioral_analysis,
+                "adaptation_needed": adaptation_needed,
+                "analysis_confidence": "high" if len(recent_turns) >= 5 else "low"
+            }
+            
+        except Exception as e:
+            return {
+                "primary_insight": f"Strategic analysis failed: {e}",
+                "recommendations": ["continue_current_strategy"],
+                "behavioral_analysis": "Analysis error",
+                "adaptation_needed": False
+            }
+    
+    def _store_last_periodic_review(self, enhanced_analysis: Dict[str, Any], current_turn: int) -> None:
+        """Store the last periodic review result for strategic prompt injection"""
+        try:
+            # Store in eevee agent for easy access during strategic decisions
+            if not hasattr(self.eevee, 'last_periodic_review'):
+                self.eevee.last_periodic_review = {}
+            
+            self.eevee.last_periodic_review = {
+                "timestamp": datetime.now().isoformat(),
+                "turn": current_turn,
+                "analysis": enhanced_analysis,
+                "summary": {
+                    "movement_pattern": enhanced_analysis.get("movement_pattern_summary", "Unknown"),
+                    "key_insight": enhanced_analysis.get("key_insight", "No insights"),
+                    "performance_score": enhanced_analysis.get("performance_score", 0.0),
+                    "recommendations": enhanced_analysis.get("strategic_recommendations", [])[:2],  # Top 2
+                    "goal_progress": enhanced_analysis.get("progress_description", "Unknown progress")
+                }
+            }
+            
+            if self.eevee.verbose:
+                print(f"📊 Stored periodic review for strategic context injection (Turn {current_turn})")
+                
+        except Exception as e:
+            print(f"WARNING: Failed to store periodic review: {e}")
     
     def _analyze_goal_progress_with_ai(self, recent_turns: List[Dict], session_goal: str) -> Dict[str, Any]:
         """Use AI to analyze progress toward current session goal"""
