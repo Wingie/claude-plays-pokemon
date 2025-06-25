@@ -1,30 +1,30 @@
 {
   "meta": {
-    "updated_at": "2025-06-25T20:54:12.199518",
-    "session_id": "20250625_205129",
+    "updated_at": "2025-06-25T21:04:55.306760",
+    "session_id": "20250625_210412",
     "source": "goal_oriented_planning_system"
   },
-  "session_goal": "find the pewtercity gym",
+  "session_goal": "you are just outside brock in pewter city, go in and defeat him",
   "current_goal": {
-    "id": "find_gym",
-    "name": "Find Gym",
-    "description": "Navigate to and locate Gym",
-    "status": "blocked",
+    "id": "find_pewter_city_gym",
+    "name": "Find Pewter City Gym",
+    "description": "Navigate to and locate Pewter City Gym",
+    "status": "in_progress",
     "priority": 9,
-    "progress_percentage": 0,
+    "progress_percentage": 70,
     "estimated_turns": 20,
     "attempts": 0,
     "turns_spent": 0
   },
   "goal_hierarchy": {
     "root_goal": {
-      "id": "defeat_gym_leader",
-      "name": "Defeat Gym Leader",
-      "description": "find the pewtercity gym",
+      "id": "defeat_brock",
+      "name": "Defeat Brock",
+      "description": "you are just outside brock in pewter city, go in and defeat him",
       "children": [
-        "find_gym",
+        "find_pewter_city_gym",
         "prepare_team",
-        "battle_gym_leader"
+        "battle_brock"
       ]
     },
     "total_goals": 4,
@@ -32,16 +32,16 @@
     "failed_goals": 0
   },
   "progress_analysis": {
-    "progress_score": 0,
-    "progress_description": "The AI's activity is unknown, indicating no visible progress toward finding the pewtercity gym.",
+    "progress_score": 7,
+    "progress_description": "AI is exploring Pewter City and looking for gym building",
     "issues_detected": [
-      "no_progress",
-      "unknown_activity"
+      "stuck_in_loop",
+      "wrong_direction"
     ],
     "next_recommended_actions": [
-      "gather_more_information",
-      "restart_exploration"
+      "continue_exploration",
+      "try_different_direction"
     ],
-    "estimated_turns_to_completion": null
+    "estimated_turns_to_completion": 15
   }
 }
