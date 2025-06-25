@@ -336,13 +336,8 @@ class VisualAnalysis:
             
             result["valid_movements"] = movement_actions if movement_actions else ["up", "down", "left", "right"]
             
-            # Ensure recommended_template uses ai_directed format
-            template = result["recommended_template"]
-            if template not in ["ai_directed_battle", "ai_directed_navigation"]:
-                if "battle" in template.lower():
-                    result["recommended_template"] = "ai_directed_battle"
-                else:
-                    result["recommended_template"] = "ai_directed_navigation"
+            # SIMPLIFIED: No template conversion needed - use direct recommendations
+            # Visual analysis templates now provide correct template names directly
             
             # Add backward compatibility fields based on dynamic scene data
             scene_type = result["scene_type"]

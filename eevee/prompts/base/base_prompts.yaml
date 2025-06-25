@@ -389,25 +389,45 @@ ai_emergency_recovery_with_escalation:
   - escalation_level
   version: '5.0'
 visual_context_analyzer:
-  name: Universal Scene Analyzer (Hybrid Mode)
-  description: Universal visual analysis for all Pokemon contexts - optimized for Gemini visual → Mistral strategic handoff
+  name: Simple Template Selector (Pokemon GBA v3 - Fallback)
+  description: Clean visual analysis with direct template recommendations - fallback version
   template: |
-    Analyze this Pokemon screenshot and return JSON only.
+    Pokemon Game Boy Advance Screenshot Analysis
 
-    Identify the scene type and recommend template:
+    This is a screenshot from a classic Pokemon GBA video game. Please analyze the game interface and recommend the appropriate template.
 
-    JSON format:
+    **MANDATORY CORE FIELDS:**
+    - scene_type: "battle|navigation|menu|transition"  
+    - recommended_template: Choose ONE from this list:
+      * "battle_analysis" - For Pokemon battles (HP bars, move selection, battle interface)
+      * "exploration_strategy" - For overworld navigation (walking, maps, routes, towns)
+      * "stuck_recovery" - For repetitive movement or stuck situations
+      * "inventory_analysis" - For bag/item menus
+      * "pokemon_party_analysis" - For Pokemon party/status screens
+    - valid_buttons: Array of available button options with key/action/result
+    - confidence: "high|medium|low"
+
+    **BATTLE DETECTION (High Priority):**
+    If you see ANY of these, use "battle_analysis":
+    - Pokemon names with HP bars
+    - Move names (THUNDERSHOCK, TACKLE, etc.)
+    - Battle menu (FIGHT, BAG, POKEMON, RUN)
+    - "A wild [POKEMON] appeared!" text
+
+    **RESPONSE FORMAT:**
+    Return JSON only:
     {{
-      "scene_type": "battle|navigation|menu",
-      "recommended_template": "ai_directed_battle|ai_directed_navigation",
+      "scene_type": "menu",
+      "recommended_template": "inventory_analysis",
       "valid_buttons": [
         {{"key": "A", "action": "select", "result": "advance"}}
-      ]
+      ],
+      "confidence": "high"
     }}
 
-    Return JSON only, no additional text.
+    **CRITICAL: Always choose exactly one template from the predefined list.**
   variables: []
-  version: '2.0'
+  version: '3.0'
 
 visual_context_analyzer_gemini:
   name: Gemini Simple Template Selector (Pokemon GBA v3)

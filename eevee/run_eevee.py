@@ -1518,6 +1518,17 @@ class ContinuousGameplay:
                         "confidence": movement_data.get("confidence", "unknown")
                     })
                     
+                    # Add battle-specific variables if using battle template
+                    if prompt_type == "battle_analysis":
+                        variables.update({
+                            "battle_phase": movement_data.get("battle_phase", "unknown"),
+                            "our_pokemon": movement_data.get("our_pokemon", "unknown"),
+                            "enemy_pokemon": movement_data.get("enemy_pokemon", "unknown"),
+                            "move_options": movement_data.get("move_options", []),
+                            "cursor_on": movement_data.get("cursor_on", "unknown"),
+                            "valid_buttons": movement_data.get("valid_buttons", [])
+                        })
+                    
                     # Generate prompt - simple and direct
                     prompt = prompt_manager.get_prompt(
                         prompt_type, 
@@ -1529,6 +1540,7 @@ class ContinuousGameplay:
                     template_used = prompt_type
                     template_version = prompt_manager.base_prompts[prompt_type].get('version', 'direct_selection')
                     playbooks = [playbook]
+                    using_ai_directed = False
                 
                 else:
                     # SIMPLIFIED FALLBACK: Just use exploration_strategy when visual analysis unavailable
