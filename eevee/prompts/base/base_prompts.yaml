@@ -290,6 +290,14 @@ exploration_strategy:
     - Avoid repeating failed movements from recent_actions
     - One button press per decision for careful movement
     
+    **POKEMON CENTER SEEKING (High Priority):**
+    If GOAL contains "heal" or "pokemon center":
+    - Look for red-roofed buildings in towns (Pokemon Centers)
+    - Head toward buildings with red roofs when visible
+    - In towns, systematically check buildings by pressing A at entrances
+    - If near a building entrance, press A to enter and check for Nurse Joy
+    - Priority: Find Pokemon Center > Random exploration
+    
     **VALID BUTTONS:**
     - Movement: "up", "down", "left", "right"
     - Actions: "a", "b", "start", "select"
@@ -443,22 +451,30 @@ visual_context_analyzer_gemini:
     This is a screenshot from a classic Pokemon GBA video game (educational/nostalgic gaming content). Please analyze the game interface and recommend the appropriate template.
 
     **MANDATORY CORE FIELDS (always include):**
-    - scene_type: "battle|navigation|menu|transition"  
+    - scene_type: "battle|navigation|menu|transition|pokemon_center|gym_interior"  
     - recommended_template: Choose ONE from this list:
       * "battle_analysis" - For Pokemon battles (HP bars, move selection, battle interface)
       * "exploration_strategy" - For overworld navigation (walking, maps, routes, towns)
+      * "pokemon_center_navigation" - For Pokemon Center interiors with Nurse Joy
       * "stuck_recovery" - For repetitive movement or stuck situations
       * "inventory_analysis" - For bag/item menus
       * "pokemon_party_analysis" - For Pokemon party/status screens
     - valid_buttons: Array of available button options with key/action/result
     - confidence: "high|medium|low"
 
-    **TEMPLATE SELECTION GUIDE:**
-    - **battle_analysis**: Any battle interface (HP bars, move names, "FIGHT/BAG/POKEMON", battle text)
-    - **exploration_strategy**: Overworld movement (grass, trees, buildings, NPCs, walking)
-    - **stuck_recovery**: If same scene repeating or movement failing
-    - **inventory_analysis**: Bag screen, item lists, "ITEMS/KEY ITEMS/POKEBALLS"
-    - **pokemon_party_analysis**: Pokemon summary, party status, level up screens
+    **POKEMON CENTER DETECTION (HIGHEST PRIORITY - Check First):**
+    🔴 CRITICAL: If you see a red/pink-haired NPC (Nurse Joy) in an indoor setting, this is ALWAYS a Pokemon Center!
+    
+    Pokemon Center visual indicators (if ANY are present, use "pokemon_center_navigation"):
+    - 🏥 Red/pink-haired Nurse Joy NPC sprite (female character behind counter)
+    - 🖥️ Healing counter/desk with PC terminal nearby (computer on right side)
+    - 🏠 Pink/red interior walls and flooring (indoor room with pink tones)
+    - 💬 "Welcome to the Pokemon Center!" dialogue text
+    - ⚕️ Healing machine or healing sound effects
+    - 🚪 Player character inside a building with Nurse Joy visible
+    - 🏥 Indoor medical/healing facility layout (not outdoor navigation)
+    
+    ⚠️ IMPORTANT: Pokemon Centers are INDOOR scenes, not outdoor navigation!
 
     **BATTLE DETECTION (High Priority):**
     If you see ANY of these, use "battle_analysis":
@@ -469,9 +485,18 @@ visual_context_analyzer_gemini:
     - Battle status/effectiveness text
     - Pokemon sprites facing each other
 
+    **TEMPLATE SELECTION GUIDE:**
+    - **pokemon_center_navigation**: Pokemon Center interior with Nurse Joy and healing counter (CHECK FIRST!)
+    - **battle_analysis**: Any battle interface (HP bars, move names, "FIGHT/BAG/POKEMON", battle text)
+    - **exploration_strategy**: Overworld movement (grass, trees, buildings, NPCs, walking)
+    - **stuck_recovery**: If same scene repeating or movement failing
+    - **inventory_analysis**: Bag screen, item lists, "ITEMS/KEY ITEMS/POKEBALLS"
+    - **pokemon_party_analysis**: Pokemon summary, party status, level up screens
+
     **RESPONSE FORMAT:**
     Return JSON only with core fields + whatever scene-specific fields are relevant:
 
+    **For Battle Scenes:**
     {{
       "scene_type": "battle",
       "our_pokemon": {{"name": "PIKACHU", "hp": "22/35", "level": 12}},
@@ -486,6 +511,85 @@ visual_context_analyzer_gemini:
       "confidence": "high"
     }}
 
+    **For Pokemon Center Scenes:**
+    {{
+      "scene_type": "pokemon_center",
+      "building_type": "pokemon_center",
+      "location": "pewter_city",
+      "npcs_visible": ["nurse_joy"],
+      "services_available": ["healing", "pc_access"],
+      "healing_progress": "need_to_approach|at_counter|in_dialogue|healing_complete",
+      "valid_buttons": [
+        {{"key": "↑", "action": "approach_nurse", "result": "move_to_healing_counter"}},
+        {{"key": "A", "action": "interact", "result": "start_healing_dialogue"}},
+        {{"key": "↓", "action": "exit_building", "result": "return_to_town"}}
+      ],
+      "recommended_template": "pokemon_center_navigation",
+      "confidence": "high"
+    }}
+
     **CRITICAL: Always choose exactly one template from the predefined list. No complex logic needed.**
   variables: []
   version: '3.0'
+
+pokemon_center_navigation:
+  name: Pokemon Center Healing Navigation (4-Step Process)
+  description: Efficiently navigate Pokemon Center for healing with state awareness
+  template: |
+    Pokemon Center Healing Strategy
+    
+    GOAL: {task}
+    BUILDING: Pokemon Center
+    
+    **4-STEP HEALING PROCESS:**
+    
+    **STEP 1 - APPROACH NURSE JOY:**
+    - If player far from counter: Press ↑ repeatedly until adjacent to Nurse Joy
+    - If player at counter: Proceed to Step 2
+    
+    **STEP 2 - INITIATE HEALING:**
+    - Press A to start conversation with Nurse Joy
+    - Look for healing dialogue options
+    
+    **STEP 3 - CONFIRM HEALING:**
+    - Press A to confirm "Yes, please heal my Pokemon"
+    - Wait for healing animation/sound
+    
+    **STEP 4 - COMPLETE & EXIT:**
+    - Press A when healing complete message appears
+    - Press ↓ repeatedly to exit Pokemon Center
+    
+    **CURRENT STATE ANALYSIS:**
+    Based on visual cues, determine current step:
+    - No dialogue visible → Step 1 (approach nurse)
+    - Nurse dialogue active → Step 2 or 3 (interact/confirm)  
+    - Healing complete message → Step 4 (exit)
+    - Outside Pokemon Center → GOAL COMPLETE
+    
+    **HEALING DIALOGUE RECOGNITION:**
+    - "Welcome to our Pokemon Center!" → Press A to continue
+    - "Would you like me to heal your Pokemon?" → Press A for "Yes"
+    - "It will take just a moment" → Wait for completion
+    - "Your Pokemon are fully healed!" → Press A then exit
+    
+    **RESPONSE FORMAT (MANDATORY):**
+    Return ONLY a JSON object with no additional text:
+    
+    {{
+      "button_presses": ["up"],
+      "current_step": "1_approach_nurse",
+      "reasoning": "moving_toward_healing_counter", 
+      "progress": "approaching_nurse_joy",
+      "next_action": "continue_moving_up_until_adjacent",
+      "confidence": "high"
+    }}
+    
+    **EFFICIENCY RULES:**
+    - Maximum 2 button presses per turn
+    - Focus on direct path to Nurse Joy
+    - Recognize dialogue states to avoid getting stuck
+    - Exit immediately after healing completes
+    - If stuck in same position, try "a" to interact
+  variables:
+  - task
+  version: '1.0'
