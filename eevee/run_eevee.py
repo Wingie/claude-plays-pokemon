@@ -1741,6 +1741,9 @@ Use the pokemon_controller tool with your chosen button sequence."""
             # Run AI-powered analysis and template improvement
             improvement_result = self._run_ai_powered_review(recent_turns)
             
+            # NEW: Goal-oriented planning analysis
+            goal_planning_result = self._run_goal_oriented_planning_review(recent_turns, current_turn)
+            
             if improvement_result["success"]:
                 changes_applied = improvement_result["changes_applied"]
                 
@@ -2591,6 +2594,265 @@ Return ONLY the improved template content, ready to replace the current template
         except Exception as e:
             print(f"WARNING: Failed to log learning event: {e}")
     
+
+    def _run_goal_oriented_planning_review(self, recent_turns: List[Dict], current_turn: int) -> Dict[str, Any]:
+        """
+        Analyze recent turns and update goal hierarchy for autonomous planning
+        
+        This is the core of the goal-oriented planning system:
+        1. Analyze progress toward current goal
+        2. Determine if goal should be updated/replanned  
+        3. Generate updated okr.json with current active goal
+        4. Feed goal context into prompt templates for next turns
+        """
+        try:
+            print(f"🎯 GOAL-ORIENTED PLANNING: Analyzing progress toward '{self.session.goal}'")
+            
+            # Import TaskExecutor for goal decomposition
+            from task_executor import TaskExecutor, Goal, GoalHierarchy
+            
+            # Create or get TaskExecutor
+            if not hasattr(self.eevee, 'task_executor'):
+                self.eevee.task_executor = TaskExecutor(self.eevee)
+            
+            task_executor = self.eevee.task_executor
+            
+            # Analyze recent turns for goal progress using AI
+            progress_analysis = self._analyze_goal_progress_with_ai(recent_turns, self.session.goal)
+            
+            if not progress_analysis["success"]:
+                print(f"⚠️ Goal progress analysis failed: {progress_analysis.get('error', 'Unknown error')}")
+                return {"success": False, "error": "Goal progress analysis failed"}
+            
+            # Determine if goal hierarchy needs updating
+            needs_replanning = progress_analysis.get("needs_replanning", False)
+            current_goal_status = progress_analysis.get("goal_status", "in_progress")
+            
+            print(f"📊 Goal Progress Analysis:")
+            print(f"   Current Status: {current_goal_status}")
+            print(f"   Progress Score: {progress_analysis.get('progress_score', 0)}/10")
+            print(f"   Needs Replanning: {needs_replanning}")
+            
+            # Update or create goal hierarchy
+            if needs_replanning or not task_executor.current_goal_hierarchy:
+                print(f"🔄 Updating goal hierarchy for: '{self.session.goal}'")
+                
+                # Use TaskExecutor to decompose goal
+                execution_plan = task_executor._create_plan_from_task(self.session.goal)
+                
+                if execution_plan and task_executor.current_goal_hierarchy:
+                    goal_hierarchy = task_executor.current_goal_hierarchy
+                    
+                    # Update goal progress based on analysis
+                    self._update_goal_progress(goal_hierarchy, progress_analysis)
+                    
+                    # Generate okr.json for AI context
+                    okr_result = self._generate_okr_json(goal_hierarchy, progress_analysis)
+                    
+                    if okr_result["success"]:
+                        print(f"✅ Goal hierarchy updated - Active: {okr_result['active_goal_name']}")
+                        print(f"   Next Actions: {okr_result['next_actions']}")
+                        return {
+                            "success": True,
+                            "goal_hierarchy_updated": True,
+                            "active_goal": okr_result['active_goal_name'],
+                            "okr_file_path": okr_result['okr_file_path']
+                        }
+                    else:
+                        print(f"❌ Failed to generate okr.json: {okr_result.get('error')}")
+                else:
+                    print(f"❌ Failed to create goal hierarchy from task: '{self.session.goal}'")
+            else:
+                print(f"✅ Goal hierarchy is current - continuing with existing plan")
+            
+            return {
+                "success": True,
+                "goal_hierarchy_updated": False,
+                "progress_analysis": progress_analysis
+            }
+            
+        except Exception as e:
+            print(f"❌ Goal-oriented planning review failed: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def _analyze_goal_progress_with_ai(self, recent_turns: List[Dict], session_goal: str) -> Dict[str, Any]:
+        """Use AI to analyze progress toward current session goal"""
+        try:
+            # Build analysis prompt
+            turns_summary = []
+            for i, turn in enumerate(recent_turns[-5:], 1):  # Last 5 turns
+                ai_analysis = turn.get('ai_analysis', {})
+                if isinstance(ai_analysis, dict):
+                    reasoning = ai_analysis.get('reasoning', 'Unknown')
+                    observations = ai_analysis.get('observations', 'Unknown')
+                else:
+                    reasoning = str(ai_analysis)[:100] + "..."
+                    observations = "Legacy format"
+                
+                turns_summary.append(f"Turn {i}: {reasoning} | Obs: {observations}")
+            
+            analysis_prompt = f"""
+**POKEMON GOAL PROGRESS ANALYSIS**
+
+**Session Goal**: {session_goal}
+
+**Recent Activity** (last {len(recent_turns)} turns):
+{chr(10).join(turns_summary)}
+
+**ANALYSIS REQUIRED**:
+Please analyze if the AI is making progress toward the goal "{session_goal}".
+
+**RESPONSE FORMAT** (JSON only):
+{{
+  "goal_status": "in_progress|completed|failed|blocked",
+  "progress_score": 7,
+  "progress_description": "AI is exploring Pewter City and looking for gym building",
+  "needs_replanning": false,
+  "issues_detected": ["stuck_in_loop", "wrong_direction"],
+  "next_recommended_actions": ["continue_exploration", "try_different_direction"],
+  "estimated_turns_to_completion": 15
+}}
+
+**KEY CONSIDERATIONS**:
+- Is the AI making visual progress toward the goal?
+- Are there signs of being stuck or repeating actions?
+- Has the goal been achieved or become impossible?
+- Should the goal be broken down into smaller subtasks?
+
+Respond with valid JSON only.
+"""
+            
+            # Call AI for analysis
+            from llm_api import call_llm
+            
+            llm_response = call_llm(
+                prompt=analysis_prompt,
+                provider="mistral",  # Use Mistral for strategic analysis
+                max_tokens=500
+            )
+            
+            if llm_response.error:
+                return {"success": False, "error": f"LLM error: {llm_response.error}"}
+            
+            # Parse JSON response
+            response_text = llm_response.text.strip()
+            
+            # Extract JSON from response
+            try:
+                import re
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group()
+                    analysis_result = json.loads(json_str)
+                    
+                    # Validate required fields
+                    required_fields = ["goal_status", "progress_score", "needs_replanning"]
+                    if all(field in analysis_result for field in required_fields):
+                        return {
+                            "success": True,
+                            **analysis_result
+                        }
+                    else:
+                        return {"success": False, "error": "Missing required fields in AI response"}
+                else:
+                    return {"success": False, "error": "No JSON found in AI response"}
+                    
+            except json.JSONDecodeError as e:
+                return {"success": False, "error": f"JSON parsing failed: {e}"}
+            
+        except Exception as e:
+            return {"success": False, "error": f"Goal progress analysis error: {e}"}
+    
+    def _update_goal_progress(self, goal_hierarchy, progress_analysis):
+        """Update goal hierarchy based on progress analysis"""
+        try:
+            current_goal = goal_hierarchy.get_current_goal()
+            if current_goal:
+                # Update progress percentage
+                progress_score = progress_analysis.get("progress_score", 0)
+                current_goal.progress_percentage = min(100.0, progress_score * 10)  # Convert 0-10 to 0-100
+                
+                # Update status if needed
+                goal_status = progress_analysis.get("goal_status", "in_progress")
+                from task_executor import GoalStatus
+                
+                if goal_status == "completed":
+                    current_goal.status = GoalStatus.COMPLETED
+                elif goal_status == "failed":
+                    current_goal.status = GoalStatus.FAILED
+                elif goal_status == "blocked":
+                    current_goal.status = GoalStatus.BLOCKED
+                else:
+                    current_goal.status = GoalStatus.IN_PROGRESS
+                
+                # Update timestamp
+                current_goal.updated_at = datetime.now().isoformat()
+                
+        except Exception as e:
+            print(f"⚠️ Failed to update goal progress: {e}")
+    
+    def _generate_okr_json(self, goal_hierarchy, progress_analysis) -> Dict[str, Any]:
+        """Generate okr.json file with current goal state for AI context"""
+        try:
+            current_goal = goal_hierarchy.get_current_goal()
+            
+            if not current_goal:
+                return {"success": False, "error": "No active goal found"}
+            
+            # Create okr.json data structure
+            okr_data = {
+                "meta": {
+                    "updated_at": datetime.now().isoformat(),
+                    "session_id": self.session.session_id,
+                    "source": "goal_oriented_planning_system"
+                },
+                "session_goal": self.session.goal,
+                "current_goal": {
+                    "id": current_goal.id,
+                    "name": current_goal.name,
+                    "description": current_goal.description,
+                    "status": current_goal.status.value,
+                    "priority": current_goal.priority,
+                    "progress_percentage": current_goal.progress_percentage,
+                    "estimated_turns": current_goal.estimated_turns,
+                    "attempts": current_goal.attempts,
+                    "turns_spent": current_goal.turns_spent
+                },
+                "goal_hierarchy": {
+                    "root_goal": {
+                        "id": goal_hierarchy.root_goal.id,
+                        "name": goal_hierarchy.root_goal.name,
+                        "description": goal_hierarchy.root_goal.description,
+                        "children": [child.id for child in goal_hierarchy.root_goal.children]
+                    },
+                    "total_goals": goal_hierarchy.total_goals,
+                    "completed_goals": len(goal_hierarchy.completed_goals),
+                    "failed_goals": len(goal_hierarchy.failed_goals)
+                },
+                "progress_analysis": {
+                    "progress_score": progress_analysis.get("progress_score", 0),
+                    "progress_description": progress_analysis.get("progress_description", ""),
+                    "issues_detected": progress_analysis.get("issues_detected", []),
+                    "next_recommended_actions": progress_analysis.get("next_recommended_actions", []),
+                    "estimated_turns_to_completion": progress_analysis.get("estimated_turns_to_completion", 10)
+                }
+            }
+            
+            # Save okr.json file 
+            okr_file_path = Path("okr.json")  # Save in current directory
+            with open(okr_file_path, 'w') as f:
+                json.dump(okr_data, f, indent=2)
+            
+            return {
+                "success": True,
+                "okr_file_path": str(okr_file_path),
+                "active_goal_name": current_goal.name,
+                "next_actions": progress_analysis.get("next_recommended_actions", [])
+            }
+            
+        except Exception as e:
+            return {"success": False, "error": f"Failed to generate okr.json: {e}"}
+
 
 def parse_arguments():
     """Parse command line arguments for Eevee v1"""

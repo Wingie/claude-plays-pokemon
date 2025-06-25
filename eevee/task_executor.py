@@ -1,6 +1,11 @@
 """
 TaskExecutor - Multi-step Task Execution Engine for Eevee
 Handles complex task decomposition, execution planning, and step-by-step task completion
+
+Enhanced with Goal-Oriented Planning System:
+- Hierarchical goal decomposition (Goal → Task → Action) 
+- Autonomous goal discovery and navigation
+- Dynamic replanning based on progress
 """
 
 import time
@@ -9,6 +14,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 from enum import Enum
 from pathlib import Path
+from dataclasses import dataclass, field, asdict
 
 class StepStatus(Enum):
     """Status of individual execution steps"""
@@ -25,6 +31,130 @@ class TaskComplexity(Enum):
     COMPLEX = "complex"      # 6-10 steps, multiple menus
     ADVANCED = "advanced"    # 10+ steps, complex strategy
 
+class GoalStatus(Enum):
+    """Goal execution states"""
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    BLOCKED = "blocked"
+    DEFERRED = "deferred"
+
+@dataclass
+class Goal:
+    """
+    Goal data structure for hierarchical planning
+    
+    Represents a single goal in the 3-level hierarchy:
+    - Goal: High-level objective (e.g., "defeat brock")
+    - Task: Mid-level action (e.g., "find pewter gym") 
+    - Action: Low-level step (e.g., "press up to move north")
+    """
+    id: str
+    name: str
+    description: str
+    status: GoalStatus = GoalStatus.PENDING
+    priority: int = 5  # 1-10 scale, 10 = highest
+    
+    # Hierarchy
+    parent_id: Optional[str] = None
+    children: List['Goal'] = field(default_factory=list)
+    prerequisites: List[str] = field(default_factory=list)
+    
+    # Progress tracking
+    progress_percentage: float = 0.0
+    attempts: int = 0
+    turns_spent: int = 0
+    estimated_turns: int = 10
+    
+    # Context requirements for execution
+    context_requirements: List[str] = field(default_factory=list)
+    
+    # Success/failure criteria
+    success_criteria: Dict[str, Any] = field(default_factory=dict)
+    failure_conditions: Dict[str, Any] = field(default_factory=dict)
+    
+    # Timestamps
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
+
+@dataclass
+class GoalHierarchy:
+    """
+    Manages hierarchical goal structure for autonomous planning
+    """
+    root_goal: Goal
+    active_goal: Optional[Goal] = None
+    completed_goals: List[Goal] = field(default_factory=list)
+    failed_goals: List[Goal] = field(default_factory=list)
+    total_goals: int = 0
+    
+    def get_current_goal(self) -> Optional[Goal]:
+        """Get the current goal that should be executed"""
+        return self.active_goal or self.root_goal
+    
+    def mark_goal_completed(self, goal_id: str):
+        """Mark a goal as completed and update hierarchy"""
+        goal = self.find_goal_by_id(goal_id)
+        if goal:
+            goal.status = GoalStatus.COMPLETED
+            goal.progress_percentage = 100.0
+            goal.updated_at = datetime.now().isoformat()
+            self.completed_goals.append(goal)
+            
+            # Find next goal to activate
+            self._activate_next_goal()
+    
+    def find_goal_by_id(self, goal_id: str) -> Optional[Goal]:
+        """Find goal by ID in the hierarchy"""
+        return self._search_goal_tree(self.root_goal, goal_id)
+    
+    def _search_goal_tree(self, goal: Goal, target_id: str) -> Optional[Goal]:
+        """Recursively search goal tree for target ID"""
+        if goal.id == target_id:
+            return goal
+        
+        for child in goal.children:
+            result = self._search_goal_tree(child, target_id)
+            if result:
+                return result
+        
+        return None
+    
+    def _activate_next_goal(self):
+        """Find and activate the next goal to work on"""
+        # Simple strategy: find first pending goal with highest priority
+        next_goal = self._find_next_actionable_goal(self.root_goal)
+        if next_goal:
+            if self.active_goal:
+                self.active_goal.status = GoalStatus.PENDING
+            
+            next_goal.status = GoalStatus.IN_PROGRESS
+            self.active_goal = next_goal
+    
+    def _find_next_actionable_goal(self, goal: Goal) -> Optional[Goal]:
+        """Find next actionable goal (no unmet prerequisites)"""
+        # Check if current goal is actionable
+        if (goal.status == GoalStatus.PENDING and 
+            self._prerequisites_met(goal)):
+            return goal
+        
+        # Check children (depth-first search for next actionable goal)
+        for child in sorted(goal.children, key=lambda g: g.priority, reverse=True):
+            result = self._find_next_actionable_goal(child)
+            if result:
+                return result
+        
+        return None
+    
+    def _prerequisites_met(self, goal: Goal) -> bool:
+        """Check if goal's prerequisites are met"""
+        for prereq_id in goal.prerequisites:
+            prereq_goal = self.find_goal_by_id(prereq_id)
+            if not prereq_goal or prereq_goal.status != GoalStatus.COMPLETED:
+                return False
+        return True
+
 class TaskExecutor:
     """Advanced task execution engine with multi-step planning and execution"""
     
@@ -38,6 +168,10 @@ class TaskExecutor:
         self.agent = eevee_agent
         self.current_execution = None
         self.step_history = []
+        
+        # Goal-oriented planning
+        self.current_goal_hierarchy: Optional[GoalHierarchy] = None
+        self.goal_templates = self._load_goal_templates()
         
         # Execution configuration
         self.max_retries_per_step = 3
@@ -96,77 +230,283 @@ class TaskExecutor:
     
     def _create_plan_from_task(self, task: str) -> Dict[str, Any]:
         """
-        Convert task string to execution plan using AI analysis
+        Convert task string to execution plan using goal-oriented decomposition
         
         Args:
-            task: Task description string
+            task: Task description string (e.g., "defeat brock", "find pewter gym")
             
         Returns:
-            Structured execution plan dictionary
+            Structured execution plan dictionary with goal hierarchy
         """
         try:
-            # For simple test tasks, create minimal plan
-            if "test" in task.lower() and "memory" in task.lower():
-                return {
-                    "task": task,
-                    "complexity": "simple",
-                    "estimated_steps": 1,
-                    "steps": [
-                        {
-                            "description": "Test compact memory functionality",
-                            "action_type": "test",
-                            "expected_outcome": "Memory test success"
-                        }
-                    ]
-                }
+            if self.agent.verbose:
+                print(f"🧠 Decomposing goal: '{task}' into actionable hierarchy")
             
-            # Use task_analysis template for complex tasks
-            if hasattr(self.agent, 'prompt_manager'):
-                context_summary = "Testing task execution system"
-                memory_context = "No prior memory context"
-                
-                # Get task analysis from AI
-                response = self.agent.get_ai_response(
-                    template_name="task_analysis",
-                    task=task,
-                    context_summary=context_summary,
-                    memory_context=memory_context
-                )
-                
-                # Extract plan from AI response
-                if response and response.get("success"):
-                    # For now, create simple plan - can enhance later
-                    return {
-                        "task": task,
-                        "complexity": "simple", 
-                        "estimated_steps": 1,
-                        "steps": [
-                            {
-                                "description": f"Execute task: {task}",
-                                "action_type": "general",
-                                "expected_outcome": "Task completion"
-                            }
-                        ]
-                    }
+            # Create goal hierarchy from task description
+            goal_hierarchy = self._decompose_task_into_goals(task)
             
-            # Fallback plan
-            return {
-                "task": task,
-                "complexity": "simple",
-                "estimated_steps": 1,
-                "steps": [
-                    {
-                        "description": f"Execute task: {task}",
-                        "action_type": "general", 
-                        "expected_outcome": "Task completion"
-                    }
-                ]
-            }
+            if not goal_hierarchy:
+                # Fallback to simple execution plan
+                return self._create_simple_execution_plan(task)
+            
+            # Set current goal hierarchy
+            self.current_goal_hierarchy = goal_hierarchy
+            
+            # Convert goal hierarchy to execution plan format
+            execution_plan = self._convert_goals_to_execution_plan(goal_hierarchy)
+            
+            if self.agent.verbose:
+                current_goal = goal_hierarchy.get_current_goal()
+                print(f"🎯 Active goal: {current_goal.name if current_goal else 'None'}")
+                print(f"📊 Goal hierarchy created with {len(goal_hierarchy.root_goal.children)} subtasks")
+            
+            return execution_plan
             
         except Exception as e:
             if self.agent.verbose:
-                print(f"❌ Plan creation failed: {e}")
+                print(f"❌ Goal decomposition failed: {e}")
+            return self._create_simple_execution_plan(task)
+    
+    def _decompose_task_into_goals(self, task: str) -> Optional[GoalHierarchy]:
+        """
+        Use AI to decompose high-level task into goal hierarchy
+        
+        Args:
+            task: High-level task description
+            
+        Returns:
+            GoalHierarchy with decomposed goals, or None if decomposition fails
+        """
+        try:
+            # Check for common Pokemon goal patterns first
+            if self._is_pokemon_battle_goal(task):
+                return self._create_battle_goal_hierarchy(task)
+            elif self._is_navigation_goal(task):
+                return self._create_navigation_goal_hierarchy(task)
+            
+            # Use AI for complex goal decomposition
+            return self._ai_decompose_goal(task)
+            
+        except Exception as e:
+            if self.agent.verbose:
+                print(f"⚠️ Goal decomposition error: {e}")
             return None
+    
+    def _is_pokemon_battle_goal(self, task: str) -> bool:
+        """Check if task is a Pokemon battle goal"""
+        battle_keywords = ["defeat", "battle", "fight", "beat", "brock", "gym", "leader", "trainer"]
+        return any(keyword in task.lower() for keyword in battle_keywords)
+    
+    def _is_navigation_goal(self, task: str) -> bool:
+        """Check if task is a navigation/location goal"""
+        nav_keywords = ["find", "go to", "navigate", "reach", "enter", "gym", "center", "city", "route"]
+        return any(keyword in task.lower() for keyword in nav_keywords)
+    
+    def _create_battle_goal_hierarchy(self, task: str) -> GoalHierarchy:
+        """Create goal hierarchy for Pokemon battle tasks (e.g., 'defeat brock')"""
+        task_lower = task.lower()
+        
+        # Extract target from task
+        if "brock" in task_lower:
+            target = "Brock"
+            location = "Pewter City Gym"
+        else:
+            target = "Gym Leader"
+            location = "Gym"
+        
+        # Create root goal
+        root_goal = Goal(
+            id="defeat_" + target.lower().replace(" ", "_"),
+            name=f"Defeat {target}",
+            description=task,
+            priority=10,
+            estimated_turns=50,
+            success_criteria={"gym_badge_obtained": True}
+        )
+        
+        # Create subtask goals
+        find_gym_goal = Goal(
+            id="find_" + location.lower().replace(" ", "_"),
+            name=f"Find {location}",
+            description=f"Navigate to and locate {location}",
+            parent_id=root_goal.id,
+            priority=9,
+            estimated_turns=20,
+            success_criteria={"gym_entrance_found": True}
+        )
+        
+        prepare_team_goal = Goal(
+            id="prepare_team",
+            name="Prepare Pokemon Team",
+            description="Ensure team is ready for battle (healing, levels, type advantages)",
+            parent_id=root_goal.id,
+            priority=8,
+            estimated_turns=15,
+            prerequisites=[find_gym_goal.id],
+            success_criteria={"team_health_full": True, "team_ready": True}
+        )
+        
+        battle_goal = Goal(
+            id="battle_" + target.lower().replace(" ", "_"),
+            name=f"Battle {target}",
+            description=f"Enter gym and battle {target} to completion",
+            parent_id=root_goal.id,
+            priority=10,
+            estimated_turns=15,
+            prerequisites=[find_gym_goal.id, prepare_team_goal.id],
+            success_criteria={"battle_won": True}
+        )
+        
+        # Build hierarchy
+        root_goal.children = [find_gym_goal, prepare_team_goal, battle_goal]
+        
+        # Create goal hierarchy
+        hierarchy = GoalHierarchy(root_goal=root_goal)
+        hierarchy.total_goals = 4
+        
+        # Activate first goal
+        find_gym_goal.status = GoalStatus.IN_PROGRESS
+        hierarchy.active_goal = find_gym_goal
+        
+        return hierarchy
+    
+    def _create_navigation_goal_hierarchy(self, task: str) -> GoalHierarchy:
+        """Create goal hierarchy for navigation tasks (e.g., 'find pewter gym')"""
+        task_lower = task.lower()
+        
+        # Extract location from task
+        if "gym" in task_lower:
+            if "pewter" in task_lower:
+                location = "Pewter City Gym"
+            else:
+                location = "Gym"
+        elif "center" in task_lower:
+            location = "Pokemon Center"
+        else:
+            location = "Target Location"
+        
+        # Create root goal
+        root_goal = Goal(
+            id="navigate_to_" + location.lower().replace(" ", "_"),
+            name=f"Navigate to {location}",
+            description=task,
+            priority=9,
+            estimated_turns=25,
+            success_criteria={"location_reached": True}
+        )
+        
+        # Create subtask goals
+        explore_goal = Goal(
+            id="explore_area",
+            name="Explore Current Area",
+            description="Look around current area to understand layout and find target",
+            parent_id=root_goal.id,
+            priority=8,
+            estimated_turns=10,
+            success_criteria={"area_explored": True}
+        )
+        
+        navigate_goal = Goal(
+            id="navigate_to_target",
+            name="Navigate to Target",
+            description=f"Move toward {location} once location is identified",
+            parent_id=root_goal.id,
+            priority=9,
+            estimated_turns=15,
+            prerequisites=[explore_goal.id],
+            success_criteria={"target_reached": True}
+        )
+        
+        # Build hierarchy
+        root_goal.children = [explore_goal, navigate_goal]
+        
+        # Create goal hierarchy
+        hierarchy = GoalHierarchy(root_goal=root_goal)
+        hierarchy.total_goals = 3
+        
+        # Activate first goal
+        explore_goal.status = GoalStatus.IN_PROGRESS
+        hierarchy.active_goal = explore_goal
+        
+        return hierarchy
+    
+    def _ai_decompose_goal(self, task: str) -> Optional[GoalHierarchy]:
+        """Use AI to decompose complex or unknown goal types"""
+        # This is where we could use the LLM to analyze and decompose arbitrary goals
+        # For now, create a simple general hierarchy
+        
+        root_goal = Goal(
+            id="general_task",
+            name=task,
+            description=f"Complete general task: {task}",
+            priority=8,
+            estimated_turns=20,
+            success_criteria={"task_completed": True}
+        )
+        
+        # Single-goal hierarchy for general tasks
+        hierarchy = GoalHierarchy(root_goal=root_goal)
+        hierarchy.total_goals = 1
+        hierarchy.active_goal = root_goal
+        root_goal.status = GoalStatus.IN_PROGRESS
+        
+        return hierarchy
+    
+    def _convert_goals_to_execution_plan(self, goal_hierarchy: GoalHierarchy) -> Dict[str, Any]:
+        """Convert goal hierarchy to execution plan format"""
+        current_goal = goal_hierarchy.get_current_goal()
+        
+        if not current_goal:
+            return self._create_simple_execution_plan("No active goal")
+        
+        return {
+            "task": current_goal.name,
+            "goal_id": current_goal.id,
+            "description": current_goal.description,
+            "complexity": self._estimate_complexity(current_goal),
+            "estimated_steps": max(1, current_goal.estimated_turns // 10),  # Convert turns to steps
+            "goal_hierarchy": asdict(goal_hierarchy.root_goal),
+            "active_goal": asdict(current_goal),
+            "steps": [
+                {
+                    "description": current_goal.description,
+                    "action_type": "goal_oriented_execution",
+                    "goal_context": current_goal.name,
+                    "expected_outcome": "Progress toward goal completion"
+                }
+            ]
+        }
+    
+    def _estimate_complexity(self, goal: Goal) -> str:
+        """Estimate task complexity based on goal characteristics"""
+        if goal.estimated_turns <= 5:
+            return TaskComplexity.SIMPLE.value
+        elif goal.estimated_turns <= 15:
+            return TaskComplexity.MODERATE.value
+        elif goal.estimated_turns <= 30:
+            return TaskComplexity.COMPLEX.value
+        else:
+            return TaskComplexity.ADVANCED.value
+    
+    def _create_simple_execution_plan(self, task: str) -> Dict[str, Any]:
+        """Create simple execution plan for basic tasks"""
+        return {
+            "task": task,
+            "complexity": TaskComplexity.SIMPLE.value,
+            "estimated_steps": 1,
+            "steps": [
+                {
+                    "description": f"Execute task: {task}",
+                    "action_type": "general",
+                    "expected_outcome": "Task completion"
+                }
+            ]
+        }
+    
+    def _load_goal_templates(self) -> Dict[str, Any]:
+        """Load goal templates for common Pokemon scenarios"""
+        # For now, return empty dict. Could load from YAML files later
+        return {}
         
     def execute_plan(self, execution_plan: Dict[str, Any], max_steps: int = 50) -> Dict[str, Any]:
         """

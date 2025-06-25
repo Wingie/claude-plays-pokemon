@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "updated_at": "2025-06-25T20:18:36.489565",
+    "session_id": "20250625_201804",
+    "source": "goal_oriented_planning_system"
+  },
+  "session_goal": "reiview current pokemon status",
+  "current_goal": {
+    "id": "general_task",
+    "name": "reiview current pokemon status",
+    "description": "Complete general task: reiview current pokemon status",
+    "status": "blocked",
+    "priority": 8,
+    "progress_percentage": 0,
+    "estimated_turns": 20,
+    "attempts": 0,
+    "turns_spent": 0
+  },
+  "goal_hierarchy": {
+    "root_goal": {
+      "id": "general_task",
+      "name": "reiview current pokemon status",
+      "description": "Complete general task: reiview current pokemon status",
+      "children": []
+    },
+    "total_goals": 1,
+    "completed_goals": 0,
+    "failed_goals": 0
+  },
+  "progress_analysis": {
+    "progress_score": 0,
+    "progress_description": "The AI has no observable progress or actions in the last 5 turns.",
+    "issues_detected": [
+      "no_observable_actions",
+      "lack_of_progress"
+    ],
+    "next_recommended_actions": [
+      "redefine_goal",
+      "start_initial_review"
+    ],
+    "estimated_turns_to_completion": null
+  }
+}
