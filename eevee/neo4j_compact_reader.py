@@ -119,31 +119,49 @@ class Neo4jCompactReader:
                 elif isinstance(turn["button_presses"], str):
                     action = turn["button_presses"]
             
-            # Extract result/context from gemini_text (first few words)
+            # Extract result/context from gemini_text (battle vs navigation aware)
             result = "moved"
             context = "terrain"
             
             if turn.get("gemini_text"):
                 text = turn["gemini_text"].lower()
-                # Simple keyword extraction for result
-                if "failed" in text or "blocked" in text or "wall" in text:
+                
+                # Battle-specific result detection
+                if "battle" in text or "fight" in text:
+                    context = "battle"
+                    if "super effective" in text:
+                        result = "effective"
+                    elif "not very effective" in text:
+                        result = "weak"
+                    elif "fainted" in text:
+                        result = "ko"
+                    elif "thundershock" in text or "damage" in text:
+                        result = "attacked"
+                    elif "growl" in text or "leer" in text:
+                        result = "status"
+                    else:
+                        result = "battle_action"
+                        
+                # Navigation-specific result detection
+                elif "failed" in text or "blocked" in text or "wall" in text:
                     result = "blocked"
                 elif "moved" in text or "walked" in text:
                     result = "moved"
                 elif "entered" in text:
                     result = "entered"
                 
-                # Simple keyword extraction for context  
-                if "grass" in text:
-                    context = "grass"
-                elif "tree" in text or "forest" in text:
-                    context = "forest"
-                elif "water" in text:
-                    context = "water"
-                elif "path" in text or "route" in text:
-                    context = "path"
-                elif "building" in text or "center" in text:
-                    context = "building"
+                # Context detection (battle takes priority)
+                if context != "battle":
+                    if "grass" in text:
+                        context = "grass"
+                    elif "tree" in text or "forest" in text:
+                        context = "forest"
+                    elif "water" in text:
+                        context = "water"
+                    elif "path" in text or "route" in text:
+                        context = "path"
+                    elif "building" in text or "center" in text:
+                        context = "building"
             
             compact_turns.append({
                 "turn": turn.get("turn_id", 0),
@@ -152,12 +170,33 @@ class Neo4jCompactReader:
                 "context": context
             })
         
-        # Detect simple patterns
+        # Detect patterns (battle vs navigation aware)
         actions = [t["action"] for t in compact_turns]
         results = [t["result"] for t in compact_turns]
+        contexts = [t["context"] for t in compact_turns]
         
         patterns = "exploring"
-        if results.count("blocked") >= 2:
+        
+        # Battle pattern detection
+        if "battle" in contexts:
+            battle_actions = [a for i, a in enumerate(actions) if contexts[i] == "battle"]
+            battle_results = [r for i, r in enumerate(results) if contexts[i] == "battle"]
+            
+            if "effective" in battle_results:
+                patterns = "battle_effective"
+            elif "weak" in battle_results:
+                patterns = "battle_weak"
+            elif "ko" in battle_results:
+                patterns = "battle_victory"
+            elif battle_results.count("status") >= 2:
+                patterns = "battle_wasting_turns"  # Using non-damage moves
+            elif len(set(battle_actions)) == 1 and battle_actions[0] == "a":
+                patterns = "battle_button_mashing"
+            else:
+                patterns = "battle_ongoing"
+                
+        # Navigation pattern detection
+        elif results.count("blocked") >= 2:
             patterns = "hitting_obstacles"
         elif len(set(actions)) == 1:  # All same action
             patterns = f"repeating_{actions[0]}"

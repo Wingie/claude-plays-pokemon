@@ -1610,6 +1610,8 @@ class ContinuousGameplay:
                         print(f"🔍 Using visual analyzer template recommendation: {visual_recommendation}")
                         confidence = movement_data.get('confidence', 'unknown')
                         print(f"   Visual confidence: {confidence}")
+                        print(f"   Scene type detected: {movement_data.get('scene_type', 'unknown')}")
+                        print(f"   DEBUG: movement_data keys: {list(movement_data.keys())}")
                     
                     # Map visual analyzer recommendations to actual templates
                     template_mapping = {
@@ -1662,6 +1664,11 @@ class ContinuousGameplay:
                     # Fallback: Use original context detection when visual analysis unavailable
                     if self.eevee.verbose:
                         print(f"WARNING: No visual template recommendation, using context detection")
+                        print(f"   DEBUG: movement_data is None: {movement_data is None}")
+                        if movement_data:
+                            print(f"   DEBUG: movement_data keys: {list(movement_data.keys())}")
+                            print(f"   DEBUG: 'recommended_template' in movement_data: {'recommended_template' in movement_data}")
+                        print(f"   DEBUG: Falling back to context detection based on memory")
                     
                     # Add fallback values for visual analysis variables that templates may require
                     variables.update({
@@ -1674,6 +1681,13 @@ class ContinuousGameplay:
                     })
                     
                     prompt_type, playbooks = self._determine_prompt_context(memory_context)
+                    
+                    # SAFETY CHECK: Force battle template if scene_type indicates battle
+                    if movement_data and movement_data.get('scene_type') == 'battle':
+                        if self.eevee.verbose:
+                            print(f"🚨 SAFETY OVERRIDE: Detected battle scene, forcing battle template")
+                        prompt_type = "battle_analysis"
+                        playbooks = ["battle"]
                     prompt = prompt_manager.get_prompt(
                         prompt_type, 
                         variables, 

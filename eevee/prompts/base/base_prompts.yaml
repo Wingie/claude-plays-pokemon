@@ -145,6 +145,14 @@ battle_analysis:
     - Escape: ["b"] to back out of menus
     - Combined: ["down", "a"] for move to option and select
     
+    **CRITICAL: CURSOR NAVIGATION FOR MOVE SELECTION:**
+    - If cursor is on GROWL but you want THUNDERSHOCK: use ["down"] or ["right"] to navigate to it
+    - If cursor is on TAIL WHIP but you want THUNDERSHOCK: use ["up"] or ["left"] to navigate to it  
+    - ALWAYS navigate to the correct damage move BEFORE pressing ["a"]
+    - Move layout is typically: GROWL | THUNDERSHOCK
+                                TAIL WHIP | THUNDER WAVE
+    - Use directional buttons to move cursor, then ["a"] to select
+    
     **BATTLE PHASES (Enhanced):**
     - main_menu: Navigate to FIGHT/BAG/POKEMON based on priority
     - move_selection: Choose move based on HP/level analysis
@@ -152,11 +160,26 @@ battle_analysis:
     - battle_text: Press A to advance, analyze results for next decision
     
     **TYPE EFFECTIVENESS (Contextual):**
-    - Electric vs Water/Flying: SUPER EFFECTIVE (2x damage)
+    - Electric vs Water/Flying/Bug: SUPER EFFECTIVE (2x damage) 
     - Water vs Fire/Ground/Rock: SUPER EFFECTIVE (2x damage)
     - Fire vs Grass/Bug/Ice: SUPER EFFECTIVE (2x damage)
+    - Fighting vs Normal: SUPER EFFECTIVE (2x damage)
+    - Psychic vs Poison/Fighting: SUPER EFFECTIVE (2x damage)
     - Normal moves: Neutral but reliable damage
-    - Status moves (GROWL, LEER): Only use if strategic advantage
+    - Status moves (GROWL, LEER, TAIL WHIP): Only use for setup, NOT for damage
+    
+    **DAMAGE MOVE PRIORITIZATION:**
+    - THUNDERSHOCK (Electric): Damage move - prioritize against Water/Flying/Bug types
+    - TACKLE (Normal): Reliable neutral damage move
+    - WATER GUN (Water): Damage move - strong against Fire/Ground/Rock
+    - EMBER (Fire): Damage move - strong against Grass/Bug/Ice
+    - AVOID status moves like GROWL when damage moves available
+    
+    **COMMON SCENARIOS:**
+    - PIKACHU vs METAPOD/CATERPIE: Use THUNDERSHOCK (Electric beats Bug) - navigate cursor away from GROWL
+    - vs PIDGEY/SPEAROW: Use THUNDERSHOCK (Electric beats Flying)
+    - vs MAGIKARP/GOLDEEN: Use THUNDERSHOCK (Electric beats Water)
+    - If low HP vs ANY opponent: Consider switching to BAG for healing first
     
     **VALID BUTTONS:**
     - Movement: "up", "down", "left", "right"
