@@ -1238,114 +1238,7 @@ class ContinuousGameplay:
         
         return summary
     
-    def _determine_prompt_context(self, memory_context: str) -> tuple[str, List[str]]:
-        """
-        Enhanced context detection using memory, recent actions, and goal analysis
-        
-        Args:
-            memory_context: Recent memory/gameplay context
-            
-        Returns:
-            Tuple of (prompt_type, list_of_relevant_playbooks)
-        """
-        context_lower = memory_context.lower()
-        user_goal = self.session.goal.lower()
-        
-        # HIGHEST PRIORITY: Battle detection (most critical for Pokemon gameplay)
-        if self._detect_battle_context(context_lower):
-            prompt_type = "battle_analysis"
-            playbooks = ["battle"]
-            
-            # Enhanced gym battle detection
-            if any(keyword in context_lower for keyword in ["gym", "leader", "badge"]) or \
-               any(keyword in user_goal for keyword in ["gym", "leader", "badge"]):
-                playbooks.append("gyms")
-            
-            return prompt_type, playbooks
-                                
-        # PARTY MANAGEMENT: Pokemon party analysis
-        elif self._detect_party_context(context_lower, user_goal):
-            prompt_type = "pokemon_party_analysis"
-            playbooks = ["battle"]  # Party management uses battle knowledge for moves/types
-            # Continue to goal-based enhancements
-            
-        # INVENTORY MANAGEMENT: Bag and items
-        elif self._detect_inventory_context(context_lower, user_goal):
-            prompt_type = "inventory_analysis" 
-            playbooks = ["services"]  # Inventory management relates to shops/services
-            # Continue to goal-based enhancements
-            
-        # SERVICES: Pokemon Centers, shops, healing
-        elif self._detect_services_context(context_lower, user_goal):
-            prompt_type = "exploration_strategy"
-            playbooks = ["services"]
-            # Continue to goal-based enhancements
-            
-        # NAVIGATION: Movement and exploration (default fallback)
-        else:
-            prompt_type = "exploration_strategy"
-            playbooks = ["navigation"]
-            
-            # Add navigation-specific context detection
-            if any(keyword in context_lower for keyword in ["route", "forest", "cave", "city", "town"]):
-                # Area exploration context
-                pass  # Keep navigation playbook
-            
-        # GOAL-BASED ENHANCEMENTS: Add playbooks based on user goal
-        if "gym" in user_goal and "gyms" not in playbooks:
-            playbooks.append("gyms")
-        elif any(keyword in user_goal for keyword in ["heal", "center", "shop"]) and "services" not in playbooks:
-            playbooks.append("services")
-        elif any(keyword in user_goal for keyword in ["party", "pokemon", "level", "moves"]) and "battle" not in playbooks:
-            playbooks.append("battle")
-            
-        return prompt_type, playbooks
-    
-    def _detect_battle_context(self, context_lower: str) -> bool:
-        """Detect if currently in a Pokemon battle"""
-        # Specific battle UI indicators
-        battle_ui_keywords = [
-            "wild", "trainer", "battle", "fainted", "defeated",
-            "caterpie", "pidgey", "rattata", "weedle", "kakuna", "metapod",  # Common wild Pokemon
-            "brock", "misty", "surge", "erika", "sabrina", "koga", "blaine", "giovanni",  # Gym leaders
-        ]
-        
-        # Battle menu and action keywords
-        battle_action_keywords = [
-            "fight", "bag", "pokemon", "run",  # Main battle menu
-            "growl", "tackle", "scratch", "thundershock", "water gun", "ember",  # Common moves
-            "hp", "pp", "attack", "defense", "speed", "special",  # Battle stats
-            "super effective", "not very effective", "critical hit",  # Battle messages
-        ]
-        
-        # Look for any battle-related keywords
-        all_battle_keywords = battle_ui_keywords + battle_action_keywords
-        return any(keyword in context_lower for keyword in all_battle_keywords)
-    
-    def _detect_party_context(self, context_lower: str, user_goal: str) -> bool:
-        """Detect Pokemon party management tasks"""
-        party_keywords = ["party", "pokemon", "level", "moves", "pp", "health", "status", "healing"]
-        goal_keywords = ["check", "report", "show", "analyze", "party"]
-        
-        return any(keyword in context_lower for keyword in party_keywords) or \
-               any(keyword in user_goal.lower() for keyword in goal_keywords)
-    
-    def _detect_inventory_context(self, context_lower: str, user_goal: str) -> bool:
-        """Detect inventory/bag management tasks"""
-        inventory_keywords = ["bag", "items", "inventory", "potion", "ball", "healing", "repel"]
-        goal_keywords = ["items", "bag", "inventory", "check items", "healing items"]
-        
-        return any(keyword in context_lower for keyword in inventory_keywords) or \
-               any(keyword in user_goal.lower() for keyword in goal_keywords)
-    
-    def _detect_services_context(self, context_lower: str, user_goal: str) -> bool:
-        """Detect Pokemon Center, shop, or service interactions"""
-        service_keywords = ["pokemon center", "healing", "shop", "buy", "sell", "nurse", "mart", "pokemart"]
-        goal_keywords = ["heal", "center", "shop", "buy", "nurse"]
-        
-        return any(keyword in context_lower for keyword in service_keywords) or \
-               any(keyword in user_goal.lower() for keyword in goal_keywords)
-    
+
     # 🧠 NEW AI-DIRECTED CONTEXT DETECTION METHODS
     
     def _determine_ai_context(self, memory_context: str, recent_actions: List[str] = None) -> tuple[str, Dict[str, Any]]:
@@ -1603,47 +1496,29 @@ class ContinuousGameplay:
                 # OPTIMIZATION: Use visual context analyzer's template recommendation directly
                 # This eliminates the redundant AI selection call and saves LLM tokens
                 if movement_data and 'recommended_template' in movement_data:
-                    # Use the template recommended by visual context analyzer
-                    visual_recommendation = movement_data['recommended_template']
+                    # SIMPLIFIED: Use Gemini's template recommendation directly - no complex mapping!
+                    prompt_type = movement_data['recommended_template']
+                    
+                    # Simple playbook selection based on template
+                    playbook = "battle" if prompt_type == "battle_analysis" else "navigation"
                     
                     if self.eevee.verbose:
-                        print(f"🔍 Using visual analyzer template recommendation: {visual_recommendation}")
-                        confidence = movement_data.get('confidence', 'unknown')
-                        print(f"   Visual confidence: {confidence}")
-                        print(f"   Scene type detected: {movement_data.get('scene_type', 'unknown')}")
-                        print(f"   DEBUG: movement_data keys: {list(movement_data.keys())}")
+                        print(f"✅ DIRECT TEMPLATE SELECTION: {prompt_type}")
+                        print(f"   Scene: {movement_data.get('scene_type', 'unknown')}")
+                        print(f"   Confidence: {movement_data.get('confidence', 'unknown')}")
+                        print(f"   Playbook: {playbook}")
                     
-                    # Map visual analyzer recommendations to actual templates
-                    template_mapping = {
-                        "ai_directed_battle": "battle_analysis",
-                        "ai_directed_navigation": "exploration_strategy",
-                        "ai_directed_maze": "exploration_strategy", 
-                        "ai_directed_emergency": "stuck_recovery"
-                    }
-                    
-                    # Use mapped template or fallback to exploration_strategy
-                    prompt_type = template_mapping.get(visual_recommendation, "exploration_strategy")
-                    
-                    # Determine appropriate playbook based on template
-                    playbook_mapping = {
-                        "battle_analysis": "battle",
-                        "exploration_strategy": "navigation", 
-                        "stuck_recovery": "navigation"
-                    }
-                    playbook = playbook_mapping.get(prompt_type, "navigation")
-                    
-                    # Add spatial context variables from visual analysis
+                    # Add visual context variables
                     variables.update({
                         "scene_type": movement_data.get("scene_type", "unknown"),
                         "spatial_context": movement_data.get("spatial_context", ""),
                         "character_position": movement_data.get("character_position", ""),
                         "visual_description": movement_data.get("visual_description", ""),
                         "valid_movements": movement_data.get("valid_movements", []),
-                        "confidence": movement_data.get("confidence", "unknown"),
-                        "pixtral_analysis": movement_data.get("raw_pixtral_response", "Visual analysis complete")
+                        "confidence": movement_data.get("confidence", "unknown")
                     })
                     
-                    # Generate prompt with visual intelligence data
+                    # Generate prompt - simple and direct
                     prompt = prompt_manager.get_prompt(
                         prompt_type, 
                         variables, 
@@ -1651,59 +1526,38 @@ class ContinuousGameplay:
                         verbose=True
                     )
                     
-                    using_ai_directed = False
                     template_used = prompt_type
-                    template_version = prompt_manager.base_prompts[prompt_type].get('version', 'visual_optimized')
+                    template_version = prompt_manager.base_prompts[prompt_type].get('version', 'direct_selection')
                     playbooks = [playbook]
-                    
-                    if self.eevee.verbose:
-                        print(f"✅ TOKEN OPTIMIZATION: Skipped redundant AI selection call")
-                        print(f"📖 Using template: {prompt_type} with playbook: {playbook}")
                 
                 else:
-                    # Fallback: Use original context detection when visual analysis unavailable
+                    # SIMPLIFIED FALLBACK: Just use exploration_strategy when visual analysis unavailable
                     if self.eevee.verbose:
-                        print(f"WARNING: No visual template recommendation, using context detection")
-                        print(f"   DEBUG: movement_data is None: {movement_data is None}")
-                        if movement_data:
-                            print(f"   DEBUG: movement_data keys: {list(movement_data.keys())}")
-                            print(f"   DEBUG: 'recommended_template' in movement_data: {'recommended_template' in movement_data}")
-                        print(f"   DEBUG: Falling back to context detection based on memory")
+                        print(f"⚠️ No visual recommendation available, using default template")
                     
-                    # Add fallback values for visual analysis variables that templates may require
+                    prompt_type = "exploration_strategy"
+                    playbook = "navigation"
+                    
+                    # Add fallback values
                     variables.update({
                         "scene_type": "navigation",
-                        "spatial_context": "Visual analysis unavailable - using fallback navigation",
-                        "character_position": "unknown",
-                        "visual_description": "No visual analysis data available",
+                        "spatial_context": "Visual analysis unavailable",
+                        "character_position": "unknown", 
+                        "visual_description": "No visual analysis data",
                         "valid_movements": ["up", "down", "left", "right"],
                         "confidence": "low"
                     })
                     
-                    prompt_type, playbooks = self._determine_prompt_context(memory_context)
-                    
-                    # SAFETY CHECK: Force battle template if scene_type indicates battle
-                    if movement_data and movement_data.get('scene_type') == 'battle':
-                        if self.eevee.verbose:
-                            print(f"🚨 SAFETY OVERRIDE: Detected battle scene, forcing battle template")
-                        prompt_type = "battle_analysis"
-                        playbooks = ["battle"]
                     prompt = prompt_manager.get_prompt(
                         prompt_type, 
                         variables, 
-                        include_playbook=playbooks[0] if playbooks else None,
+                        include_playbook=playbook,
                         verbose=True
                     )
-                    using_ai_directed = False
-                    template_used = prompt_type
-                    template_version = prompt_manager.base_prompts[prompt_type].get('version', 'context_detection')
                     
-                    # Add additional playbook context if multiple playbooks are relevant
-                    if len(playbooks) > 1:
-                        for additional_playbook in playbooks[1:]:
-                            if additional_playbook in prompt_manager.playbooks:
-                                prompt += f"\n\n## Additional Knowledge from {additional_playbook.title()}:\n"
-                                prompt += prompt_manager.playbooks[additional_playbook]
+                    template_used = prompt_type
+                    template_version = prompt_manager.base_prompts[prompt_type].get('version', 'fallback')
+                    playbooks = [playbook]
                 
                 # Add OKR context if enabled
                 okr_context = ""

@@ -885,286 +885,36 @@ Be specific about moves, types, and strategic recommendations.""",
             Formatted AI-directed prompt
         """
         
-        # Prepare initial variables FIRST (needed for auto_select template choice)
-        variables = {
-            "task": task,
-            "recent_actions": str(recent_actions or []),
-            "memory_context": memory_context,  # Pass actual memory context for AI selection
-            "escalation_level": escalation_level
-        }
+        # SIMPLIFIED: Direct template usage with variables and optional playbook
+        variables = variables or {}
         
-        # Add movement validation data from visual analysis (Pixtral)
-        if movement_data and "raw_pixtral_response" in movement_data:
-            # Pass raw Pixtral response to AI for natural analysis
-            variables["pixtral_analysis"] = movement_data["raw_pixtral_response"]
-        else:
-            variables["pixtral_analysis"] = "No visual analysis available"
+        # Check if template exists
+        if prompt_type not in self.base_prompts:
+            if verbose:
+                print(f"⚠️ Template '{prompt_type}' not found, using exploration_strategy")
+            prompt_type = "exploration_strategy"
         
-        # Initialize playbook_to_include with safe default
-        playbook_to_include = "navigation"
+        # Get the template
+        template = self.base_prompts[prompt_type]["template"]
         
-        # Use active template if set, otherwise select based on context
-        if self.active_template:
-            template_name = self.active_template
-        else:
-            # Handle AI auto-selection based on memory context
-            if context_type == "auto_select":
-                # Use retry logic for AI template selection with image data
-                template_name, playbook_to_include = self._ai_select_template_and_playbook_with_retry(
-                    memory_context, escalation_level, verbose, image_data
-                )
-            else:
-                # Map AI-directed contexts to actual existing templates
-                context_mapping = {
-                    "navigation": "exploration_strategy",
-                    "battle": "battle_analysis", 
-                    "maze": "exploration_strategy",
-                    "emergency": "stuck_recovery"
-                }
-                template_name = context_mapping.get(context_type, "exploration_strategy")
-        
-        if template_name not in self.base_prompts:
-            # Fallback to basic navigation if template not found
-            template_name = "exploration_strategy"
-        
-        if "navigation" in template_name:
-            variables["available_memories"] = str(available_memories or [])
-        
-        if "battle" in template_name:
-            variables["battle_context"] = str(battle_context or {})
-            
-        if "maze" in template_name:
-            variables["maze_context"] = str(maze_context or {})
-            
-        if "emergency" in template_name:
-            variables["escalation_level"] = escalation_level
-        
-        # Determine which playbook to include based on context
-        if context_type != "auto_select":
-            # For hardcoded contexts, use original mapping
-            playbook_mapping = {
-                "navigation": "navigation",
-                "battle": "battle",
-                "maze": "navigation",
-                "emergency": "navigation"
-            }
-            playbook_to_include = playbook_mapping.get(context_type, "navigation")
-        # For auto_select, playbook_to_include is already set by _ai_select_template_and_playbook
-        
-        # Get and format the template with playbook
-        template = self.base_prompts[template_name]["template"]
-        
-        # Add playbook content if available
-        if playbook_to_include and playbook_to_include in self.playbooks:
-            playbook_content = self.playbooks[playbook_to_include]
+        # Add playbook content if specified
+        if include_playbook and include_playbook in self.playbooks:
+            playbook_content = self.playbooks[include_playbook]
             template = f"{playbook_content}\n\n{template}"
             if verbose:
-                print(f"🧠 AI-Directed Prompt: {template_name} + playbook/{playbook_to_include}")
+                print(f"✅ Direct Prompt: {prompt_type} + playbook/{include_playbook}")
         else:
             if verbose:
-                print(f"🧠 AI-Directed Prompt: {template_name} (no playbook)")
+                print(f"✅ Direct Prompt: {prompt_type} (no playbook)")
         
-        if self.active_template and verbose:
-            print(f"   (AI requested: {self.active_template})")
-        
+        # Format template with variables
         try:
             formatted_prompt = template.format(**variables)
             return formatted_prompt
         except KeyError as e:
             if verbose:
                 print(f"⚠️ Template formatting error: {e}")
-            # Fallback to basic template with playbook
-            return self.get_prompt("exploration_strategy", variables, include_playbook=playbook_to_include, verbose=verbose)
+            # Simple fallback
+            return f"Error formatting template {prompt_type}: {e}"
     
-    def _ai_select_template_and_playbook_with_retry(self, memory_context: str, escalation_level: str, verbose: bool = False, image_data: str = None) -> tuple[str, str]:
-        """
-        AI template selection with retry logic and exponential backoff
-        """
-        import time
-        
-        max_retries = 3
-        base_delay = 1.0  # Base delay in seconds
-        
-        for attempt in range(max_retries):
-            try:
-                if verbose and attempt > 0:
-                    print(f"🔄 AI template selection retry {attempt + 1}/{max_retries}")
-                
-                return self._ai_select_template_and_playbook(memory_context, escalation_level, verbose, image_data)
-                
-            except Exception as e:
-                if verbose:
-                    print(f"⚠️ AI template selection attempt {attempt + 1} failed: {e}")
-                
-                # If this is the last attempt, return fallback
-                if attempt == max_retries - 1:
-                    if verbose:
-                        print("🚨 All AI template selection attempts failed, using fallback")
-                    # Determine fallback based on escalation level
-                    if escalation_level != "level_1":
-                        return "stuck_recovery", "navigation"
-                    else:
-                        return "exploration_strategy", "navigation"
-                
-                # Exponential backoff delay
-                delay = base_delay * (2 ** attempt)
-                if verbose:
-                    print(f"⏳ Waiting {delay}s before retry...")
-                time.sleep(delay)
-        
-        # This should never be reached, but safety fallback
-        return "exploration_strategy", "navigation"
-
-    def _ai_select_template_and_playbook(self, memory_context: str, escalation_level: str, verbose: bool = False, image_data: str = None) -> tuple[str, str]:
-        """
-        Let AI choose the best template and playbook combination based on game context
-        
-        Args:
-            memory_context: Current game memory context
-            escalation_level: Stuck pattern escalation level
-            verbose: Enable verbose logging
-            
-        Returns:
-            Tuple of (template_name, playbook_name)
-        """
-        # Get available templates and playbooks
-        available_templates = list(self.base_prompts.keys())
-        available_playbooks = list(self.playbooks.keys())
-        
-        # Create selection prompt for AI
-        selection_prompt = f"""
-# POKEMON FIRE RED TEMPLATE SELECTION - VISUAL IDENTIFICATION
-
-## CRITICAL VISUAL IDENTIFICATION RULE
-**BATTLE SCENE**: Look for a BIG MENU BAR with 4 items and a triangle pointer in the foreground
-**NAVIGATION SCENE**: If you DON'T see the big menu bar with 4 items, it's navigation
-
-## What You're Actually Looking For
-- **BATTLE = Big menu bar with 4 options (FIGHT/BAG/POKEMON/RUN) + triangle cursor**
-- **NAVIGATION = Small character sprite on terrain, NO big menu bar**
-- **STUCK = Same visual pattern as previous context (escalation: {escalation_level})**
-
-## DO NOT LOOK FOR (these cause false positives):
-- "HP bars" (not always visible in Pokemon Fire Red)
-- "Pokemon sprites" (character sprites exist in navigation too)
-- Generic Pokemon assumptions
-
-## Recent Context (for reference only)
-{memory_context[:300]}...
-
-## Templates Available
-{self._format_template_descriptions(available_templates)}
-
-## Playbooks Available  
-{self._format_playbook_descriptions(available_playbooks)}
-
-## Selection Logic
-1. **See big menu with 4 items + triangle?** → `battle_analysis` + `battle`
-2. **See small character on terrain, no big menu?** → `exploration_strategy` + `navigation`
-3. **Stuck pattern (escalation ≠ level_1)?** → `stuck_recovery` + `navigation`
-
-**FOCUS**: Look for the menu bar with 4 items. If absent, choose navigation.
-
-Respond ONLY with this format:
-TEMPLATE: template_name
-PLAYBOOK: playbook_name  
-REASONING: describe what you actually see (menu bar presence/absence)
-"""
-        
-        try:
-            # Use centralized LLM API for template selection
-            from llm_api import call_llm
-            
-            if verbose:
-                print(f"📊 AI Selection - Context: {len(memory_context)} chars")
-                print(f"📤 Sending selection prompt to LLM API...")
-            
-            # Use centralized task-to-model mapping
-            from provider_config import get_model_for_task, get_provider_for_task
-            
-            model = get_model_for_task("template_selection")
-            provider = get_provider_for_task("template_selection")
-            
-            llm_response = call_llm(
-                prompt=selection_prompt,
-                image_data=image_data,  # NOW PASSING IMAGE DATA FOR VISUAL ANALYSIS
-                model=model,
-                provider=provider,
-                max_tokens=500
-            )
-            
-            # Extract response text and handle errors
-            if llm_response.error:
-                raise Exception(f"LLM API error: {llm_response.error}")
-            
-            response = llm_response.text
-            
-            if verbose:
-                print(f"📥 {llm_response.provider.upper()} Response Length: {len(response) if response else 0}")
-            
-            if not response or len(response.strip()) < 10:
-                raise ValueError(f"Empty or too short {llm_response.provider} response: '{response}'")
-            
-            # Parse AI response
-            template_name = self._extract_selection(response, "TEMPLATE:", available_templates, "exploration_strategy")
-            playbook_name = self._extract_selection(response, "PLAYBOOK:", available_playbooks, "navigation")
-            reasoning = self._extract_selection(response, "REASONING:", [], "AI selection")
-            
-            if verbose:
-                print(f"🤖 AI TEMPLATE SELECTION: {template_name} + playbook/{playbook_name}")
-                print(f"   Reasoning: {reasoning}")
-                print(f"✅ AI template selection successful")
-            
-            return template_name, playbook_name
-            
-        except Exception as e:
-            if verbose:
-                print(f"⚠️ AI selection failed: {e}, using neutral fallback")
-            
-            # Pure AI fallback - no keyword detection, just neutral defaults
-            if escalation_level != "level_1":
-                return "stuck_recovery", "navigation"
-            else:
-                return "exploration_strategy", "navigation"
-    
-    def _format_template_descriptions(self, templates: list) -> str:
-        """Format template descriptions for AI selection"""
-        descriptions = {
-            "battle_analysis": "Pokemon battle decisions, move selection, type effectiveness",
-            "exploration_strategy": "Overworld navigation, area exploration, pathfinding", 
-            "stuck_recovery": "Breaking out of loops, stuck pattern recovery",
-            "pokemon_party_analysis": "Party management, Pokemon status, healing",
-            "inventory_analysis": "Bag management, item usage, shopping",
-            "task_analysis": "Goal-oriented behavior, task decomposition"
-        }
-        
-        result = []
-        for template in templates:
-            desc = descriptions.get(template, "General purpose template")
-            result.append(f"- {template}: {desc}")
-        return "\n".join(result)
-    
-    def _format_playbook_descriptions(self, playbooks: list) -> str:
-        """Format playbook descriptions for AI selection"""
-        descriptions = {
-            "battle": "Battle strategies, type charts, move effectiveness, gym tactics",
-            "navigation": "Movement patterns, area navigation, stuck recovery techniques",
-            "services": "Pokemon Centers, shops, NPCs, healing locations", 
-            "gyms": "Gym-specific strategies, leader patterns, puzzle solutions"
-        }
-        
-        result = []
-        for playbook in playbooks:
-            desc = descriptions.get(playbook, "General knowledge playbook")
-            result.append(f"- {playbook}: {desc}")
-        return "\n".join(result)
-    
-    def _extract_selection(self, response: str, prefix: str, valid_options: list, fallback: str) -> str:
-        """Extract AI selection from response"""
-        lines = response.split('\n')
-        for line in lines:
-            if line.strip().startswith(prefix):
-                selection = line.replace(prefix, "").strip()
-                if not valid_options or selection in valid_options:
-                    return selection
-        return fallback
+    # AI selection utility methods removed - now using direct visual template recommendations

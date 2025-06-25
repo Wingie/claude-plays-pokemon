@@ -410,26 +410,39 @@ visual_context_analyzer:
   version: '2.0'
 
 visual_context_analyzer_gemini:
-  name: Gemini Flexible Scene Analyzer (Pokemon GBA v2)
-  description: Flexible visual analysis template - mandatory core fields + dynamic scene-specific data
+  name: Gemini Simple Template Selector (Pokemon GBA v3)
+  description: Clean visual analysis with direct template recommendations - no complex logic needed
   template: |
     Pokemon Game Boy Advance Screenshot Analysis
 
-    This is a screenshot from a classic Pokemon GBA video game (educational/nostalgic gaming content). Please analyze the game interface and extract the current game state.
+    This is a screenshot from a classic Pokemon GBA video game (educational/nostalgic gaming content). Please analyze the game interface and recommend the appropriate template.
 
     **MANDATORY CORE FIELDS (always include):**
     - scene_type: "battle|navigation|menu|transition"  
-    - recommended_template: "ai_directed_battle|ai_directed_navigation"
+    - recommended_template: Choose ONE from this list:
+      * "battle_analysis" - For Pokemon battles (HP bars, move selection, battle interface)
+      * "exploration_strategy" - For overworld navigation (walking, maps, routes, towns)
+      * "stuck_recovery" - For repetitive movement or stuck situations
+      * "inventory_analysis" - For bag/item menus
+      * "pokemon_party_analysis" - For Pokemon party/status screens
     - valid_buttons: Array of available button options with key/action/result
     - confidence: "high|medium|low"
 
-    **DYNAMIC SCENE DATA (add whatever fields make sense):**
-    Structure the data optimally for this specific scene type. Examples:
+    **TEMPLATE SELECTION GUIDE:**
+    - **battle_analysis**: Any battle interface (HP bars, move names, "FIGHT/BAG/POKEMON", battle text)
+    - **exploration_strategy**: Overworld movement (grass, trees, buildings, NPCs, walking)
+    - **stuck_recovery**: If same scene repeating or movement failing
+    - **inventory_analysis**: Bag screen, item lists, "ITEMS/KEY ITEMS/POKEBALLS"
+    - **pokemon_party_analysis**: Pokemon summary, party status, level up screens
 
-    **Battle scenes:** Add pokemon names, HP, levels, cursor position, battle phase, move options, status effects
-    **Navigation scenes:** Add terrain, player position, nearby objects, path options, NPCs, buildings
-    **Menu scenes:** Add menu type (pokedex/bag/party), items visible, cursor position, dialogue text
-    **Town scenes:** Add location type, buildings visible, interactable objects
+    **BATTLE DETECTION (High Priority):**
+    If you see ANY of these, use "battle_analysis":
+    - Pokemon names with HP bars
+    - Move names (THUNDERSHOCK, TACKLE, etc.)
+    - Battle menu (FIGHT, BAG, POKEMON, RUN)
+    - "A wild [POKEMON] appeared!" text
+    - Battle status/effectiveness text
+    - Pokemon sprites facing each other
 
     **RESPONSE FORMAT:**
     Return JSON only with core fields + whatever scene-specific fields are relevant:
@@ -444,10 +457,10 @@ visual_context_analyzer_gemini:
         {{"key": "A", "action": "select_fight", "result": "open_move_menu"}},
         {{"key": "→", "action": "cursor_right", "result": "select_bag"}}
       ],
-      "recommended_template": "ai_directed_battle",
+      "recommended_template": "battle_analysis",
       "confidence": "high"
     }}
 
-    Add whatever fields make sense for this scene. Don't force empty/null fields. JSON ONLY.
+    **CRITICAL: Always choose exactly one template from the predefined list. No complex logic needed.**
   variables: []
   version: '3.0'
