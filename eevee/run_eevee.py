@@ -373,6 +373,9 @@ class ContinuousGameplay:
                 # Step 4: Update memory and session state
                 self._update_session_state(turn_count, ai_result, execution_result)
                 
+                # Step 4.0: Store complete turn data in Neo4j for persistent memory
+                self._store_complete_turn_data(turn_count, game_context, ai_result, execution_result, movement_data)
+                
                 # Step 4.1: Update legacy session data for episode reviewer (first)
                 self._update_session_data_file(turn_count, ai_result, execution_result)
                 
@@ -729,6 +732,46 @@ class ContinuousGameplay:
                         debug_logger.log_debug('ERROR', f'Memory storage failed: {e}')
                     else:
                         print(f"WARNING:  Memory storage failed: {e}")
+    
+    def _store_complete_turn_data(self, turn_number: int, game_context: Dict[str, Any], 
+                                 ai_result: Dict[str, Any], execution_result: Dict[str, Any], 
+                                 movement_data: Dict[str, Any] = None):
+        """Store complete turn data in Neo4j with all context"""
+        try:
+            from neo4j_singleton import Neo4jSingleton
+            neo4j = Neo4jSingleton()
+            writer = neo4j.get_writer()
+            
+            if not writer or not writer.driver:
+                if self.eevee.verbose:
+                    print("⚠️ Neo4j writer not available for turn storage")
+                return
+            
+            # Prepare complete turn data
+            turn_data = {
+                "turn_id": f"{self.session.session_id}_turn_{turn_number}",
+                "session_id": self.session.session_id,
+                "timestamp": datetime.now().isoformat(),
+                "gemini_text": ai_result.get("analysis", ""),
+                "button_presses": ai_result.get("action", []),
+                "screenshot_path": game_context.get("screenshot_path"),
+                "screenshot_base64": game_context.get("screenshot_data"),  # Store base64
+                "location": "unknown",  # Visual context contains location info
+                "success": execution_result.get("success", False),
+                "visual_context": movement_data,  # Contains all visual analysis
+                "battle_context": None,  # All context is in visual_context
+                "memory_context": getattr(self, '_last_memory_context', None)
+            }
+            
+            success = writer.store_game_turn(turn_data)
+            
+            if self.eevee.verbose:
+                status = "✅ stored" if success else "⚠️ failed to store"
+                print(f"Neo4j turn {turn_number}: {status}")
+                
+        except Exception as e:
+            if self.eevee.verbose:
+                print(f"⚠️ Neo4j turn storage error: {e}")
     
     def _parse_ai_analysis_json(self, ai_analysis: str) -> Dict[str, Any]:
         """Parse JSON from ai_analysis string into structured data"""
