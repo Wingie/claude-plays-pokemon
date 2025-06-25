@@ -189,16 +189,21 @@ battle_analysis:
     Return ONLY a JSON object with no additional text:
     
     {{
-      "battle_plan": [
-        {{"turn": 1, "action": ["a"], "goal": "finish_weak", "reasoning": "level_advantage_ko"}},
-        {{"turn": 2, "action": ["bag", "down", "a"], "goal": "heal_if_survive", "reasoning": "backup_healing"}}
-      ],
-      "immediate_action": ["a"],
-      "strategy_priority": "efficiency",
+      "button_presses": ["a"],
+      "reasoning": "select_fight_for_thundershock",
+      "observations": "pikachu_vs_metapod_battle",
+      "context_detected": "battle",
+      "confidence": "high",
+      "battle_strategy": "super_effective_electric_vs_bug",
       "hp_status": "critical",
-      "level_advantage": "major",
-      "confidence": "high"
+      "level_advantage": "moderate"
     }}
+    
+    **BATTLE INTELLIGENCE FIELDS (Optional but Recommended):**
+    - battle_strategy: Type effectiveness or strategic reasoning
+    - hp_status: "critical|low|moderate|high" 
+    - level_advantage: "major|moderate|minor|disadvantage"
+    - next_turn_plan: Brief plan for subsequent moves
     
     Do not include any text before or after the JSON. No markdown, no code blocks, no explanations.
   variables:
