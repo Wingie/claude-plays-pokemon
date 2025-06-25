@@ -1,30 +1,30 @@
 {
   "meta": {
-    "updated_at": "2025-06-25T21:04:55.306760",
-    "session_id": "20250625_210412",
+    "updated_at": "2025-06-25T21:33:30.726976",
+    "session_id": "20250625_213027",
     "source": "goal_oriented_planning_system"
   },
-  "session_goal": "you are just outside brock in pewter city, go in and defeat him",
+  "session_goal": "defeat trainers and find out where to go next",
   "current_goal": {
-    "id": "find_pewter_city_gym",
-    "name": "Find Pewter City Gym",
-    "description": "Navigate to and locate Pewter City Gym",
-    "status": "in_progress",
+    "id": "find_gym",
+    "name": "Find Gym",
+    "description": "Navigate to and locate Gym",
+    "status": "blocked",
     "priority": 9,
-    "progress_percentage": 70,
+    "progress_percentage": 30,
     "estimated_turns": 20,
     "attempts": 0,
     "turns_spent": 0
   },
   "goal_hierarchy": {
     "root_goal": {
-      "id": "defeat_brock",
-      "name": "Defeat Brock",
-      "description": "you are just outside brock in pewter city, go in and defeat him",
+      "id": "defeat_gym_leader",
+      "name": "Defeat Gym Leader",
+      "description": "defeat trainers and find out where to go next",
       "children": [
-        "find_pewter_city_gym",
+        "find_gym",
         "prepare_team",
-        "battle_brock"
+        "battle_gym_leader"
       ]
     },
     "total_goals": 4,
@@ -32,16 +32,14 @@
     "failed_goals": 0
   },
   "progress_analysis": {
-    "progress_score": 7,
-    "progress_description": "AI is exploring Pewter City and looking for gym building",
+    "progress_score": 3,
+    "progress_description": "AI's Charmander is in critical condition, blocking the progress towards finding the Gym.",
     "issues_detected": [
-      "stuck_in_loop",
-      "wrong_direction"
+      "charmander_needs_healing"
     ],
     "next_recommended_actions": [
-      "continue_exploration",
-      "try_different_direction"
+      "use_healing_item"
     ],
-    "estimated_turns_to_completion": 15
+    "estimated_turns_to_completion": 1
   }
 }

@@ -382,7 +382,15 @@ class ContinuousGameplay:
                 # Step 4.2: Comprehensive turn data logging (overrides with enhanced data)
                 self._log_complete_turn_data(turn_count, game_context, ai_result, execution_result, movement_data)
                 
-                # Step 4.5: Emergency/Periodic episode review check
+                # Step 4.5: Goal-oriented planning review (frequent) + Periodic episode review (less frequent)
+                
+                # ENHANCED: Goal-oriented planning review runs every 5 turns for dynamic goal progression
+                goal_review_frequency = 5  # Run goal analysis every 5 turns for responsive goal advancement
+                if turn_count % goal_review_frequency == 0:
+                    print(f"\n🎯 GOAL PROGRESSION REVIEW (Turn {turn_count}): Analyzing progress and advancing goals...")
+                    self._run_goal_oriented_planning_independent(turn_count)
+                
+                # Standard periodic episode review runs less frequently for template improvements
                 if hasattr(self, 'episode_review_frequency') and self.episode_review_frequency > 0:
                     # EMERGENCY: Check for catastrophic performance needing immediate intervention
                     emergency_review_needed = self._check_emergency_review_needed(turn_count)
@@ -512,6 +520,9 @@ class ContinuousGameplay:
                     self._last_visual_response = meta.get('raw_response', '')
                     self._last_visual_processing_time = meta.get('processing_time_ms')
                 
+                # ENHANCED: Store movement data for turn storage
+                self._last_movement_data = movement_data
+                
                     
             except Exception as e:
                 import traceback
@@ -539,25 +550,29 @@ class ContinuousGameplay:
         try:
             # Import centralized LLM API
             from llm_api import call_llm
+            from provider_config import get_provider_for_task, get_model_for_task
             import time
             
             # Store data for comprehensive logging
             self._last_strategic_prompt = prompt
             strategic_start_time = time.time()
             
-            # Use mistral-large-latest for strategic decision making (text-only)
+            # Use configured strategic provider for decision making
+            strategic_provider = get_provider_for_task("navigation_decisions")
+            strategic_model = get_model_for_task("navigation_decisions")
+            
             llm_response = call_llm(
                 prompt=prompt,
                 image_data=None,  # No image needed - movement validation provides visual analysis
-                model="mistral-large-latest",
-                provider="mistral",
+                model=strategic_model,
+                provider=strategic_provider,
                 max_tokens=1000
             )
             
             # Store additional metadata for logging
             self._last_strategic_response = llm_response.text if hasattr(llm_response, 'text') else str(llm_response)
-            self._last_strategic_model = "mistral-large-latest"
-            self._last_strategic_provider = "mistral"
+            self._last_strategic_model = strategic_model
+            self._last_strategic_provider = strategic_provider
             self._last_strategic_processing_time = (time.time() - strategic_start_time) * 1000
             
             # Convert to expected format
@@ -830,7 +845,11 @@ class ContinuousGameplay:
                 "screenshot_path": f"screenshot_{turn_number}.png",
                 "execution_time": execution_result.get("execution_time", 0.0),
                 "template_used": ai_result.get("template_used", "unknown"),
-                "template_version": ai_result.get("template_version", "unknown")
+                "template_version": ai_result.get("template_version", "unknown"),
+                # ENHANCED: Add visual analysis data for periodic review
+                "visual_analysis": getattr(self, '_last_movement_data', None),
+                "strategic_context": getattr(self, '_last_okr_context', None),
+                "memory_context": getattr(self, '_last_memory_context', None)
             }
             
             # Add to session turns list
@@ -1575,6 +1594,8 @@ class ContinuousGameplay:
                 okr_context = ""
                 if self.eevee.enable_okr:
                     okr_context = self.eevee.get_okr_context()
+                    # ENHANCED: Store OKR context for turn storage
+                    self._last_okr_context = okr_context
                     if self.eevee.verbose:
                         print(f"📊 OKR Context included: {len(okr_context)} characters")
                 
@@ -2595,6 +2616,46 @@ Return ONLY the improved template content, ready to replace the current template
             print(f"WARNING: Failed to log learning event: {e}")
     
 
+    def _run_goal_oriented_planning_independent(self, current_turn: int) -> Dict[str, Any]:
+        """
+        Independent goal-oriented planning review that runs frequently for dynamic goal progression
+        
+        This method reads session data directly from file to avoid data sync issues and
+        runs independently of the main periodic review system for responsive goal advancement.
+        """
+        try:
+            print(f"🎯 GOAL PROGRESSION: Analyzing recent activity for goal advancement...")
+            
+            # Load recent turns directly from session data file to avoid sync issues
+            recent_turns = []
+            if hasattr(self, 'session_data_file') and self.session_data_file.exists():
+                try:
+                    with open(self.session_data_file, 'r') as f:
+                        session_data = json.load(f)
+                    
+                    all_turns = session_data.get("turns", [])
+                    # Get last 10 turns for goal analysis (sufficient for goal progression decisions)
+                    recent_turns = all_turns[-10:] if len(all_turns) > 10 else all_turns
+                    print(f"   📊 Loaded {len(recent_turns)} recent turns from session data")
+                    
+                except Exception as e:
+                    print(f"⚠️ Failed to load session data: {e}")
+                    return {"success": False, "error": "Failed to load session data"}
+            else:
+                print(f"⚠️ Session data file not found")
+                return {"success": False, "error": "Session data file not available"}
+            
+            if not recent_turns:
+                print(f"⚠️ No recent turns available for goal analysis")
+                return {"success": False, "error": "No recent turns available"}
+            
+            # Run goal-oriented planning analysis with loaded data
+            return self._run_goal_oriented_planning_review(recent_turns, current_turn)
+            
+        except Exception as e:
+            print(f"❌ Independent goal planning failed: {e}")
+            return {"success": False, "error": str(e)}
+
     def _run_goal_oriented_planning_review(self, recent_turns: List[Dict], current_turn: int) -> Dict[str, Any]:
         """
         Analyze recent turns and update goal hierarchy for autonomous planning
@@ -2636,6 +2697,8 @@ Return ONLY the improved template content, ready to replace the current template
             # Determine if goal hierarchy needs updating
             needs_replanning = progress_analysis.get("needs_replanning", False)
             current_goal_status = progress_analysis.get("goal_status", "in_progress")
+            suggested_next_goal = progress_analysis.get("suggested_next_goal", "")
+            goal_transition_reason = progress_analysis.get("goal_transition_reason", "")
             
             print(f"📊 Enhanced Analysis (Turn {current_turn}):")
             print(f"   Current Status: {current_goal_status}")
@@ -2643,9 +2706,32 @@ Return ONLY the improved template content, ready to replace the current template
             print(f"   Movement Pattern: {strategic_context.get('movement_pattern_summary', 'Unknown')}")
             print(f"   Strategic Insight: {strategic_context.get('key_insight', 'None')}")
             print(f"   Needs Replanning: {needs_replanning}")
+            if suggested_next_goal:
+                print(f"   🎯 Suggested Next Goal: {suggested_next_goal}")
+                print(f"   📋 Transition Reason: {goal_transition_reason}")
+            
+            # ENHANCED: Check for goal advancement including blocked status (CRITICAL BUG FIX)
+            goal_advanced = False
+            
+            # Handle different goal status types for advancement/interruption
+            if current_goal_status in ["completed", "context_changed", "blocked"]:
+                if current_goal_status == "blocked":
+                    # Handle blocked status with context-aware interruption
+                    goal_advanced = self._handle_blocked_goal_interruption(
+                        task_executor, progress_analysis, current_turn
+                    )
+                elif suggested_next_goal:
+                    # Handle normal advancement for completed/context_changed
+                    goal_advanced = self._attempt_goal_advancement(
+                        task_executor, progress_analysis, current_turn
+                    )
+                
+                if goal_advanced:
+                    interruption_type = "INTERRUPTION" if current_goal_status == "blocked" else "ADVANCEMENT"
+                    print(f"🔄 GOAL {interruption_type}: {'Interrupted with emergency goal' if current_goal_status == 'blocked' else f'Advanced to {suggested_next_goal}'}")
             
             # Update or create goal hierarchy
-            if needs_replanning or not task_executor.current_goal_hierarchy:
+            if needs_replanning or not task_executor.current_goal_hierarchy or goal_advanced:
                 print(f"🔄 Updating goal hierarchy for: '{self.session.goal}'")
                 
                 # Use TaskExecutor to decompose goal
@@ -2888,11 +2974,7 @@ Return ONLY the improved template content, ready to replace the current template
     def _store_last_periodic_review(self, enhanced_analysis: Dict[str, Any], current_turn: int) -> None:
         """Store the last periodic review result for strategic prompt injection"""
         try:
-            # Store in eevee agent for easy access during strategic decisions
-            if not hasattr(self.eevee, 'last_periodic_review'):
-                self.eevee.last_periodic_review = {}
-            
-            self.eevee.last_periodic_review = {
+            review_data = {
                 "timestamp": datetime.now().isoformat(),
                 "turn": current_turn,
                 "analysis": enhanced_analysis,
@@ -2905,65 +2987,240 @@ Return ONLY the improved template content, ready to replace the current template
                 }
             }
             
+            # FIX: Store in eevee agent for access during strategic decisions
+            if not hasattr(self.eevee, 'last_periodic_review'):
+                self.eevee.last_periodic_review = {}
+            self.eevee.last_periodic_review = review_data
+            
+            # ALSO store in self for direct access if needed (redundant but safe)
+            self.last_periodic_review = review_data
+            
             if self.eevee.verbose:
                 print(f"📊 Stored periodic review for strategic context injection (Turn {current_turn})")
+                print(f"   Key Insight: {review_data['summary']['key_insight']}")
+                print(f"   Recommendations: {', '.join(review_data['summary']['recommendations'])}")
                 
         except Exception as e:
             print(f"WARNING: Failed to store periodic review: {e}")
     
+    def _attempt_goal_advancement(self, task_executor, progress_analysis: Dict[str, Any], current_turn: int) -> bool:
+        """Attempt to advance to the next contextual goal based on AI analysis"""
+        try:
+            suggested_next_goal = progress_analysis.get("suggested_next_goal", "")
+            goal_completion_indicators = progress_analysis.get("goal_completion_indicators", [])
+            goal_transition_reason = progress_analysis.get("goal_transition_reason", "")
+            
+            if not suggested_next_goal:
+                return False
+            
+            current_goal_hierarchy = task_executor.current_goal_hierarchy
+            if not current_goal_hierarchy:
+                return False
+            
+            current_goal = current_goal_hierarchy.get_current_goal()
+            if not current_goal:
+                return False
+            
+            # Create or find the suggested next goal
+            next_goal = self._create_or_update_contextual_goal(
+                suggested_next_goal, 
+                goal_completion_indicators,
+                goal_transition_reason,
+                current_goal,
+                current_goal_hierarchy
+            )
+            
+            if next_goal:
+                # Mark current goal as completed
+                current_goal.status = task_executor.GoalStatus.COMPLETED
+                current_goal.progress_percentage = 100.0
+                current_goal.updated_at = datetime.now().isoformat()
+                current_goal_hierarchy.completed_goals.append(current_goal)
+                
+                # Activate next goal
+                next_goal.status = task_executor.GoalStatus.IN_PROGRESS
+                current_goal_hierarchy.active_goal = next_goal
+                
+                print(f"   ✅ Completed Goal: '{current_goal.name}'")
+                print(f"   🎯 Activated Goal: '{next_goal.name}'")
+                print(f"   📝 Reason: {goal_transition_reason}")
+                
+                return True
+                
+        except Exception as e:
+            print(f"⚠️ Goal advancement failed: {e}")
+            return False
+        
+        return False
+    
+    def _create_or_update_contextual_goal(self, suggested_goal_name: str, completion_indicators: List[str], 
+                                        transition_reason: str, current_goal, goal_hierarchy) -> Optional[Any]:
+        """Create or find the next contextual goal"""
+        try:
+            from task_executor import Goal, GoalStatus
+            
+            # Try to find existing goal first
+            existing_goal = goal_hierarchy.find_goal_by_id(suggested_goal_name.lower().replace(" ", "_"))
+            if existing_goal:
+                return existing_goal
+            
+            # Create new contextual goal based on suggestions
+            goal_id = suggested_goal_name.lower().replace(" ", "_")
+            
+            # Map common goal transitions
+            goal_mapping = {
+                "enter_pewter_city_gym": {
+                    "name": "Enter Pewter City Gym",
+                    "description": "Enter the Pewter City Gym building to challenge Brock",
+                    "priority": 9
+                },
+                "battle_brock": {
+                    "name": "Battle Brock",
+                    "description": "Challenge and defeat Brock in a Pokemon battle",
+                    "priority": 10
+                },
+                "challenge_gym_leader": {
+                    "name": "Challenge Gym Leader",
+                    "description": "Initiate battle with the gym leader",
+                    "priority": 10
+                },
+                "interact_with_entrance": {
+                    "name": "Interact with Entrance",
+                    "description": "Use entrance to enter the building",
+                    "priority": 8
+                }
+            }
+            
+            # Get goal details or create generic
+            if goal_id in goal_mapping:
+                goal_details = goal_mapping[goal_id]
+            else:
+                goal_details = {
+                    "name": suggested_goal_name.title(),
+                    "description": f"Contextual goal: {suggested_goal_name}",
+                    "priority": 8
+                }
+            
+            # Create new goal
+            new_goal = Goal(
+                id=goal_id,
+                name=goal_details["name"],
+                description=goal_details["description"],
+                status=GoalStatus.PENDING,
+                priority=goal_details["priority"],
+                parent_id=current_goal.parent_id or goal_hierarchy.root_goal.id,
+                estimated_turns=5,
+                created_at=datetime.now().isoformat()
+            )
+            
+            # Add to hierarchy
+            if current_goal.parent_id:
+                parent_goal = goal_hierarchy.find_goal_by_id(current_goal.parent_id)
+                if parent_goal:
+                    parent_goal.children.append(new_goal)
+            else:
+                goal_hierarchy.root_goal.children.append(new_goal)
+            
+            return new_goal
+            
+        except Exception as e:
+            print(f"⚠️ Failed to create contextual goal: {e}")
+            return None
+    
     def _analyze_goal_progress_with_ai(self, recent_turns: List[Dict], session_goal: str) -> Dict[str, Any]:
         """Use AI to analyze progress toward current session goal"""
         try:
-            # Build analysis prompt
+            # Build analysis prompt with correct data access patterns
             turns_summary = []
             for i, turn in enumerate(recent_turns[-5:], 1):  # Last 5 turns
                 ai_analysis = turn.get('ai_analysis', {})
                 if isinstance(ai_analysis, dict):
-                    reasoning = ai_analysis.get('reasoning', 'Unknown')
-                    observations = ai_analysis.get('observations', 'Unknown')
+                    # FIX: Access nested parsed_json structure
+                    parsed_json = ai_analysis.get('parsed_json', {})
+                    if parsed_json:
+                        reasoning = parsed_json.get('reasoning', 'Unknown')
+                        observations = parsed_json.get('observations', 'Unknown')
+                    else:
+                        # Fallback to top-level if parsed_json not available
+                        reasoning = ai_analysis.get('reasoning', 'Unknown')
+                        observations = ai_analysis.get('observations', 'Unknown')
                 else:
                     reasoning = str(ai_analysis)[:100] + "..."
                     observations = "Legacy format"
                 
-                turns_summary.append(f"Turn {i}: {reasoning} | Obs: {observations}")
+                # Include button presses for better context
+                button_presses = turn.get('button_presses', [])
+                action_str = f" → {button_presses}" if button_presses else ""
+                
+                turns_summary.append(f"Turn {i}: {reasoning} | Obs: {observations}{action_str}")
+            
+            # Get current goal context for enhanced analysis
+            current_goal_name = "Unknown"
+            current_goal_description = "Unknown"
+            if hasattr(self.eevee, 'task_executor') and self.eevee.task_executor.current_goal_hierarchy:
+                current_goal = self.eevee.task_executor.current_goal_hierarchy.get_current_goal()
+                if current_goal:
+                    current_goal_name = current_goal.name
+                    current_goal_description = current_goal.description
             
             analysis_prompt = f"""
-**POKEMON GOAL PROGRESS ANALYSIS**
+**POKEMON GOAL PROGRESS ANALYSIS WITH DYNAMIC GOAL ADVANCEMENT**
 
 **Session Goal**: {session_goal}
+**Current Active Goal**: {current_goal_name}
+**Goal Description**: {current_goal_description}
 
-**Recent Activity** (last {len(recent_turns)} turns):
+**Recent Activity Analysis** (last {len(recent_turns)} turns):
 {chr(10).join(turns_summary)}
 
-**ANALYSIS REQUIRED**:
-Please analyze if the AI is making progress toward the goal "{session_goal}".
+**ENHANCED GOAL PROGRESSION ANALYSIS**:
+Based on the AI's observations and actions, determine:
+
+1. **Current Goal Relevance**: Is "{current_goal_name}" still the appropriate goal?
+2. **Context Indicators**: What does the AI's environment/observations suggest?
+3. **Goal Completion**: Has the current goal been achieved or should it advance?
+4. **Next Logical Step**: What should the AI focus on next?
+
+**CONTEXTUAL GOAL TRANSITIONS** (Examples):
+- If AI is "outside gym" → advance to "enter gym" 
+- If AI is "inside gym" → advance to "battle gym leader"
+- If AI found target → advance to "interact with target"
 
 **RESPONSE FORMAT** (JSON only):
 {{
-  "goal_status": "in_progress|completed|failed|blocked",
+  "goal_status": "in_progress|completed|failed|blocked|context_changed",
+  "goal_completion_indicators": ["outside_gym_building", "near_entrance", "inside_building"],
+  "suggested_next_goal": "enter_pewter_city_gym",
+  "goal_transition_reason": "AI appears to be outside gym based on context clues",
   "progress_score": 7,
-  "progress_description": "AI is exploring Pewter City and looking for gym building",
-  "needs_replanning": false,
+  "progress_description": "AI has found Pewter City Gym and is positioned outside",
+  "needs_replanning": true,
   "issues_detected": ["stuck_in_loop", "wrong_direction"],
-  "next_recommended_actions": ["continue_exploration", "try_different_direction"],
-  "estimated_turns_to_completion": 15
+  "next_recommended_actions": ["enter_building", "interact_with_entrance"],
+  "estimated_turns_to_completion": 5
 }}
 
 **KEY CONSIDERATIONS**:
-- Is the AI making visual progress toward the goal?
-- Are there signs of being stuck or repeating actions?
-- Has the goal been achieved or become impossible?
-- Should the goal be broken down into smaller subtasks?
+- Has the AI achieved the current goal based on environmental context?
+- Should the goal advance to the next logical step in the hierarchy?
+- What contextual clues suggest goal completion or transition?
+- Is the current goal still relevant or has the situation changed?
 
 Respond with valid JSON only.
 """
             
-            # Call AI for analysis
+            # Call AI for analysis using configured strategic provider
             from llm_api import call_llm
+            from provider_config import get_provider_for_task, get_model_for_task
+            
+            # Use strategic provider from environment configuration
+            strategic_provider = get_provider_for_task("task_execution")
+            strategic_model = get_model_for_task("task_execution")
             
             llm_response = call_llm(
                 prompt=analysis_prompt,
-                provider="mistral",  # Use Mistral for strategic analysis
+                provider=strategic_provider,
+                model=strategic_model,
                 max_tokens=500
             )
             
