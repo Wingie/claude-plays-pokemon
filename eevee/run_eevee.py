@@ -1078,10 +1078,10 @@ class ContinuousGameplay:
         print(f"\n- Or type any Pokemon task for the AI to consider")
     
     def _get_memory_context(self) -> str:
-        """Get relevant memory context for AI with spatial memory"""
+        """Get memory context combining SQLite + Neo4j last 4 turns"""
         context_parts = []
         
-        # Get general memory context
+        # Get general memory context (existing SQLite)
         if self.eevee.memory:
             try:
                 general_context = self.eevee.memory.get_recent_gameplay_summary(limit=5)
@@ -1090,12 +1090,38 @@ class ContinuousGameplay:
             except:
                 pass
         
-        # Add spatial memory to prevent repetitive actions
+        # Get last 4 turns from Neo4j for compact memory context
+        try:
+            from neo4j_compact_reader import Neo4jCompactReader
+            reader = Neo4jCompactReader()
+            
+            if reader.test_connection():
+                # Get recent turns for this session
+                recent_turns = reader.get_recent_turns(4)
+                if recent_turns:
+                    compact_memory = reader.format_turns_to_compact_json(recent_turns)
+                    memory_json = json.dumps(compact_memory, separators=(',', ':'))
+                    context_parts.append(f"**RECENT MEMORY** (last 4 turns):\n{memory_json}")
+                    
+                    # Store for turn storage
+                    self._last_memory_context = memory_json
+                    
+                    if self.eevee.verbose:
+                        token_count = len(memory_json.split())
+                        print(f"📝 Neo4j memory context: {token_count} tokens")
+            
+            reader.close()
+            
+        except Exception as e:
+            if self.eevee.verbose:
+                print(f"⚠️ Neo4j memory retrieval failed: {e}")
+        
+        # Add spatial memory to prevent repetitive actions (fallback)
         spatial_memory = self._build_spatial_memory()
         if spatial_memory:
             context_parts.append(spatial_memory)
         
-        return "\n".join(context_parts) if context_parts else ""
+        return "\n\n".join(context_parts) if context_parts else ""
     
     def _build_spatial_memory(self) -> str:
         """Build spatial memory to prevent repetitive actions"""

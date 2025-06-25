@@ -1,61 +1,60 @@
-forest_maze_expert:
-  name: "Forest Maze Navigation Expert"
-  description: "Specialized prompt for complex forest areas like Viridian Forest"
+maze_expert:
+  name: "Maze Navigation Expert"
+  description: "Specialized prompt for complex maze areas like Viridian maze"
   template: |
-    🌳 FOREST MAZE NAVIGATION EXPERT 🌳
+    🌳 MAZE NAVIGATION EXPERT 🌳
     
-    You are navigating a complex forest maze. These areas require systematic exploration 
+    You are navigating a complex maze maze. These areas require systematic exploration 
     and memory-based pathfinding due to their intricate layouts.
     
     Current Task: {task}
     Recent Actions: {recent_actions}
-    Forest Context: {forest_context}
     
-    🧠 FOREST MEMORY COMMANDS:
-    Use these to leverage past forest navigation experience:
+    🧠 MEMORY COMMANDS:
+    Use these to leverage past  navigation experience:
     
-    **Load Forest Knowledge**:
-    - `LOAD_MEMORIES: forest_[forest_name]` - Load specific forest solutions
-    - `LOAD_MEMORIES: forest_patterns` - Load general forest navigation techniques
-    - `LOAD_MEMORIES: viridian_forest` - Load Viridian Forest specific knowledge
+    **Load maze Knowledge**:
+    - `LOAD_MEMORIES: maze_[maze_name]` - Load specific maze solutions
+    - `LOAD_MEMORIES: maze_patterns` - Load general maze navigation techniques
+    - `LOAD_MEMORIES: viridian_maze` - Load Viridian maze specific knowledge
     - `LOAD_MEMORIES: tree_landmark_patterns` - Load visual landmark recognition
     
-    **Forest Prompt Control**:
+    **maze Prompt Control**:
     - `REQUEST_PROMPT: right_hand_rule` - Switch to systematic wall-following
     - `REQUEST_PROMPT: landmark_navigation` - Focus on visual landmark tracking
-    - `REQUEST_PROMPT: forest_pathfinding` - Advanced forest-specific algorithms
+    - `REQUEST_PROMPT: maze_pathfinding` - Advanced maze-specific algorithms
     
-    🗺️ FOREST NAVIGATION STRATEGY:
+    🗺️ maze NAVIGATION STRATEGY:
     
-    **Step 1 - Forest Assessment**:
-    - **Tree Density**: How thick is the forest cover?
+    **Step 1 - maze Assessment**:
+    - **Tree Density**: How thick is the maze cover?
     - **Path Visibility**: Are there clear dirt paths vs grass areas?
     - **Visual Landmarks**: Any distinctive tree formations or clearings?
-    - **Known Location**: Have you been in this forest before?
+    - **Known Location**: Have you been in this maze before?
     
     **Step 2 - Load Relevant Memories**:
-    If this looks familiar: `LOAD_MEMORIES: forest_[name]`
-    If first time: `LOAD_MEMORIES: forest_patterns`
-    If completely lost: `REQUEST_PROMPT: forest_pathfinding`
+    If this looks familiar: `LOAD_MEMORIES: maze_[name]`
+    If first time: `LOAD_MEMORIES: maze_patterns`
+    If completely lost: `REQUEST_PROMPT: maze_pathfinding`
     
     **Step 3 - Navigation Method Selection**:
     
-    **For New Forests**:
+    **For New mazes**:
     1. `REQUEST_PROMPT: right_hand_rule` - Keep right wall to your right
     2. Follow path systematically until you reach exit or dead end
-    3. `SAVE_MEMORY: path_sequence_[directions] TAG: forest_[name]`
+    3. `SAVE_MEMORY: path_sequence_[directions] TAG: maze_[name]`
     
-    **For Known Forests**:
-    1. `LOAD_MEMORIES: forest_[name]_solution`
+    **For Known mazes**:
+    1. `LOAD_MEMORIES: maze_[name]_solution`
     2. Follow remembered successful path sequence
-    3. If path blocked: `REQUEST_PROMPT: forest_adaptation`
+    3. If path blocked: `REQUEST_PROMPT: maze_adaptation`
     
     **For Partially Known**:
-    1. `LOAD_MEMORIES: forest_patterns` 
+    1. `LOAD_MEMORIES: maze_patterns` 
     2. Look for familiar visual patterns
     3. Use landmark navigation: `REQUEST_PROMPT: landmark_navigation`
     
-    🌲 FOREST-SPECIFIC TECHNIQUES:
+    🌲 maze-SPECIFIC TECHNIQUES:
     
     **Right-Hand Wall Following**:
     - Keep your right hand on the "wall" (tree line)
@@ -69,7 +68,7 @@ forest_maze_expert:
     - Clearings or open spaces  
     - Items on the ground (Pokeballs, etc.)
     - Different terrain textures
-    - `SAVE_MEMORY: landmark_[description]_at_[location] TAG: forest_[name]`
+    - `SAVE_MEMORY: landmark_[description]_at_[location] TAG: maze_[name]`
     
     **Path Recognition**:
     - Dirt paths vs grass areas
@@ -77,53 +76,53 @@ forest_maze_expert:
     - Subtle lighting differences
     - Breaks in tree patterns
     
-    💾 FOREST MEMORY SYSTEM:
+    💾 maze MEMORY SYSTEM:
     
     **Save Successful Routes**:
-    - `SAVE_MEMORY: EXIT_FOUND: [full_path_sequence] TAG: forest_[name]_solution`
-    - `SAVE_MEMORY: shortcut_[from]_to_[to] TAG: forest_[name]`
-    - `SAVE_MEMORY: trainer_location_[description] TAG: forest_[name]_trainers`
+    - `SAVE_MEMORY: EXIT_FOUND: [full_path_sequence] TAG: maze_[name]_solution`
+    - `SAVE_MEMORY: shortcut_[from]_to_[to] TAG: maze_[name]`
+    - `SAVE_MEMORY: trainer_location_[description] TAG: maze_[name]_trainers`
     
     **Save Navigation Patterns**:
-    - `SAVE_MEMORY: tree_pattern_[description]_means_[direction] TAG: forest_patterns`
-    - `SAVE_MEMORY: dead_end_indicator_[visual_cue] TAG: forest_patterns`
-    - `SAVE_MEMORY: exit_indicator_[visual_cue] TAG: forest_patterns`
+    - `SAVE_MEMORY: tree_pattern_[description]_means_[direction] TAG: maze_patterns`
+    - `SAVE_MEMORY: dead_end_indicator_[visual_cue] TAG: maze_patterns`
+    - `SAVE_MEMORY: exit_indicator_[visual_cue] TAG: maze_patterns`
     
     **Save Failure Points**:
-    - `SAVE_MEMORY: DEAD_END: [path_to_dead_end] TAG: forest_[name]_avoid`
-    - `SAVE_MEMORY: blocked_by_[obstacle] TAG: forest_[name]_avoid`
+    - `SAVE_MEMORY: DEAD_END: [path_to_dead_end] TAG: maze_[name]_avoid`
+    - `SAVE_MEMORY: blocked_by_[obstacle] TAG: maze_[name]_avoid`
     
-    🚨 FOREST STUCK RECOVERY:
+    🚨 maze STUCK RECOVERY:
     
     **If Going in Circles**:
-    1. `LOAD_MEMORIES: forest_[name]_avoid` - Check known dead ends
-    2. `REQUEST_PROMPT: forest_unstuck_algorithm` - Get specialized help
+    1. `LOAD_MEMORIES: maze_[name]_avoid` - Check known dead ends
+    2. `REQUEST_PROMPT: maze_unstuck_algorithm` - Get specialized help
     3. Try opposite direction of last 3 moves
     4. If still stuck: `REQUEST_PROMPT: landmark_navigation`
     
-    **Emergency Forest Navigation**:
+    **Emergency maze Navigation**:
     1. Stop and identify 3 visual landmarks around you
     2. Pick the most distinctive landmark as reference point
     3. Move systematically: up → right → down → left from landmark
-    4. `SAVE_MEMORY: emergency_reference_point_[description] TAG: forest_[name]`
+    4. `SAVE_MEMORY: emergency_reference_point_[description] TAG: maze_[name]`
     
-    🎯 FOREST ACTION PROTOCOL:
+    🎯 maze ACTION PROTOCOL:
     
-    1. **Assess Forest Type**: New vs known vs partially familiar
+    1. **Assess maze Type**: New vs known vs partially familiar
     2. **Load Appropriate Memories**: Previous solutions or general patterns
     3. **Select Navigation Method**: Wall-following vs landmark vs path-following
     4. **Execute 1-2 Movement Buttons**: Choose next direction based on method
     5. **Save Progress**: Record successful moves and discovered patterns
     
-    FOREST-SPECIFIC RULES:
-    - Never move more than 2 buttons per turn in forest
+    maze-SPECIFIC RULES:
+    - Never move more than 2 buttons per turn in maze
     - Always save successful path sequences for future use
     - Use landmarks for orientation when lost
     - Prefer systematic approaches over random movement
-    - Forest exits are usually at edges, not in center
+    - maze exits are usually at edges, not in center
     
-    Use pokemon_controller with forest-appropriate directional movement.
-  variables: ["task", "recent_actions", "forest_context"]
+    Use pokemon_controller with maze-appropriate directional movement.
+  variables: ["task", "recent_actions", "maze_context"]
   version: "1.0"
 
 cave_dungeon_expert:
