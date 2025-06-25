@@ -41,7 +41,6 @@ class Neo4jCompactReader:
             with self.driver.session() as session:
                 session.run("RETURN 1").single()
                 
-            print(f"✅ Neo4j connected: {uri}")
             
         except Exception as e:
             print(f"❌ Neo4j connection failed: {e}")

@@ -71,7 +71,6 @@ class SimplifiedTaskMemory:
             with self.driver.session() as session:
                 session.run("RETURN 1").single()
                 self.connected = True
-                print(f"✅ Neo4j connected: {self.neo4j_uri}")
                 self._setup_schema()
                 
         except Exception as e:

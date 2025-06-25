@@ -80,7 +80,6 @@ class Neo4jVisualMemory:
                 test_value = result.single()["test"]
                 if test_value == 1:
                     self.connected = True
-                    print(f"✅ Neo4j connected: {self.neo4j_uri}")
                     self._create_indices()
                 else:
                     raise Exception("Connection test failed")
