@@ -235,6 +235,8 @@ class ContinuousGameplay:
         self.interactive_controller = None
         self.episode_review_frequency = episode_review_frequency
         
+        # Removed goal template mapper - AI should select templates naturally through prompts
+        
         # Gameplay state
         self.paused = False
         self.running = False
@@ -536,13 +538,23 @@ class ContinuousGameplay:
                 # Re-raise the exception to crash the script as required
                 raise RuntimeError(f"Visual analysis failure is fatal - cannot proceed without visual data: {e}") from e
         
+        # STAGE 1.5: Load Goal Context from okr.json
+        okr_data = self._load_okr_context()
+        if okr_data and self.eevee.verbose:
+            current_goal = okr_data.get("current_goal", {})
+            print(f"🎯 GOAL CONTEXT: {current_goal.get('name', 'Unknown')} - {current_goal.get('status', 'Unknown')}")
+            if current_goal.get('status') == 'blocked':
+                print(f"   ⚠️ Goal BLOCKED: {okr_data.get('progress_analysis', {}).get('issues_detected', [])}")
+                print(f"   💡 Recommended: {okr_data.get('progress_analysis', {}).get('next_recommended_actions', [])}")
+        
         # STAGE 2: Strategic Decision (mistral-large-latest) - Build context-aware prompt
         memory_context = self._get_memory_context()
         prompt_data = self._build_ai_prompt(
             turn_number, 
             memory_context, 
             game_context.get("screenshot_data"), 
-            movement_data  # Pass movement validation data to prompt builder
+            movement_data,  # Pass movement validation data to prompt builder
+            okr_data  # Pass goal context to prompt builder
         )
         prompt = prompt_data.get("prompt", prompt_data) if isinstance(prompt_data, dict) else prompt_data
         
@@ -728,6 +740,9 @@ class ContinuousGameplay:
         self.session.turns_completed = turn_number
         self.session.last_analysis = ai_result.get("analysis", "")
         self.session.last_action = str(ai_result.get("action", []))
+        
+        # Track goal progress
+        self._track_goal_progress(ai_result, execution_result)
         
         # Store in memory if available
         if self.eevee.memory:
@@ -1488,7 +1503,104 @@ class ContinuousGameplay:
         
         return ""
     
-    def _build_ai_prompt(self, turn_number: int, memory_context: str, image_data: str = None, movement_data: Dict = None) -> Dict[str, Any]:
+    def _load_okr_context(self) -> Dict[str, Any]:
+        """Load current goal context from okr.json"""
+        try:
+            okr_file = self.eevee.eevee_dir / "okr.json"
+            if okr_file.exists():
+                with open(okr_file, 'r') as f:
+                    return json.load(f)
+            else:
+                if self.eevee.verbose:
+                    print("⚠️ okr.json not found - no goal context available")
+                return {}
+        except Exception as e:
+            if self.eevee.verbose:
+                print(f"⚠️ Failed to load okr.json: {e}")
+            return {}
+    
+    def _track_goal_progress(self, ai_result: Dict[str, Any], execution_result: Dict[str, Any]):
+        """Track progress towards current goal after each action"""
+        try:
+            # Load current goal context
+            okr_data = self._load_okr_context()
+            if not okr_data:
+                return
+                
+            current_goal = okr_data.get("current_goal", {})
+            if not current_goal:
+                return
+                
+            # Simple progress tracking based on action success and goal alignment
+            action_successful = execution_result.get("success", False)
+            actions_taken = ai_result.get("action", [])
+            reasoning = ai_result.get("reasoning", "")
+            
+            # Check if action aligns with recommended actions
+            recommended_actions = okr_data.get("progress_analysis", {}).get("next_recommended_actions", [])
+            action_aligned = False
+            
+            if recommended_actions:
+                # Check if any action taken matches recommendations
+                for action in actions_taken:
+                    if any(rec.lower() in action.lower() or action.lower() in rec.lower() 
+                          for rec in recommended_actions):
+                        action_aligned = True
+                        break
+            
+            # Log progress
+            if self.eevee.verbose:
+                if action_aligned and action_successful:
+                    print(f"✅ Goal Progress: Action aligned with goal recommendations")
+                elif not action_aligned and current_goal.get("status") == "blocked":
+                    print(f"⚠️ Goal Progress: Action didn't address blocked goal")
+                elif action_successful:
+                    print(f"📊 Goal Progress: Action completed but alignment uncertain")
+                    
+            # Store progress tracking for next goal review
+            if not hasattr(self, '_goal_progress_tracking'):
+                self._goal_progress_tracking = []
+                
+            self._goal_progress_tracking.append({
+                'turn': self.session.turns_completed,
+                'goal_id': current_goal.get('id'),
+                'action_aligned': action_aligned,
+                'action_successful': action_successful,
+                'goal_status': current_goal.get('status')
+            })
+            
+            # Keep only last 10 turns of tracking
+            if len(self._goal_progress_tracking) > 10:
+                self._goal_progress_tracking = self._goal_progress_tracking[-10:]
+                
+        except Exception as e:
+            if self.eevee.debug:
+                print(f"WARNING: Goal progress tracking failed: {e}")
+    
+    def _log_template_selection(self, goal_text: str, selected_template: str, 
+                               visual_template: str, metadata: Dict, context: Dict):
+        """Log detailed template selection information"""
+        print(f"🎯 COMPREHENSIVE GOAL ANALYSIS:")
+        print(f"   Goal: {goal_text[:60]}...")
+        print(f"   Category: {metadata.get('goal_category', 'unknown')} (confidence: {metadata.get('confidence', 0):.2f})")
+        
+        if metadata.get('detected_categories'):
+            print(f"   All categories: {metadata['detected_categories'][:3]}")
+        
+        if metadata.get('visual_override'):
+            print(f"   🔄 GOAL OVERRIDE: {visual_template} → {selected_template}")
+        else:
+            print(f"   ✅ TEMPLATE MATCH: {selected_template}")
+        
+        if context.get("emergency_detected"):
+            print(f"   🚨 Emergency: {context.get('emergency_reason')}")
+        
+        if context.get("stuck_detected"):
+            print(f"   ⚠️ Stuck pattern detected")
+        
+        print(f"   Scene: {context.get('scene_type', 'unknown')}")
+    
+    def _build_ai_prompt(self, turn_number: int, memory_context: str, image_data: str = None, movement_data: Dict = None, okr_data: Dict = None) -> Dict[str, Any]:
         """Build context-aware AI prompt with playbook integration
         
         Returns:
@@ -1513,18 +1625,17 @@ class ContinuousGameplay:
             
             try:
                 # OPTIMIZATION: Use visual context analyzer's template recommendation directly
-                # This eliminates the redundant AI selection call and saves LLM tokens
                 if movement_data and 'recommended_template' in movement_data:
-                    # SIMPLIFIED: Use Gemini's template recommendation directly - no complex mapping!
+                    # 🎯 GOAL-AWARE TEMPLATE SELECTION: Check goal requirements before accepting visual recommendation
                     prompt_type = movement_data['recommended_template']
                     
-                    # Simple playbook selection based on template
+                    # Goal-aware playbook selection  
                     playbook = "battle" if prompt_type == "battle_analysis" else "navigation"
                     
                     if self.eevee.verbose:
-                        print(f"✅ DIRECT TEMPLATE SELECTION: {prompt_type}")
+                        print(f"✅ TEMPLATE SELECTION: {prompt_type} (goal-aware)")
                         print(f"   Scene: {movement_data.get('scene_type', 'unknown')}")
-                        print(f"   Confidence: {movement_data.get('confidence', 'unknown')}")
+                        print(f"   Goal Status: {okr_data.get('current_goal', {}).get('status', 'unknown') if okr_data else 'no goal'}")
                         print(f"   Playbook: {playbook}")
                     
                     # Add visual context variables
@@ -1536,6 +1647,52 @@ class ContinuousGameplay:
                         "valid_movements": movement_data.get("valid_movements", []),
                         "confidence": movement_data.get("confidence", "unknown")
                     })
+                    
+                    # Add goal context variables from okr.json (always provide defaults)
+                    if okr_data:
+                        current_goal = okr_data.get("current_goal", {})
+                        progress_analysis = okr_data.get("progress_analysis", {})
+                        
+                        variables.update({
+                            "current_goal_name": current_goal.get("name", "Unknown"),
+                            "current_goal_status": current_goal.get("status", "unknown"),
+                            "current_goal_description": current_goal.get("description", ""),
+                            "goal_progress": current_goal.get("progress_percentage", 0),
+                            "goal_blocked": current_goal.get("status") == "blocked",
+                            "goal_issues": progress_analysis.get("issues_detected", []),
+                            "recommended_goal_actions": progress_analysis.get("next_recommended_actions", []),
+                            "goal_hierarchy": okr_data.get("session_goal", self.session.goal)
+                        })
+                    else:
+                        # Provide default values when no okr_data available
+                        variables.update({
+                            "current_goal_name": self.session.goal or "Find the exit",
+                            "current_goal_status": "check_pokemon_health",
+                            "current_goal_description": "check your pokemon health",
+                            "goal_progress": 0,
+                            "goal_blocked": False,
+                            "goal_issues": [],
+                            "recommended_goal_actions": ["walk around"],
+                            "goal_hierarchy": self.session.goal or "General gameplay"
+                        })
+                        
+                    # Add dialogue variables (always provide defaults for exploration_strategy template)
+                    dialogue_visible = movement_data.get("dialogue_visible", False) if movement_data else False
+                    dialogue_text = movement_data.get("dialogue_text", "") if movement_data else ""
+                    dialogue_buttons = movement_data.get("dialogue_buttons", []) if movement_data else []
+                    
+                    variables.update({
+                        "dialogue_visible": dialogue_visible,
+                        "dialogue_text": dialogue_text,
+                        "dialogue_buttons": dialogue_buttons,
+                        "dialogue_present": dialogue_visible  # legacy variable for compatibility
+                    })
+                    
+                    # Priority check for dialogue interaction (verbose logging)
+                    if dialogue_visible and prompt_type != "battle_analysis":
+                        if self.eevee.verbose:
+                            print(f"   💬 DIALOGUE DETECTED: Prioritizing interaction")
+                            print(f"      Text: {dialogue_text[:50]}..." if len(dialogue_text) > 50 else f"      Text: {dialogue_text}")
                     
                     # Add battle-specific variables if using battle template
                     if prompt_type == "battle_analysis":
@@ -1600,6 +1757,22 @@ class ContinuousGameplay:
                         print(f"📊 OKR Context included: {len(okr_context)} characters")
                 
                 # Add continuous gameplay context
+                goal_context_text = ""
+                if okr_data:
+                    current_goal = okr_data.get("current_goal", {})
+                    progress_analysis = okr_data.get("progress_analysis", {})
+                    goal_context_text = f"""
+**CURRENT GOAL STATUS**:
+- Active Goal: {current_goal.get('name', 'Unknown')}
+- Status: {current_goal.get('status', 'unknown')}
+- Progress: {current_goal.get('progress_percentage', 0)}%
+- Description: {current_goal.get('description', '')}"""
+                    
+                    if current_goal.get('status') == 'blocked':
+                        goal_context_text += f"""
+- ⚠️ BLOCKED BY: {', '.join(progress_analysis.get('issues_detected', []))}
+- 💡 RECOMMENDED ACTIONS: {', '.join(progress_analysis.get('next_recommended_actions', []))}"""
+                
                 prompt += f"""
 
 **CONTINUOUS GAMEPLAY CONTEXT**:
@@ -1607,6 +1780,7 @@ class ContinuousGameplay:
 - Goal: {self.session.goal}
 - User instruction: {recent_task if recent_task else "Continue autonomous gameplay"}
 - Memory: {memory_context}
+{goal_context_text}
 {okr_context}
 **ENHANCED ANALYSIS REQUIREMENTS**:
 🎯 **OBSERVATION**: Describe exactly what you see on screen
@@ -3332,7 +3506,7 @@ Respond with valid JSON only.
             }
             
             # Save okr.json file 
-            okr_file_path = Path("okr.json")  # Save in current directory
+            okr_file_path = self.eevee.eevee_dir / "okr.json"  # Save in eevee directory for consistency
             with open(okr_file_path, 'w') as f:
                 json.dump(okr_data, f, indent=2)
             

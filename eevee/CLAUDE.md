@@ -36,6 +36,12 @@ EeveeAgent (game control) → PromptManager (AI templates) → LLM API (multi-pr
 
 ### **Code Quality Guidelines**
 
+#### **No Game Logic in Python Files**
+- **YAML templates only**: Pokemon game knowledge (type charts, battle strategies) must stay in YAML prompt files
+- **No hardcoded logic**: Python files should contain NO Pokemon-specific business logic, keyword analysis, or game decision-making
+- **Pure data passing**: Python code only passes data from SkyEmu to AI through templates - no "cheating" logic allowed
+- **AI learns naturally**: All game knowledge must be learned by the AI through prompts and experience, not hardcoded
+
 #### **Import Management**
 - **Import at top level**: Never import modules inside functions. Always import at the top of the file
 - **Fail fast**: Don't wrap every operation in try/except blocks. Let errors bubble up naturally

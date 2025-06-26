@@ -1,15 +1,15 @@
 {
   "meta": {
-    "updated_at": "2025-06-25T21:33:30.726976",
-    "session_id": "20250625_213027",
+    "updated_at": "2025-06-26T14:55:10.215533",
+    "session_id": "20250626_145428",
     "source": "goal_oriented_planning_system"
   },
-  "session_goal": "defeat trainers and find out where to go next",
+  "session_goal": "leave pewter city from the left side and fight people",
   "current_goal": {
     "id": "find_gym",
     "name": "Find Gym",
     "description": "Navigate to and locate Gym",
-    "status": "blocked",
+    "status": "in_progress",
     "priority": 9,
     "progress_percentage": 30,
     "estimated_turns": 20,
@@ -20,7 +20,7 @@
     "root_goal": {
       "id": "defeat_gym_leader",
       "name": "Defeat Gym Leader",
-      "description": "defeat trainers and find out where to go next",
+      "description": "leave pewter city from the left side and fight people",
       "children": [
         "find_gym",
         "prepare_team",
@@ -33,13 +33,14 @@
   },
   "progress_analysis": {
     "progress_score": 3,
-    "progress_description": "AI's Charmander is in critical condition, blocking the progress towards finding the Gym.",
+    "progress_description": "AI has healed Pokemon at the Pokemon Center and is starting to move out",
     "issues_detected": [
-      "charmander_needs_healing"
+      "stuck_in_loop"
     ],
     "next_recommended_actions": [
-      "use_healing_item"
+      "move_north",
+      "move_west"
     ],
-    "estimated_turns_to_completion": 1
+    "estimated_turns_to_completion": 10
   }
 }

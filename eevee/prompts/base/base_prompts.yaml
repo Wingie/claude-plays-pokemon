@@ -226,30 +226,39 @@ pokemon_party_analysis:
     
     GOAL: {task}
     
-    **PARTY ANALYSIS INSTRUCTIONS:**
+    **GOAL CONTEXT (PRIORITY #1):**
+    Current Goal: {current_goal_name}
+    Goal Status: {current_goal_status}
+    Progress: {goal_progress}%
+    Recommended Actions: {recommended_goal_actions}
     
-    Analyze the Pokemon party screen:
-    - Pokemon names, levels, and HP status
-    - Move sets and PP remaining
-    - Status conditions (poison, sleep, etc.)
-    - Navigation within party menus
+    **PRIORITY DECISION FRAMEWORK:**
+    1. **IF goal recommends "visit_pokemon_center" or similar navigation actions:**
+       - Press "b" to exit Pokemon menu immediately
+       - Return to overworld to navigate to Pokemon Center
+       - Do NOT try to heal Pokemon individually in menus
     
-    **PARTY MANAGEMENT:**
-    - Navigate between Pokemon with D-Pad
-    - Select Pokemon with A for details
-    - Exit menus with B when analysis complete
+    2. **IF goal recommends "use_potion" or item usage:**
+       - Only proceed if you have items available
+       - Otherwise exit menu and find Pokemon Center
     
-    **VALID BUTTONS:**
-    - Movement: "up", "down", "left", "right"
-    - Actions: "a", "b", "start", "select"
+    3. **IF no specific goal recommendations:**
+       - Analyze Pokemon status as normal
+       - Exit with "b" when analysis complete
+    
+    **MENU NAVIGATION RULES:**
+    - To exit any Pokemon menu: Press "b" 
+    - To select Pokemon: Press "a"
+    - To navigate between Pokemon: Use "up"/"down"
+    - **IMPORTANT: If goal requires navigation (Pokemon Center), exit menus first!**
     
     **RESPONSE FORMAT (MANDATORY):**
     Return ONLY a JSON object with no additional text:
     
     {{
-      "button_presses": ["a"],
-      "reasoning": "view_pokemon_stats",
-      "observations": "party_screen_6pokemon",
+      "button_presses": ["b"],
+      "reasoning": "exit_menu_to_find_pokemon_center",
+      "observations": "party_needs_healing_goal_requires_navigation",
       "context_detected": "menu",
       "confidence": "high"
     }}
@@ -258,7 +267,11 @@ pokemon_party_analysis:
   variables:
   - task
   - recent_actions
-  version: '5.0'
+  - current_goal_name
+  - current_goal_status
+  - goal_progress
+  - recommended_goal_actions
+  version: '5.2'
 exploration_strategy:
   name: Pokemon Navigation Analysis (JSON Response)
   description: Analyze overworld navigation and provide movement decisions using spatial context
@@ -267,6 +280,17 @@ exploration_strategy:
     
     GOAL: {task}
     RECENT ACTIONS: {recent_actions}
+    
+    **DIALOGUE PRIORITY (HIGHEST):**
+    Dialogue Visible: {dialogue_visible}
+    Dialogue Text: {dialogue_text}
+    Available Responses: {dialogue_buttons}
+    
+    **CRITICAL: If dialogue_visible is true:**
+    - ALWAYS press A to continue/advance dialogue: {dialogue_text}
+    - NEVER move away from dialogue - interaction takes absolute priority
+    - Available dialogue options: {dialogue_buttons}
+    - Dialogue interaction overrides ALL movement and exploration actions
     
     **VISUAL CONTEXT PROVIDED:**
     Scene Type: {scene_type}
@@ -278,6 +302,10 @@ exploration_strategy:
     
     **NAVIGATION ANALYSIS INSTRUCTIONS:**
     
+    **STEP 1 - CHECK FOR DIALOGUE FIRST:**
+    If dialogue_visible is true, press A to engage/continue dialogue immediately.
+    
+    **STEP 2 - NAVIGATION (only if no dialogue):**
     Use the spatial context above to analyze the overworld navigation situation:
     - Use character_position and spatial_context for precise movement planning
     - Consider valid_movements for safe direction choices
@@ -289,6 +317,18 @@ exploration_strategy:
     - Use spatial_context to understand terrain layout
     - Avoid repeating failed movements from recent_actions
     - One button press per decision for careful movement
+    
+    **GOAL PRIORITY SYSTEM:**
+    Current Goal: {current_goal_name}
+    Goal Status: {current_goal_status}
+    Progress: {goal_progress}%
+    Recommended Actions: {recommended_goal_actions}
+    
+    **IF goal recommends "visit_pokemon_center" or navigation to specific locations:**
+    - Use visual context to identify building types and navigate toward them
+    - Look for red-roofed buildings in towns (Pokemon Centers)
+    - Press UP at building entrances to enter
+    - Prioritize goal recommendations over random exploration
     
     **POKEMON CENTER SEEKING (High Priority):**
     If GOAL contains "heal" or "pokemon center":
@@ -323,7 +363,14 @@ exploration_strategy:
   - visual_description
   - valid_movements
   - confidence
-  version: '6.0'
+  - current_goal_name
+  - current_goal_status
+  - goal_progress
+  - recommended_goal_actions
+  - dialogue_visible
+  - dialogue_text
+  - dialogue_buttons
+  version: '6.3'
 inventory_analysis:
   name: Pokemon Inventory Analysis (JSON Response)
   description: Analyze bag contents and provide item management decisions
@@ -590,6 +637,149 @@ pokemon_center_navigation:
     - Recognize dialogue states to avoid getting stuck
     - Exit immediately after healing completes
     - If stuck in same position, try "a" to interact
+  variables:
+  - task
+  version: '1.0'
+
+services_interaction:
+  name: Pokemon Services Interaction (Shopping, Storage, NPCs)
+  description: Handle interactions with Pokemon Marts, PC storage, and service NPCs
+  template: |
+    Pokemon Services Interaction
+    
+    GOAL: {task}
+    
+    **SERVICE INTERACTION STRATEGY:**
+    
+    Identify the service type and interact appropriately:
+    
+    **POKEMON MART (Shopping):**
+    - Approach clerk counter from front
+    - Press A to start interaction
+    - Navigate "BUY/SELL" menu using arrow keys
+    - Select items with A, confirm quantities
+    - Press B to exit when done
+    
+    **PC STORAGE (Pokemon Management):**
+    - Approach PC terminal
+    - Press A to access "Someone's PC"
+    - Select "Bill's PC" for Pokemon storage
+    - Use WITHDRAW/DEPOSIT/MOVE options
+    - Press B multiple times to exit fully
+    
+    **NPC CONVERSATIONS:**
+    - Face NPC and press A to talk
+    - Press A to advance through dialogue
+    - Choose dialogue options with arrow keys + A
+    - Complete conversation before moving away
+    
+    **RESPONSE FORMAT (MANDATORY):**
+    Return ONLY a JSON object with no additional text:
+    
+    {{
+      "button_presses": ["up"],
+      "reasoning": "approaching_service_counter",
+      "service_type": "mart/pc/npc",
+      "current_step": "approach/interact/navigate_menu",
+      "confidence": "high"
+    }}
+  variables:
+  - task
+  version: '1.0'
+
+training_focused:
+  name: Pokemon Training & Leveling Strategy
+  description: Optimize Pokemon training, leveling, and experience gain
+  template: |
+    Pokemon Training Strategy
+    
+    GOAL: {task}
+    
+    **TRAINING OPTIMIZATION:**
+    
+    Identify optimal training approach:
+    
+    **WILD POKEMON BATTLES:**
+    - Seek areas with appropriate level Pokemon
+    - Use type advantages for faster battles
+    - Rotate team members for balanced growth
+    - Avoid overleveling beyond gym requirements
+    
+    **TRAINER BATTLES:**
+    - Challenge trainers for higher EXP rewards
+    - Re-battle trainers when possible
+    - Use EXP Share for team-wide growth
+    
+    **EVOLUTION MANAGEMENT:**
+    - Monitor Pokemon levels for evolution opportunities
+    - Consider move learning vs evolution timing
+    - Use items (stones, etc.) when appropriate
+    
+    **TEAM OPTIMIZATION:**
+    - Balance team levels and types
+    - Ensure coverage for upcoming challenges
+    - Replace weak team members as needed
+    
+    **RESPONSE FORMAT (MANDATORY):**
+    Return ONLY a JSON object with no additional text:
+    
+    {{
+      "button_presses": ["right"],
+      "reasoning": "seeking_training_battles",
+      "training_target": "team_balance/specific_pokemon",
+      "current_strategy": "wild_battles/trainer_battles",
+      "confidence": "medium"
+    }}
+  variables:
+  - task
+  version: '1.0'
+
+narrative_interaction:
+  name: Pokemon Quest & Story Dialogue Management
+  description: Handle story progression, quest dialogue, and narrative interactions
+  template: |
+    Pokemon Narrative Interaction
+    
+    GOAL: {task}
+    
+    **STORY PROGRESSION STRATEGY:**
+    
+    Navigate dialogue and quest interactions:
+    
+    **DIALOGUE HANDLING:**
+    - Read dialogue carefully for quest information
+    - Choose responses that advance story
+    - Pay attention to key items or directions given
+    - Note any new locations or objectives mentioned
+    
+    **QUEST MANAGEMENT:**
+    - Track current quest objectives
+    - Prioritize main story over side quests
+    - Return to NPCs when objectives complete
+    - Use items or Pokemon as requested
+    
+    **PROFESSOR/GYM LEADER INTERACTIONS:**
+    - Listen for important information
+    - Accept Pokemon, items, or HMs given
+    - Follow instructions for story advancement
+    - Ask for clarification if objectives unclear
+    
+    **KEY CHARACTERS:**
+    - Professor Oak: Research tasks, Pokedex updates
+    - Gym Leaders: Battle challenges, badges
+    - Team Rocket: Story conflicts, items
+    - Rivals: Ongoing battles, character development
+    
+    **RESPONSE FORMAT (MANDATORY):**
+    Return ONLY a JSON object with no additional text:
+    
+    {{
+      "button_presses": ["a"],
+      "reasoning": "advancing_story_dialogue",
+      "quest_context": "main_story/side_quest/character_development",
+      "dialogue_choice": "story_advance/information_gathering",
+      "confidence": "high"
+    }}
   variables:
   - task
   version: '1.0'

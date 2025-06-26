@@ -81,39 +81,7 @@ class EeveeAgent:
         self.last_failure_time = 0
         self.circuit_breaker_open = False
         
-        # ============== ENHANCED NAVIGATION INTELLIGENCE ==============
-        # Core navigation tracking system for 80%+ efficiency target
-        self.movement_history = []  # Track last 15 movements with success/failure
-        self.direction_success_rates = {
-            "up": {"attempts": 0, "successes": 0, "blocked_count": 0},
-            "down": {"attempts": 0, "successes": 0, "blocked_count": 0},
-            "left": {"attempts": 0, "successes": 0, "blocked_count": 0},
-            "right": {"attempts": 0, "successes": 0, "blocked_count": 0}
-        }
-        self.stuck_pattern_threshold = 3  # Prevent pattern before it becomes established
-        self.movement_memory_length = 15  # Expanded from 4 to 15 turns
-        self.last_successful_directions = []  # Track what worked recently
-        self.blocked_directions_cache = {}  # Remember blocked paths with timestamps
-        self.navigation_efficiency_target = 0.80  # 80% target efficiency
-        
-        # Adaptive exploration strategies
-        self.exploration_strategy = "systematic"  # Options: systematic, wall_following, random
-        self.current_exploration_direction = None
-        self.exploration_progress_score = 0.0
-        self.systematic_search_pattern = ["up", "right", "down", "left"]  # Clockwise search
-        self.current_pattern_index = 0
-        
-        # Proactive stuck prevention
-        self.stuck_prevention_active = True
-        self.preemptive_direction_change_threshold = 2  # Change direction after 2 failed attempts
-        self.adaptive_backtracking_enabled = True
-        self.successful_path_memory = {}  # Remember successful navigation routes
-        
-        if self.verbose:
-            print("🧭 Enhanced Navigation Intelligence System initialized")
-            print(f"   - Target efficiency: {self.navigation_efficiency_target * 100}%")
-            print(f"   - Movement memory: {self.movement_memory_length} turns")
-            print(f"   - Stuck prevention: {'Active' if self.stuck_prevention_active else 'Disabled'}")
+
     def _init_ai_components(self):
         """Initialize AI components and APIs"""
         # Initialize centralized LLM API manager with environment configuration
@@ -138,7 +106,7 @@ class EeveeAgent:
             if current_provider in provider_status:
                 self.available_models = provider_status[current_provider]['available_models']
             
-                print(f" LLM API initialized with providers: {available_providers}")
+                print(f"🤖 LLM API initialized with providers: {available_providers}")
                 
                 # Check for hybrid mode
                 hybrid_mode = os.getenv('HYBRID_MODE', 'false').lower() == 'true'
@@ -147,36 +115,36 @@ class EeveeAgent:
                 if hybrid_mode and llm_provider == 'hybrid':
                     visual_provider = os.getenv('VISUAL_PROVIDER', 'gemini')
                     strategic_provider = os.getenv('STRATEGIC_PROVIDER', 'mistral')
-                    print(f" HYBRID MODE: Visual={visual_provider}, Strategic={strategic_provider}")
+                    print(f"🔀 HYBRID MODE: Visual={visual_provider}, Strategic={strategic_provider}")
                 else:
-                    print(f" Using {current_provider.upper()} provider (from .env configuration)")
+                    print(f"🎯 Using {current_provider.upper()} provider (from .env configuration)")
                     
-                print(f" Available models: {self.available_models}")
+                print(f"📋 Available models: {self.available_models}")
             
             if not available_providers:
                 raise ValueError("No LLM providers available - check your API keys")
                 
         except Exception as e:
-            print(f" Failed to initialize LLM API: {e}")
+            print(f"❌ Failed to initialize LLM API: {e}")
             raise
         
         # Initialize memory system (now mandatory with Neo4j)
         try:
             from memory_system import MemorySystem
-            print(" Initializing memory system with mandatory Neo4j...")
+            print("🧠 Initializing memory system with mandatory Neo4j...")
             self.memory = MemorySystem(self.memory_session, enable_neo4j=True)
             
             # Test Neo4j connection
             if not self._test_neo4j_connection():
                 raise Exception("Neo4j connection test failed - Neo4j is required for operation")
             
-            print(" Memory system with Neo4j initialized successfully")
+            print("✅ Memory system with Neo4j initialized successfully")
         except ImportError as e:
-            print(f" CRITICAL: MemorySystem not available: {e}")
+            print(f"❌ CRITICAL: MemorySystem not available: {e}")
             print("Neo4j memory system is required for operation")
             raise
         except Exception as e:
-            print(f" CRITICAL: Memory system initialization failed: {e}")
+            print(f"❌ CRITICAL: Memory system initialization failed: {e}")
             print("Neo4j is required for operation")
             raise
         
@@ -187,7 +155,7 @@ class EeveeAgent:
         except ImportError:
             self.prompt_manager = None
             if self.debug:
-                print("️  PromptManager not available, using basic prompts")
+                print("⚠️  PromptManager not available, using basic prompts")
         
         # Initialize task executor when available
         try:
@@ -196,7 +164,7 @@ class EeveeAgent:
         except ImportError:
             self.task_executor = None
             if self.debug:
-                print("️  TaskExecutor not available, using basic execution")
+                print("⚠️  TaskExecutor not available, using basic execution")
     
     
     def _call_llm_api(self, prompt: str, image_data: str = None, use_tools: bool = False, max_tokens: int = 1000) -> Dict[str, Any]:
@@ -227,34 +195,34 @@ class EeveeAgent:
             provider = get_provider_for_task(task_type)
             
             if self.verbose:
-                print(f" Task Type: {task_type}")
-                print(f" Using Model: {model} (Provider: {provider})")
-                print(f" Prompt Length: {len(prompt)} chars")
-                print(f"️ Has Image Data: {'' if image_data else ''}")
+                print(f"🎯 Task Type: {task_type}")
+                print(f"🤖 Using Model: {model} (Provider: {provider})")
+                print(f"📝 Prompt Length: {len(prompt)} chars")
+                print(f"🖼️ Has Image Data: {'✅' if image_data else '❌'}")
                 if image_data:
-                    print(f" Image Data Length: {len(image_data)} chars")
+                    print(f"📊 Image Data Length: {len(image_data)} chars")
                     
                     # Enhanced image data validation
                     try:
                         import base64
                         # Validate base64 encoding
                         decoded_bytes = base64.b64decode(image_data)
-                        print(f" Image Validation:  Valid base64, {len(decoded_bytes)} decoded bytes")
+                        print(f"🔍 Image Validation: ✅ Valid base64, {len(decoded_bytes)} decoded bytes")
                         
                         # Check if it looks like a valid image (PNG/JPEG headers)
                         if decoded_bytes.startswith(b'\x89PNG'):
-                            print(f" Image Format: PNG detected")
+                            print(f"📸 Image Format: PNG detected")
                         elif decoded_bytes.startswith(b'\xff\xd8\xff'):
-                            print(f" Image Format: JPEG detected")
+                            print(f"📸 Image Format: JPEG detected")
                         else:
-                            print(f"️ Image Format: Unknown format (first 8 bytes: {decoded_bytes[:8].hex()})")
+                            print(f"⚠️ Image Format: Unknown format (first 8 bytes: {decoded_bytes[:8].hex()})")
                             
                     except Exception as e:
-                        print(f" Image Validation Failed: {e}")
-                        print(f"️ This may cause Pixtral vision to fail!")
+                        print(f"❌ Image Validation Failed: {e}")
+                        print(f"⚠️ This may cause Pixtral vision to fail!")
                 
                 # Log first 500 chars of prompt for debugging (without image data)
-                print(" PROMPT PREVIEW:")
+                print("🔍 PROMPT PREVIEW:")
                 print("-" * 60)
                 preview = prompt[:500] + "..." if len(prompt) > 500 else prompt
                 print(preview)
@@ -278,20 +246,20 @@ class EeveeAgent:
             
             # Essential API status info only
             if self.verbose:
-                print(f" API Response: {len(response.text)} chars")
-                print(f" Provider: {response.provider}")
-                print(f" Model: {response.model}")
+                print(f"📊 API Response: {len(response.text)} chars")
+                print(f"🔧 Provider: {response.provider}")
+                print(f"🔧 Model: {response.model}")
                 if response.response_time:
                     print(f"⏱️ Response time: {response.response_time:.2f}s")
                 if response.tokens_used:
-                    print(f" Tokens used: {response.tokens_used}")
+                    print(f"📊 Tokens used: {response.tokens_used}")
             
             # Enforce button press limits (max 3 buttons)
             if len(result["button_presses"]) > 3:
                 original_count = len(result["button_presses"])
                 result["button_presses"] = result["button_presses"][:3]
                 if self.verbose:
-                    print(f"️ BUTTON LIMIT ENFORCED: {original_count} → 3")
+                    print(f"⚠️ BUTTON LIMIT ENFORCED: {original_count} → 3")
             
             # Default fallback if no buttons
             if not result["button_presses"] and not result["error"]:
@@ -301,7 +269,7 @@ class EeveeAgent:
             
         except Exception as e:
             if self.verbose:
-                print(f" LLM API call failed: {e}")
+                print(f"❌ LLM API call failed: {e}")
             
             return {
                 "text": "",
@@ -365,7 +333,7 @@ class EeveeAgent:
             self.circuit_breaker_open = False
             self.api_failure_count = 0
             if self.verbose:
-                print(" Circuit breaker reset - API calls resumed")
+                print("🔄 Circuit breaker reset - API calls resumed")
         
         return self.circuit_breaker_open
     
@@ -374,7 +342,7 @@ class EeveeAgent:
         if self.api_failure_count > 0:
             self.api_failure_count = 0
             if self.verbose:
-                print(" API success - failure count reset")
+                print("✅ API success - failure count reset")
     
     def _record_api_failure(self):
         """Record API failure and update circuit breaker state"""
@@ -384,7 +352,7 @@ class EeveeAgent:
         if self.api_failure_count >= self.api_failure_threshold and not self.circuit_breaker_open:
             self.circuit_breaker_open = True
             if self.verbose:
-                print(f" Circuit breaker opened after {self.api_failure_count} failures")
+                print(f"🔴 Circuit breaker opened after {self.api_failure_count} failures")
                 print(f"   API calls suspended for {self.circuit_breaker_reset_time//60} minutes")
     
     def _detect_overworld_context(self, image_data: str) -> Dict[str, Any]:
@@ -402,7 +370,7 @@ class EeveeAgent:
             ascii_overlay = self._create_ascii_grid_overlay(image_data)
         except Exception as e:
             if self.verbose:
-                print(f"️ ASCII overlay creation failed: {e}")
+                print(f"⚠️ ASCII overlay creation failed: {e}")
             ascii_overlay = "ASCII overlay not available"
 
         overworld_prompt = f"""# Pokemon Overworld Navigation Expert
@@ -474,7 +442,7 @@ Analyze the grid and provide safe navigation guidance."""
             
         except Exception as e:
             if self.verbose:
-                print(f"️ Overworld detection failed: {e}")
+                print(f"⚠️ Overworld detection failed: {e}")
             return {"error": str(e), "is_overworld": False}
     
     def _parse_overworld_text_response(self, text: str) -> Dict[str, Any]:
@@ -605,15 +573,67 @@ Analyze the grid and provide safe navigation guidance."""
             
         except Exception as e:
             if self.verbose:
-                print(f"️ ASCII grid overlay creation failed: {e}")
+                print(f"⚠️ ASCII grid overlay creation failed: {e}")
             return "ASCII grid creation failed"
     
     def _classify_tile_for_navigation(self, tile_array: np.ndarray, position: tuple) -> str:
         """
-        Simple tile classification - removed hardcoded Pokemon game knowledge
-        AI should learn navigation through visual reasoning, not pixel-perfect color detection
+        Classify a tile for navigation purposes using HSV color analysis
+        
+        Args:
+            tile_array: Numpy array of the tile image
+            position: Tuple of (y, x) coordinates for the tile
+            
+        Returns:
+            Single character representing the tile type
         """
-        return "."  # Let AI handle navigation through visual analysis
+        if tile_array.size == 0:
+            return "."  # Default for empty tile
+        
+        y, x = position
+        
+        # Convert RGB to BGR (OpenCV format) then to HSV
+        tile_bgr = cv2.cvtColor(tile_array, cv2.COLOR_RGB2BGR)
+        tile_hsv = cv2.cvtColor(tile_bgr, cv2.COLOR_BGR2HSV)
+        
+        # Calculate average HSV color
+        avg_hsv = np.mean(tile_hsv, axis=(0, 1))
+        h, s, v = avg_hsv.astype(int)
+        
+        # Trees (dark green) - BLOCKED
+        if 44 <= h <= 48 and s > 175 and 125 <= v <= 160:
+            return "T"
+            
+        # Paths (light yellow/tan) - WALKABLE
+        elif 30 <= h <= 32 and 125 <= s <= 145 and v > 200:
+            return "-"
+            
+        # Water (blue) - BLOCKED
+        elif 90 < h < 130 and s > 50:
+            return "~"
+            
+        # Walls/buildings (dark gray/black) - BLOCKED
+        elif s < 40 and v < 100:
+            return "#"
+            
+        # Buildings/structures (usually gray/red) - BLOCKED
+        elif (0 <= h < 20 or 160 < h <= 179) and s > 50 and v > 80:
+            return "B"
+        
+        # Grass (various greens) - WALKABLE (with some exceptions)
+        elif 40 <= h <= 52 and v > 150:
+            # Most grass is walkable, but some edge cases
+            if 3 <= y <= 4:  # Middle rows are almost always walkable
+                return "."
+            elif s < 160:  # Lower saturation generally means walkable
+                return "."
+            else:
+                # Handle special cases for dense foliage
+                return "."  # Default to walkable for most grass
+        
+        # Default - assume walkable grass
+        else:
+            return "."
     
     def _is_area_visited(self, x: int, y: int) -> bool:
         """
@@ -640,7 +660,7 @@ Analyze the grid and provide safe navigation guidance."""
             
         except Exception as e:
             if self.debug:
-                print(f"️ Error checking visited area: {e}")
+                print(f"⚠️ Error checking visited area: {e}")
             return False
     
     def _record_area_visit(self, x: int, y: int, context: str = ""):
@@ -667,7 +687,7 @@ Analyze the grid and provide safe navigation guidance."""
             
         except Exception as e:
             if self.debug:
-                print(f"️ Error recording area visit: {e}")
+                print(f"⚠️ Error recording area visit: {e}")
     
     def _record_overworld_movement(self, button_presses: List[str], game_context: Dict[str, Any], ai_analysis: str, turn: int):
         """
@@ -700,7 +720,7 @@ Analyze the grid and provide safe navigation guidance."""
             movements_made = [button for button in button_presses if button in movement_buttons]
             
             if self.verbose:
-                print(f"️  Overworld movement detected: {movements_made}")
+                print(f"🗺️  Overworld movement detected: {movements_made}")
             
             # Record area visit for the player's current position
             # Use center of 8x8 grid as baseline (player position)
@@ -749,11 +769,11 @@ Analyze the grid and provide safe navigation guidance."""
                     )
                 
                 if self.verbose:
-                    print(f" Recorded visit to grid position ({new_x}, {new_y})")
+                    print(f"📍 Recorded visit to grid position ({new_x}, {new_y})")
         
         except Exception as e:
             if self.debug:
-                print(f"️ Error recording overworld movement: {e}")
+                print(f"⚠️ Error recording overworld movement: {e}")
     
     def _init_directories(self):
         """Initialize directory structure"""
@@ -775,7 +795,7 @@ Analyze the grid and provide safe navigation guidance."""
             
             # Test SkyEmu connection
             if not self.controller.is_connected():
-                print(f"️  Warning: SkyEmu server not connected")
+                print(f"⚠️  Warning: SkyEmu server not connected")
                 print("   Make sure SkyEmu is running with HTTP server enabled")
                 print("   Default connection: localhost:8080")
         else:
@@ -785,7 +805,7 @@ Analyze the grid and provide safe navigation guidance."""
             # Test game connection
             window = self.controller.find_window()
             if not window:
-                print(f"️  Warning: Pokemon game window not found")
+                print(f"⚠️  Warning: Pokemon game window not found")
                 print(f"   Looking for: {self.window_title}")
                 print("   Make sure the emulator is running with a Pokemon game loaded")
     
@@ -804,14 +824,14 @@ Analyze the grid and provide safe navigation guidance."""
         self.current_task = task_description
         
         if self.verbose:
-            print(f" Starting task execution: {task_description}")
+            print(f"🎯 Starting task execution: {task_description}")
         
         try:
             # Step 1: Analyze the task and create execution plan
             execution_plan = self._analyze_task(task_description)
             
             if self.verbose:
-                print(f" Execution plan created with {len(execution_plan.get('steps', []))} steps")
+                print(f"📋 Execution plan created with {len(execution_plan.get('steps', []))} steps")
             
             # Step 2: Execute the plan
             if self.task_executor:
@@ -863,14 +883,14 @@ Analyze the grid and provide safe navigation guidance."""
         self.current_task = task_description
         
         if self.verbose:
-            print(f" Starting interruptible task: {task_description}")
+            print(f"🎯 Starting interruptible task: {task_description}")
         
         try:
             # Step 1: Analyze the task and create execution plan
             execution_plan = self._analyze_task(task_description)
             
             if self.verbose:
-                print(f" Execution plan created with {len(execution_plan.get('steps', []))} steps")
+                print(f"📋 Execution plan created with {len(execution_plan.get('steps', []))} steps")
             
             # Step 2: Execute the plan with interruption support
             if self.task_executor:
@@ -931,7 +951,7 @@ Analyze the grid and provide safe navigation guidance."""
                 break
             
             step_num = steps_executed + 1
-            print(f" Eevee: Executing step {step_num}/{max_steps}...")
+            print(f"🔮 Eevee: Executing step {step_num}/{max_steps}...")
             
             # Capture current screen for this step
             game_context = self._capture_current_context()
@@ -1043,7 +1063,7 @@ Analyze the grid and provide safe navigation guidance."""
             
         except Exception as e:
             if self.debug:
-                print(f"️  Task analysis failed: {e}")
+                print(f"⚠️  Task analysis failed: {e}")
             
             # Return basic fallback plan
             return {
@@ -1141,7 +1161,7 @@ TASK: {task}
 
 Current game context:
 - Screenshot captured at: {game_context.get('timestamp', 'unknown')}
-- Window connection: {'' if game_context.get('window_found') else ''}
+- Window connection: {'✅' if game_context.get('window_found') else '❌'}
 
 Please analyze the current screen and provide:
 1. **Current Game State**: What's visible on screen
@@ -1227,7 +1247,7 @@ Format your response with clear sections addressing the task requirements."""
             self.memory.clear_session()
         
         if self.verbose:
-            print(f" Cleared session: {self.memory_session}")
+            print(f"🧹 Cleared session: {self.memory_session}")
     
     def start_continuous_gameplay(self, goal: str, max_turns: int = 100, turn_delay: float = 1.0, session_state: Dict = None) -> Dict[str, Any]:
         """
@@ -1243,8 +1263,8 @@ Format your response with clear sections addressing the task requirements."""
             Dict containing gameplay session results
         """
         if self.verbose:
-            print(f" Starting continuous gameplay with goal: {goal}")
-            print(f" Max turns: {max_turns}, Turn delay: {turn_delay}s")
+            print(f"🎮 Starting continuous gameplay with goal: {goal}")
+            print(f"📊 Max turns: {max_turns}, Turn delay: {turn_delay}s")
         
         # Initialize game loop state
         running = True
@@ -1267,16 +1287,16 @@ Format your response with clear sections addressing the task requirements."""
                         time.sleep(0.5)  # Check pause state every 500ms
                         continue
                     if not session_state.get("running", True):
-                        print(" Stopping continuous gameplay - session ended")
+                        print("🛑 Stopping continuous gameplay - session ended")
                         break
                 
                 turn_start_time = time.time()
-                print(f"\n Turn {turn + 1}/{max_turns}")
+                print(f"\n🎯 Turn {turn + 1}/{max_turns}")
                 
                 # Step 1: Capture current game state
                 game_context = self._capture_current_context()
                 if not game_context.get("screenshot_data"):
-                    print("️ Failed to capture screenshot, skipping turn")
+                    print("⚠️ Failed to capture screenshot, skipping turn")
                     time.sleep(turn_delay)
                     continue
                 
@@ -1288,7 +1308,7 @@ Format your response with clear sections addressing the task requirements."""
                         memory_summary = memory_context.get("summary", "")
                     except Exception as e:
                         if self.debug:
-                            print(f"️ Memory summary failed: {e}")
+                            print(f"⚠️ Memory summary failed: {e}")
                         memory_summary = "No memory context available"
                 
                 # Step 3: Enhanced prompt with battle memory and expert knowledge
@@ -1298,7 +1318,7 @@ Format your response with clear sections addressing the task requirements."""
                         battle_memory = self.memory.generate_battle_summary()
                     except Exception as e:
                         if self.debug:
-                            print(f"️ Battle memory failed: {e}")
+                            print(f"⚠️ Battle memory failed: {e}")
                 
                 # Get overworld navigation context if available
                 overworld_context = ""
@@ -1307,7 +1327,7 @@ Format your response with clear sections addressing the task requirements."""
                     if overworld_data.get("is_overworld") and not overworld_data.get("error"):
                         ascii_grid = overworld_data.get("raw_analysis", "").split("```")[1] if "```" in overworld_data.get("raw_analysis", "") else ""
                         overworld_context = f"""
-**️ OVERWORLD NAVIGATION DETECTED:**
+**🗺️ OVERWORLD NAVIGATION DETECTED:**
 
 **ASCII GRID MAP (8x8 current view):**
 ```
@@ -1322,9 +1342,9 @@ Format your response with clear sections addressing the task requirements."""
 - **Navigation notes:** {overworld_data.get('navigation_notes', 'No specific guidance')}
 
 **OVERWORLD MOVEMENT RULES:**
-️ **AVOID TREES AND OBSTACLES:** Do NOT walk into trees (T), buildings (B), or walls (#)
- **USE OPEN PATHS:** Move towards grass (.) and paths (-) only
- **FOLLOW GRID:** Use the ASCII grid above to see exactly where obstacles are"""
+⚠️ **AVOID TREES AND OBSTACLES:** Do NOT walk into trees (T), buildings (B), or walls (#)
+✅ **USE OPEN PATHS:** Move towards grass (.) and paths (-) only
+🎯 **FOLLOW GRID:** Use the ASCII grid above to see exactly where obstacles are"""
 
                 # Step 3.5: Build enhanced prompt with landmark and coordinate data
                 landmark_context = ""
@@ -1337,18 +1357,18 @@ Format your response with clear sections addressing the task requirements."""
                     navigation_advice = landmarks.get("navigation_advice", "")
                     
                     landmark_context = f"""
-**️ VISUAL LANDMARKS DETECTED:**
+**🏛️ VISUAL LANDMARKS DETECTED:**
 - **Landmarks found:** {', '.join(landmarks['detected'])}
 - **Game state:** {landmarks.get('likely_overworld', False) and 'Overworld' or landmarks.get('likely_battle', False) and 'Battle' or landmarks.get('likely_menu', False) and 'Menu' or 'Unknown'}
 - **Detection confidence:** {landmarks.get('confidence_score', 0.5):.1f}/1.0
 {chr(10).join([f'- **{landmark}:** {detail}' for landmark, detail in landmark_details.items()])}
 {f'- **AI Navigation advice:** {navigation_advice}' if navigation_advice else ''}
 
-**️ LANDMARK NAVIGATION STRATEGY:**
- **If Pokemon Center detected:** Consider healing if Pokemon health is low
- **If Viridian Forest detected:** Good for training and catching Pokemon  
- **If Route signs detected:** Use for navigation between areas
-️ **Follow landmark guidance** for efficient navigation between key locations"""
+**🗺️ LANDMARK NAVIGATION STRATEGY:**
+✅ **If Pokemon Center detected:** Consider healing if Pokemon health is low
+✅ **If Viridian Forest detected:** Good for training and catching Pokemon  
+✅ **If Route signs detected:** Use for navigation between areas
+⚠️ **Follow landmark guidance** for efficient navigation between key locations"""
                 
                 # Include coordinate debug data when available
                 coord_data = game_context.get("coordinate_debug", {})
@@ -1356,10 +1376,10 @@ Format your response with clear sections addressing the task requirements."""
                     coordinate_context = f"""
 **POSITION DATA:**
 - **Current Position:** ({coord_data.get('x')}, {coord_data.get('y')})
-- **Status:**  Position available for reference"""
+- **Status:** ✅ Position available for reference"""
                 elif coord_data.get("error"):
                     coordinate_context = f"""
-**POSITION:**  Position unavailable - using visual navigation"""
+**POSITION:** ❌ Position unavailable - using visual navigation"""
 
                 ai_prompt = f"""# Enhanced Pokemon Expert Agent - Continuous Gameplay
 
@@ -1376,7 +1396,7 @@ Format your response with clear sections addressing the task requirements."""
 
 **CRITICAL BATTLE NAVIGATION RULES:**
 
- **MOVE SELECTION PROCESS:**
+🎯 **MOVE SELECTION PROCESS:**
 1. **When you see battle menu** ("FIGHT", "BAG", "POKEMON", "RUN"):
    - Press **["a"]** to select "FIGHT" (usually first option)
 
@@ -1415,19 +1435,19 @@ What do you observe in the current screen? What action will you take next to pro
                     )
                     
                     if api_result["error"]:
-                        print(f" API Error: {api_result['error']}")
+                        print(f"❌ API Error: {api_result['error']}")
                         continue
                     
                     ai_analysis = api_result["text"]
                     button_presses = api_result["button_presses"]
                     
                     if ai_analysis:
-                        print(f" AI: {ai_analysis}")
+                        print(f"🤖 AI: {ai_analysis}")
                     
                     # Step 6: Execute button presses if provided
                     action_result = "No action taken"
                     if button_presses:
-                        print(f" Executing buttons: {button_presses}")
+                        print(f"🎮 Executing buttons: {button_presses}")
                         if CONTROLLER_TYPE == "skyemu":
                             action_result = self.controller.press_sequence(button_presses, delay_between=2)
                         else:
@@ -1440,7 +1460,7 @@ What do you observe in the current screen? What action will you take next to pro
                             else:
                                 action_result = f"Successfully pressed: {', '.join(button_presses)}"
                         
-                        print(f" Result: {action_result}")
+                        print(f"🎯 Result: {action_result}")
                     else:
                         print("ℹ️ No button presses requested by AI")
                     
@@ -1480,14 +1500,14 @@ What do you observe in the current screen? What action will you take next to pro
                                 
                         except Exception as e:
                             if self.debug:
-                                print(f"️ Failed to store turn in memory: {e}")
+                                print(f"⚠️ Failed to store turn in memory: {e}")
                     
                     # Step 8: Update progress file every 5 turns
                     if turn % 5 == 0:
                         self._update_progress_file(progress_file, goal, gameplay_history[-5:])
                     
                 except Exception as e:
-                    print(f" Error during turn {turn + 1}: {str(e)}")
+                    print(f"❌ Error during turn {turn + 1}: {str(e)}")
                     if self.debug:
                         import traceback
                         traceback.print_exc()
@@ -1500,10 +1520,10 @@ What do you observe in the current screen? What action will you take next to pro
                     time.sleep(turn_delay)
         
         except KeyboardInterrupt:
-            print("\n Continuous gameplay interrupted by user")
+            print("\n🛑 Continuous gameplay interrupted by user")
             running = False
         except Exception as e:
-            print(f"\n Unexpected error in gameplay loop: {str(e)}")
+            print(f"\n❌ Unexpected error in gameplay loop: {str(e)}")
             if self.debug:
                 import traceback
                 traceback.print_exc()
@@ -1525,8 +1545,8 @@ What do you observe in the current screen? What action will you take next to pro
                     "final_status": "completed" if turn >= max_turns else "interrupted"
                 }, f, indent=2)
             
-            print(f"\n Continuous gameplay session completed after {turn} turns")
-            print(f" Session data saved to: {run_dir}")
+            print(f"\n✅ Continuous gameplay session completed after {turn} turns")
+            print(f"📁 Session data saved to: {run_dir}")
             
             return {
                 "status": "completed" if turn >= max_turns else "interrupted",
@@ -1589,11 +1609,11 @@ Keep it concise but informative."""
                 f.write(summary)
             
             if self.verbose:
-                print(f" Updated progress file: {progress_file}")
+                print(f"📝 Updated progress file: {progress_file}")
                 
         except Exception as e:
             if self.debug:
-                print(f"️ Failed to update progress file: {e}")
+                print(f"⚠️ Failed to update progress file: {e}")
     
     def _extract_battle_context(self, ai_analysis: str, button_presses: List[str]) -> Dict[str, Any]:
         """Extract battle context from AI analysis for learning"""
@@ -1700,7 +1720,7 @@ Keep it concise but informative."""
             
         except Exception as e:
             if self.debug:
-                print(f"️ Failed to store battle learning: {e}")
+                print(f"⚠️ Failed to store battle learning: {e}")
     
     # Enhanced Navigation Methods with Coordinate Debugging
     
@@ -1740,7 +1760,7 @@ Keep it concise but informative."""
                     overworld_analysis = self._detect_overworld_context(screenshot_data)
                 except Exception as e:
                     if self.debug:
-                        print(f"️ Overworld analysis failed: {e}")
+                        print(f"⚠️ Overworld analysis failed: {e}")
                     overworld_analysis = {"error": str(e), "is_overworld": False}
             
             # Step 5: Optional coordinate debugging (if SkyEmu available)
@@ -1759,13 +1779,13 @@ Keep it concise but informative."""
             }
             
             if self.verbose:
-                print(f" Context captured: {len(landmarks.get('detected', []))} landmarks, coords: {'' if coordinate_data.get('valid') else ''}")
+                print(f"📸 Context captured: {len(landmarks.get('detected', []))} landmarks, coords: {'✅' if coordinate_data.get('valid') else '❌'}")
             
             return game_context
             
         except Exception as e:
             if self.debug:
-                print(f" Context capture failed: {e}")
+                print(f"❌ Context capture failed: {e}")
             return {
                 "error": str(e),
                 "window_found": False,
@@ -1868,7 +1888,7 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
             
         except Exception as e:
             if self.debug:
-                print(f"️ Landmark detection failed: {e}")
+                print(f"⚠️ Landmark detection failed: {e}")
             landmarks["error"] = str(e)
             return landmarks
     
@@ -1961,7 +1981,7 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
                     })
                     
                     if self.debug:
-                        print(f" Coordinates: ({x_coord}, {y_coord})")
+                        print(f"🎯 Coordinates: ({x_coord}, {y_coord})")
                 else:
                     coordinate_data["error"] = f"Invalid coordinates: ({x_coord}, {y_coord})"
             else:
@@ -1970,7 +1990,7 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
         except Exception as e:
             coordinate_data["error"] = f"Coordinate reading failed: {str(e)}"
             if self.debug:
-                print(f" Coordinate debug failed: {e}")
+                print(f"🔧 Coordinate debug failed: {e}")
         
         return coordinate_data
     
@@ -1997,20 +2017,20 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
             entry += f"- **From**: {current_location}\n"
             entry += f"- **Direction**: {direction}\n"
             entry += f"- **Leads to**: {destination}\n"
-            entry += f"- **Status**:  Confirmed route\n"
+            entry += f"- **Status**: ✅ Confirmed route\n"
         else:
             entry = f"**{timestamp}** - Navigation Note:\n"
             entry += f"- **From**: {current_location}\n"
             entry += f"- **Direction**: {direction}\n"
-            entry += f"- **Result**:  Blocked or unsuccessful\n"
+            entry += f"- **Result**: ❌ Blocked or unsuccessful\n"
         
         try:
             self.prompt_manager.add_playbook_entry("navigation", entry, append=True)
             if self.verbose:
-                print(f" Learned: {current_location} --{direction}--> {destination if success else 'blocked'}")
+                print(f"📝 Learned: {current_location} --{direction}--> {destination if success else 'blocked'}")
         except Exception as e:
             if self.debug:
-                print(f"️ Failed to store navigation pattern: {e}")
+                print(f"⚠️ Failed to store navigation pattern: {e}")
     
     def learn_location_knowledge(self, location: str, knowledge: str, category: str = "general"):
         """
@@ -2041,10 +2061,10 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
         try:
             self.prompt_manager.add_playbook_entry(playbook_name, entry, append=True)
             if self.verbose:
-                print(f" Learned about {location}: {knowledge[:50]}...")
+                print(f"📚 Learned about {location}: {knowledge[:50]}...")
         except Exception as e:
             if self.debug:
-                print(f"️ Failed to store location knowledge: {e}")
+                print(f"⚠️ Failed to store location knowledge: {e}")
     
     def get_okr_context(self) -> str:
         """
@@ -2069,7 +2089,7 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
                 context_parts.append(okr_content)
         except Exception as e:
             if self.debug:
-                print(f"️ Failed to read OKR prompt: {e}")
+                print(f"⚠️ Failed to read OKR prompt: {e}")
         
         # 2. Dynamic strategic context from periodic reviews
         strategic_context = self._get_periodic_review_context()
@@ -2096,7 +2116,7 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
             summary = review.get("summary", {})
             
             # Generate strategic context section
-            context = "#  STRATEGIC CONTEXT (Periodic Analysis)\n\n"
+            context = "# 📊 STRATEGIC CONTEXT (Periodic Analysis)\n\n"
             
             # Movement pattern analysis
             movement_pattern = summary.get("movement_pattern", "Unknown")
@@ -2120,20 +2140,20 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
             # Add actionable guidance
             context += "\n**STRATEGIC GUIDANCE FOR NEXT ACTIONS**:\n"
             if "stuck" in key_insight.lower() or "loop" in key_insight.lower():
-                context += "- ️ PATTERN DETECTED: AI showing repetitive behavior\n"
-                context += "-  ADAPTATION NEEDED: Try different directions or interaction\n"
+                context += "- ⚠️ PATTERN DETECTED: AI showing repetitive behavior\n"
+                context += "- 🔄 ADAPTATION NEEDED: Try different directions or interaction\n"
             elif "bias" in key_insight.lower():
-                context += "-  DIRECTIONAL BIAS: Consider perpendicular movement options\n"
+                context += "- 📍 DIRECTIONAL BIAS: Consider perpendicular movement options\n"
             elif "good" in key_insight.lower() or "efficient" in key_insight.lower():
-                context += "-  POSITIVE PATTERN: Current approach working well\n"
+                context += "- ✅ POSITIVE PATTERN: Current approach working well\n"
             else:
-                context += "-  STANDARD BEHAVIOR: Continue systematic exploration\n"
+                context += "- 📋 STANDARD BEHAVIOR: Continue systematic exploration\n"
             
             return context
             
         except Exception as e:
             if self.debug:
-                print(f"️ Failed to generate periodic review context: {e}")
+                print(f"⚠️ Failed to generate periodic review context: {e}")
             return ""
     
     def _get_current_goal_context(self) -> str:
@@ -2152,7 +2172,7 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
             if not current_goal:
                 return ""
             
-            context = "#  CURRENT GOAL STATUS\n\n"
+            context = "# 🎯 CURRENT GOAL STATUS\n\n"
             context += f"**Active Goal**: {current_goal.get('name', 'Unknown')}\n"
             context += f"**Status**: {current_goal.get('status', 'unknown')}\n"
             context += f"**Priority**: {current_goal.get('priority', 0)}/10\n"
@@ -2172,7 +2192,7 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
             
         except Exception as e:
             if self.debug:
-                print(f"️ Failed to read current goal context: {e}")
+                print(f"⚠️ Failed to read current goal context: {e}")
             return ""
     
     def update_okr_progress(self, action: str, result: str, progress_note: str = ""):
@@ -2194,20 +2214,20 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
                 
                 # Create progress entry
                 if progress_note:
-                    entry = f"-  [{timestamp}] {action} → {result} | {progress_note}\n"
+                    entry = f"- 🎯 [{timestamp}] {action} → {result} | {progress_note}\n"
                 else:
-                    entry = f"-  [{timestamp}] {action} → {result}\n"
+                    entry = f"- 🎯 [{timestamp}] {action} → {result}\n"
                 
                 # Append to file
                 with open(okr_path, 'a') as f:
                     f.write(entry)
                 
                 if self.verbose:
-                    print(f" OKR Progress: {action} → {result}")
+                    print(f"📊 OKR Progress: {action} → {result}")
                     
         except Exception as e:
             if self.debug:
-                print(f"️ Failed to update OKR progress: {e}")
+                print(f"⚠️ Failed to update OKR progress: {e}")
     
     def _test_neo4j_connection(self) -> bool:
         """
@@ -2218,13 +2238,13 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
         """
         try:
             if not self.memory or not hasattr(self.memory, 'neo4j_memory') or not self.memory.neo4j_memory:
-                print(" Neo4j memory not initialized in memory system")
+                print("❌ Neo4j memory not initialized in memory system")
                 return False
             
             # Test basic Neo4j connectivity
             neo4j_memory = self.memory.neo4j_memory
             if not neo4j_memory.connected:
-                print(" Neo4j not connected")
+                print("❌ Neo4j not connected")
                 return False
             
             # Test Neo4j functionality with compact reader
@@ -2235,16 +2255,16 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
                 reader.close()
                 
                 if connection_test:
-                    print(" Neo4j connection test successful")
+                    print("✅ Neo4j connection test successful")
                     return True
                 else:
-                    print(" Neo4j connection test failed")
+                    print("❌ Neo4j connection test failed")
                     return False
                     
             except Exception as reader_error:
-                print(f" Neo4j compact reader test failed: {reader_error}")
+                print(f"❌ Neo4j compact reader test failed: {reader_error}")
                 return False
                 
         except Exception as e:
-            print(f" Neo4j connection test error: {e}")
+            print(f"❌ Neo4j connection test error: {e}")
             return False
