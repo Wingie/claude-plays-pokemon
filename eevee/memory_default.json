@@ -1,17 +1,17 @@
 {
   "battle_hp_critical": {
     "value": "heal",
-    "timestamp": 1750962471.313493,
+    "timestamp": 1750968085.738234,
     "session": "default"
   },
   "battle_level_advantage": {
     "value": "attack",
-    "timestamp": 1750962471.313673,
+    "timestamp": 1750968085.7385159,
     "session": "default"
   },
   "battle_type_effective": {
     "value": "use_super_effective_move",
-    "timestamp": 1750962471.3137522,
+    "timestamp": 1750968085.738643,
     "session": "default"
   }
 }

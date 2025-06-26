@@ -1,42 +1,41 @@
 {
   "meta": {
-    "updated_at": "2025-06-26T20:28:20.080106",
-    "session_id": "20250626_202751",
+    "updated_at": "2025-06-26T21:53:22.865157",
+    "session_id": "20250626_215130",
     "source": "goal_oriented_planning_system"
   },
-  "session_goal": "enter_pewter_city_gym",
+  "session_goal": "determine_current_location",
   "current_goal": {
-    "id": "find_gym",
-    "name": "Find Gym",
-    "description": "Navigate to and locate Gym",
-    "priority": 9,
-    "progress_percentage": 80,
+    "id": "general_task",
+    "name": "determine_current_location",
+    "description": "Complete general task: determine_current_location",
+    "priority": 8,
+    "progress_percentage": 40,
     "estimated_turns": 20,
     "attempts": 0,
     "turns_spent": 0
   },
   "goal_hierarchy": {
     "root_goal": {
-      "id": "defeat_gym_leader",
-      "name": "Defeat Gym Leader",
-      "description": "enter_pewter_city_gym",
-      "children": [
-        "find_gym",
-        "prepare_team",
-        "battle_gym_leader"
-      ]
+      "id": "general_task",
+      "name": "determine_current_location",
+      "description": "Complete general task: determine_current_location",
+      "children": []
     },
-    "total_goals": 4,
+    "total_goals": 1,
     "completed_goals": 0,
     "failed_goals": 0
   },
   "progress_analysis": {
-    "progress_score": 8,
-    "progress_description": "AI has engaged in a battle indicating proximity to the gym",
-    "issues_detected": [],
+    "progress_score": 4,
+    "progress_description": "AI has been inside the Pokemon Center but the last action indicates an unknown environment, suggesting the need to re-evaluate the current location and situation.",
+    "issues_detected": [
+      "unknown_observation",
+      "possible_context_change"
+    ],
     "next_recommended_actions": [
-      "enter_building",
-      "interact_with_entrance"
+      "identify_current_location",
+      "observe_surroundings"
     ],
     "estimated_turns_to_completion": 3
   }

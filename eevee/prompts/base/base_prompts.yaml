@@ -185,25 +185,54 @@ battle_analysis:
     - Movement: "up", "down", "left", "right"
     - Actions: "a", "b", "start", "select"
     
+    **POKEMON PARTY STATUS (RAM Data):**
+    {{#if ram_available}}
+    Active Pokemon: {{#if active_pokemon}}{{active_pokemon.nickname}} (L{{active_pokemon.level}}) - {{active_pokemon.current_hp}}/{{active_pokemon.max_hp}} HP ({{active_pokemon.hp_percentage}}%) - {{active_pokemon.battle_status}}{{else}}Unknown{{/if}}
+    Backup Pokemon Available: {{backup_pokemon.length}} healthy
+    Party Health: {{party_health_summary.party_health_status}} ({{party_health_summary.healthy_pokemon}}/{{party_health_summary.total_pokemon}} healthy)
+    Emergency Situation: {{#if battle_context.emergency_situation}}YES - Nearly out of Pokemon!{{else}}NO{{/if}}
+    {{else}}
+    Pokemon Status: Unknown (RAM data unavailable)
+    {{/if}}
+    
+    **ENHANCED DECISION MAKING REQUIREMENTS:**
+    
+    **DETAILED REASONING REQUIRED**: Your "reasoning" field must include:
+    1. **HP Analysis**: Current Pokemon HP status and implications
+    2. **Type Effectiveness**: Why this move choice vs this enemy type
+    3. **Risk Assessment**: What could go wrong with this choice
+    4. **Alternative Consideration**: Why you didn't choose other options
+    5. **Multi-turn Strategy**: How this fits into 2-3 turn plan
+    
+    **OBSERVATIONS REQUIREMENTS**: Your "observations" field must include:
+    1. **Current Battle Situation**: What exactly you see happening
+    2. **Pokemon Status Details**: HP, status conditions, level comparison
+    3. **Move/Menu Context**: What options are available and highlighted
+    4. **Strategic Context**: Type matchups, advantages, disadvantages
+    
     **RESPONSE FORMAT (MANDATORY):**
     Return ONLY a JSON object with no additional text:
     
     {{
       "button_presses": ["a"],
-      "reasoning": "select_fight_for_thundershock",
-      "observations": "pikachu_vs_metapod_battle",
+      "reasoning": "DETAILED: Current Pokemon Pikachu has 45/50 HP (90%) which is healthy. Against Metapod (Bug type), Thundershock (Electric) deals 2x super effective damage. Avoiding Growl because it's a status move that won't deal damage. Cursor is currently on Growl so need to navigate down to Thundershock first. Risk is minimal due to type advantage. Alternative would be Tackle but Thundershock is superior due to type effectiveness. Next turn: Continue with Thundershock unless HP drops below 50%.",
+      "observations": "DETAILED: Battle screen showing Pikachu (L12, 45/50 HP) vs wild Metapod (L10). Move selection menu is open with cursor highlighting Growl (top-left). Other available moves are Thundershock (top-right), Tail Whip (bottom-left), Thunder Wave (bottom-right). Type advantage: Electric beats Bug for 2x damage. Metapod appears healthy. Battle phase is move_selection.",
       "context_detected": "battle",
       "confidence": "high",
-      "battle_strategy": "super_effective_electric_vs_bug",
-      "hp_status": "critical",
-      "level_advantage": "moderate"
+      "battle_strategy": "super_effective_electric_vs_bug_type",
+      "hp_status": "healthy",
+      "level_advantage": "moderate",
+      "next_turn_plan": "continue_thundershock_unless_hp_critical"
     }}
     
-    **BATTLE INTELLIGENCE FIELDS (Optional but Recommended):**
-    - battle_strategy: Type effectiveness or strategic reasoning
-    - hp_status: "critical|low|moderate|high" 
-    - level_advantage: "major|moderate|minor|disadvantage"
-    - next_turn_plan: Brief plan for subsequent moves
+    **BATTLE INTELLIGENCE FIELDS (Required for battles):**
+    - battle_strategy: Specific type effectiveness or strategic reasoning
+    - hp_status: "critical|low|moderate|high" based on actual HP percentage
+    - level_advantage: "major|moderate|minor|disadvantage" based on level comparison
+    - next_turn_plan: Specific plan for subsequent 1-2 moves
+    
+    **REASONING LENGTH REQUIREMENT**: Minimum 50 words explaining decision process
+    **OBSERVATIONS LENGTH REQUIREMENT**: Minimum 30 words describing current situation
     
     Do not include any text before or after the JSON. No markdown, no code blocks, no explanations.
   variables:
@@ -217,7 +246,13 @@ battle_analysis:
   - cursor_on
   - valid_buttons
   - confidence
-  version: '6.0'
+  - ram_available
+  - current_pokemon_party
+  - party_health_summary
+  - battle_context
+  - active_pokemon
+  - backup_pokemon
+  version: '7.0'
 pokemon_party_analysis:
   name: Pokemon Party Analysis (JSON Response)
   description: Analyze Pokemon party status and provide management decisions
@@ -371,7 +406,13 @@ exploration_strategy:
   - dialogue_visible
   - dialogue_text
   - dialogue_buttons
-  version: '6.3'
+  - ram_available
+  - current_pokemon_party
+  - party_health_summary
+  - battle_context
+  - active_pokemon
+  - backup_pokemon
+  version: '6.4'
 inventory_analysis:
   name: Pokemon Inventory Analysis (JSON Response)
   description: Analyze bag contents and provide item management decisions
@@ -581,46 +622,120 @@ visual_context_analyzer_gemini:
   version: '3.0'
 
 pokemon_center_navigation:
-  name: Pokemon Center Smart Navigation
-  description: Navigate Pokemon Center only when healing is actually needed
+  name: Pokemon Center RAM-Enforced Navigation
+  description: Navigate Pokemon Center using actual RAM data to prevent hallucination
   template: |
-    Pokemon Center Smart Navigation
+    Pokemon Center RAM-Enforced Navigation
     
     GOAL: {task}
     BUILDING: Pokemon Center
+    LOCATION: Pokemon Center (coordinates from RAM data)
     
-    **FIRST: CHECK IF HEALING IS NEEDED**
-    - Look at your Pokemon's HP bars in the party status
-    - If all Pokemon have full/green HP bars: Exit Pokemon Center immediately (press ↓ to leave)
-    - Only proceed with healing if Pokemon have damaged HP (yellow/red bars)
+    **MANDATORY RAM DATA CHECK (Execute First):**
+    RAM Available: {ram_available}
+    Party Health Status: {party_health_status}
+    Healthy Pokemon: {party_healthy_pokemon}/{party_total_pokemon}
+    Fainted Pokemon: {party_fainted_pokemon}
+    Critical HP Pokemon: {party_critical_pokemon}
+    Needs Healing: {needs_healing}
+    At Pokemon Center: {at_pokemon_center}
     
-    **IF HEALING IS NEEDED:**
-    1. Approach Nurse Joy at the counter
-    2. Press A to interact with Nurse Joy
-    3. Select "Yes" when asked to heal Pokemon
-    4. Wait for healing completion
-    5. Press A to acknowledge completion, then exit
+    **MANDATORY DECISION LOGIC (NO EXCEPTIONS):**
+    - IF needs_healing = true → YOU MUST HEAL (no choice, approach Nurse Joy immediately)
+    - IF needs_healing = false → YOU MUST EXIT (no choice, leave Pokemon Center immediately)
+    - NO THINKING, NO CONSIDERATION - FOLLOW RAM DATA EXACTLY
+    - NEVER override the needs_healing flag with your own judgment
     
-    **IF HEALING NOT NEEDED:**
-    - Simply exit the Pokemon Center (press ↓ repeatedly)
-    - Report that Pokemon are already healthy
+    **CURRENT POKEMON PARTY STATUS:**
+    Total Pokemon: {party_total_pokemon}
+    Healthy: {party_healthy_pokemon}
+    Fainted: {party_fainted_pokemon} 
+    Critical HP: {party_critical_pokemon}
+    Overall Status: {party_health_status}
     
-    **RESPONSE FORMAT (MANDATORY):**
-    Return ONLY a JSON object with no additional text:
+    **COMPLETE HEALING SEQUENCE (needs_healing = true):**
+    Phase 1: Approach Nurse Joy (press ↑)
+    Phase 2: Interact with Nurse Joy (press A)
+    Phase 3: Confirm healing "Yes" (press A)
+    Phase 4: Wait through healing animation (press A to advance dialogue)
+    Phase 5: Acknowledge completion (press A)
+    Phase 6: Exit Pokemon Center (press ↓ repeatedly)
     
+    **HEALING DETECTION LOGIC:**
+    - If you see dialogue text → press A to advance
+    - If you see "Yes/No" option → press A to select Yes
+    - If you see Nurse Joy idle → press A to interact
+    - If healing complete → press ↓ to exit
+    
+    **EXIT SEQUENCE (needs_healing = false):**
+    - Press ↓ repeatedly until outside Pokemon Center
+    
+    **AUTOMATIC RESPONSE BASED ON SITUATION:**
+    
+    {{% if needs_healing %}}
+    
+    **HEALING SEQUENCE - Choose appropriate response:**
+    
+    If Nurse Joy is idle or you need to approach:
     {{
-      "button_presses": ["down"],
-      "reasoning": "pokemon_already_healthy_exiting_center",
-      "observations": "all_pokemon_have_full_hp",
+      "button_presses": ["up"],
+      "reasoning": "approaching_nurse_joy_for_mandatory_healing",
+      "observations": "RAM ENFORCED: {party_fainted_pokemon} fainted, {party_critical_pokemon} critical HP - approaching nurse",
       "confidence": "high"
     }}
     
-    **AVOID OBSESSIVE HEALING:**
-    - Don't assume healing is always needed
-    - Check Pokemon status before starting healing process
-    - Exit immediately if Pokemon are already healthy
+    If you're near Nurse Joy or see interaction prompt:
+    {{
+      "button_presses": ["a"],
+      "reasoning": "interacting_with_nurse_joy_for_healing",
+      "observations": "pressing A to interact with Nurse Joy for mandatory healing",
+      "confidence": "high"
+    }}
+    
+    If you see dialogue text or Yes/No options:
+    {{
+      "button_presses": ["a"],
+      "reasoning": "confirming_healing_dialogue",
+      "observations": "pressing A to advance healing dialogue or confirm Yes",
+      "confidence": "high"
+    }}
+    
+    **DEFAULT: If unsure, press A to advance healing process**
+    {{
+      "button_presses": ["a"],
+      "reasoning": "advancing_healing_process",
+      "observations": "pressing A to continue through healing sequence",
+      "confidence": "high"
+    }}
+    
+    {{% else %}}
+    
+    **NO HEALING NEEDED - EXIT IMMEDIATELY:**
+    {{
+      "button_presses": ["down"],
+      "reasoning": "mandatory_exit_pokemon_healthy_per_ram",
+      "observations": "RAM ENFORCED: {party_healthy_pokemon}/{party_total_pokemon} healthy, needs_healing=false - exiting",
+      "confidence": "high"
+    }}
+    
+    {{% endif %}}
+    
+    **INSTRUCTIONS: Choose the most appropriate response above based on current screen. When in doubt during healing, press A.**
+    
+    **CRITICAL: Your observations MUST reflect the actual RAM data values shown above. Do not guess or hallucinate Pokemon health status.**
   variables:
   - task
+  - ram_available
+  - party_total_pokemon
+  - party_healthy_pokemon
+  - party_fainted_pokemon
+  - party_critical_pokemon
+  - party_health_status
+  - needs_healing
+  - at_pokemon_center
+  - current_pokemon_party
+  - battle_context
+  - location_data
   version: '1.0'
 
 services_interaction:

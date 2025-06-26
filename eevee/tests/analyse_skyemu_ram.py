@@ -420,7 +420,7 @@ class PokemonFireRedReader(PokemonGameReader):
         Get standardized compact game state for visual analysis integration
         
         Returns:
-            Dict with standardized RAM data structure for visual analysis system
+            Dict with complete RAM data structure for AI decision-making
         """
         try:
             # Get full game state using existing method
@@ -449,21 +449,107 @@ class PokemonFireRedReader(PokemonGameReader):
             else:
                 clean_location = location_name
             
-            # Return standardized format for visual analysis integration
+            # Convert Pokemon party to compact format for AI decision-making
+            party_data = []
+            for i, pokemon in enumerate(game_state.party):
+                pokemon_info = {
+                    "slot": i + 1,
+                    "species_id": pokemon.species_id,
+                    "nickname": pokemon.nickname,
+                    "level": pokemon.level,
+                    "current_hp": pokemon.current_hp,
+                    "max_hp": pokemon.max_hp,
+                    "hp_percentage": round((pokemon.current_hp / pokemon.max_hp * 100), 1) if pokemon.max_hp > 0 else 0,
+                    "status": pokemon.status,
+                    "is_fainted": pokemon.current_hp == 0,
+                    "moves": pokemon.moves,
+                    "move_pp": pokemon.move_pp
+                }
+                
+                # Add battle readiness assessment
+                if pokemon.current_hp == 0:
+                    pokemon_info["battle_status"] = "fainted"
+                elif pokemon.current_hp < (pokemon.max_hp * 0.2):
+                    pokemon_info["battle_status"] = "critical_hp"
+                elif pokemon.current_hp < (pokemon.max_hp * 0.5):
+                    pokemon_info["battle_status"] = "low_hp"
+                elif pokemon.status != "OK":
+                    pokemon_info["battle_status"] = "status_condition"
+                else:
+                    pokemon_info["battle_status"] = "healthy"
+                
+                party_data.append(pokemon_info)
+            
+            # Calculate party summary for quick AI assessment
+            total_pokemon = len(party_data)
+            healthy_pokemon = len([p for p in party_data if p["battle_status"] == "healthy"])
+            fainted_pokemon = len([p for p in party_data if p["is_fainted"]])
+            critical_pokemon = len([p for p in party_data if p["battle_status"] in ["critical_hp", "low_hp"]])
+            
+            party_summary = {
+                "total_pokemon": total_pokemon,
+                "healthy_pokemon": healthy_pokemon,
+                "fainted_pokemon": fainted_pokemon,
+                "critical_pokemon": critical_pokemon,
+                "needs_healing": critical_pokemon > 0 or fainted_pokemon > 0,
+                "party_health_status": "critical" if fainted_pokemon >= total_pokemon - 1 else 
+                                    "poor" if critical_pokemon > healthy_pokemon else
+                                    "good" if healthy_pokemon >= total_pokemon * 0.7 else "fair"
+            }
+            
+            # Convert items to compact format
+            items_data = []
+            for item_name, quantity in game_state.items:
+                if quantity > 0:  # Only include items we have
+                    items_data.append({
+                        "name": item_name,
+                        "quantity": quantity
+                    })
+            
+            # Return comprehensive game state for AI decision-making
             return {
                 "ram_available": True,
-                "map_bank": map_bank,
-                "map_id": map_id,
-                "player_x": game_state.x,
-                "player_y": game_state.y,
-                "location_name": clean_location,
-                "raw_location": location_name  # Keep full location string for debugging
+                "timestamp": time.time(),
+                
+                # Location data
+                "location": {
+                    "map_bank": map_bank,
+                    "map_id": map_id,
+                    "x": game_state.x,
+                    "y": game_state.y,
+                    "location_name": clean_location,
+                    "raw_location": location_name
+                },
+                
+                # Player data
+                "player": {
+                    "name": game_state.player_name,
+                    "money": game_state.money if game_state.money >= 0 else "unknown"
+                },
+                
+                # Pokemon party data (complete for battle decisions)
+                "party": party_data,
+                "party_summary": party_summary,
+                
+                # Items data
+                "items": items_data,
+                "item_count": len(items_data),
+                
+                # Quick status for AI prompts
+                "quick_status": {
+                    "needs_healing": party_summary["needs_healing"],
+                    "at_pokemon_center": "pokemon center" in clean_location.lower() or "pokecenter" in clean_location.lower(),
+                    "in_battle": False,  # This would need additional detection logic
+                    "can_battle": healthy_pokemon > 0,
+                    "emergency_situation": fainted_pokemon >= total_pokemon - 1
+                }
             }
             
         except Exception as e:
             return {
                 "ram_available": False,
-                "error": f"RAM analysis failed: {str(e)}"
+                "error": f"RAM analysis failed: {str(e)}",
+                "timestamp": time.time()
             }
 
     def _read_player_name(self) -> str:

@@ -1124,10 +1124,6 @@ class ContinuousGameplay:
                     
                     # Store for turn storage
                     self._last_memory_context = memory_json
-                    
-                    if self.eevee.verbose:
-                        token_count = len(memory_json.split())
-                        print(f"📝 Neo4j memory context: {token_count} tokens")
             
             reader.close()
             
@@ -1326,6 +1322,28 @@ class ContinuousGameplay:
                 return "level_1"  # Gentle recovery
         
         return "level_1"
+    
+    def _collect_ram_data(self) -> Dict[str, Any]:
+        """Collect current RAM data for AI decision making"""
+        try:
+            import sys
+            from pathlib import Path
+            tests_path = Path(__file__).parent / "tests"
+            if str(tests_path) not in sys.path:
+                sys.path.insert(0, str(tests_path))
+            from analyse_skyemu_ram import SkyEmuClient, PokemonFireRedReader
+            
+            client = SkyEmuClient(debug=False)
+            reader = PokemonFireRedReader(client)
+            
+            # Get enhanced compact game state
+            ram_data = reader.get_compact_game_state()
+            return ram_data
+            
+        except Exception as e:
+            if self.eevee.verbose:
+                print(f"⚠️ Failed to collect RAM data: {e}")
+            return {"ram_available": False, "error": str(e)}
     
     def _get_available_memory_contexts(self) -> List[str]:
         """Get list of available memory contexts for AI to choose from"""
@@ -1605,8 +1623,7 @@ class ContinuousGameplay:
                 "memory_context": memory_context,
                 "recent_actions": self._get_recent_actions_summary(),
                 "goal": self.session.goal,
-                # "stuck_problem": removed - Pure AI autonomy preferred
-            }
+             }
             
             try:
                 # OPTIMIZATION: Use visual context analyzer's template recommendation directly
@@ -1618,7 +1635,7 @@ class ContinuousGameplay:
                     playbook = "battle" if prompt_type == "battle_analysis" else "navigation"
                     
                     if self.eevee.verbose:
-                        print(f"✅ TEMPLATE SELECTION: {prompt_type} (goal-aware)")
+                        print(f"✅ _build_ai_prompt TEMPLATE SELECTION: {prompt_type} (goal-aware)")
                         print(f"   Scene: {movement_data.get('scene_type', 'unknown')}")
                         print(f"   Goal Status: {okr_data.get('current_goal', {}).get('status', 'unknown') if okr_data else 'no goal'}")
                         print(f"   Playbook: {playbook}")
@@ -1654,9 +1671,6 @@ class ContinuousGameplay:
                             "current_goal_name": self.session.goal or "Find the exit",
                             "current_goal_status": "check_pokemon_health",
                             "current_goal_description": "check your pokemon health",
-                            "goal_progress": 0,
-                            "goal_blocked": False,
-                            "goal_issues": [],
                             "recommended_goal_actions": ["walk around"],
                             "goal_hierarchy": self.session.goal or "General gameplay"
                         })
@@ -1672,6 +1686,92 @@ class ContinuousGameplay:
                         "dialogue_buttons": dialogue_buttons,
                         "dialogue_present": dialogue_visible  # legacy variable for compatibility
                     })
+                    
+                    # CRITICAL FIX: Add RAM data for ALL templates, not just battle templates
+                    # Pokemon health data is needed for navigation decisions too (healing, Pokemon Centers)
+                    ram_data = self._collect_ram_data()
+                    if ram_data and ram_data.get("ram_available", False):
+                        party_data = ram_data.get("party", [])
+                        party_summary = ram_data.get("party_summary", {})
+                        quick_status = ram_data.get("quick_status", {})
+                        player_data = ram_data.get("player", {})
+                        location_data = ram_data.get("location", {})
+                        
+                        # Debug location data structure
+                        if self.eevee.verbose:
+                            print(f"🗺️ LOCATION DATA DEBUG: {location_data}")
+                            print(f"   Type: {type(location_data)}")
+                            if isinstance(location_data, dict):
+                                print(f"   Keys: {list(location_data.keys())}")
+                            else:
+                                print(f"   Not a dict! Value: {location_data}")
+                        
+                        # Add Pokemon party information for ALL decision making (not just battles)
+                        variables.update({
+                            "ram_available": True,
+                            "current_pokemon_party": party_data,
+                            # Flatten party health data for template access
+                            "party_total_pokemon": party_summary.get("total_pokemon", 0),
+                            "party_healthy_pokemon": party_summary.get("healthy_pokemon", 0),
+                            "party_fainted_pokemon": party_summary.get("fainted_pokemon", 0),
+                            "party_critical_pokemon": party_summary.get("critical_pokemon", 0),
+                            "party_health_status": party_summary.get("party_health_status", "unknown"),
+                            "needs_healing": party_summary.get("needs_healing", False),
+                            "at_pokemon_center": quick_status.get("at_pokemon_center", False),
+                            "battle_context": {
+                                "can_battle": quick_status.get("can_battle", True),
+                                "emergency_situation": quick_status.get("emergency_situation", False),
+                                "player_money": player_data.get("money", "unknown"),
+                                "at_pokemon_center": quick_status.get("at_pokemon_center", False)
+                            },
+                            "location_data": {
+                                "map_bank": location_data.get("map_bank", 0) if isinstance(location_data, dict) else 0,
+                                "map_id": location_data.get("map_id", 0) if isinstance(location_data, dict) else 0,
+                                "x": location_data.get("x", 0) if isinstance(location_data, dict) else 0,
+                                "y": location_data.get("y", 0) if isinstance(location_data, dict) else 0,
+                                "location_name": location_data.get("location_name", "Unknown") if isinstance(location_data, dict) else "Unknown"
+                            },
+                            "active_pokemon": party_data[0] if party_data else None,
+                            "backup_pokemon": [p for p in party_data[1:] if not p.get("is_fainted", True)] if len(party_data) > 1 else []
+                        })
+                        
+                        if self.eevee.verbose:
+                            print(f"🩺 POKEMON HEALTH DATA: {party_summary.get('party_health_status', 'unknown')} - {party_summary.get('healthy_pokemon', 0)}/{party_summary.get('total_pokemon', 0)} healthy")
+                            if quick_status.get("at_pokemon_center", False):
+                                print(f"🏥 AT POKEMON CENTER: Healing available!")
+                    else:
+                        variables.update({
+                            "ram_available": False,
+                            "current_pokemon_party": [],
+                            "party_health_summary": {},
+                            "battle_context": {},
+                            "location_data": {
+                                "map_bank": 0,
+                                "map_id": 0,
+                                "x": 0,
+                                "y": 0,
+                                "location_name": "Unknown"
+                            },
+                            "active_pokemon": None,
+                            "backup_pokemon": []
+                        })
+                    
+                    # Add RAM tool context if available
+                    if hasattr(self, '_ram_tool_contexts') and self._ram_tool_contexts:
+                        latest_ram_context = self._ram_tool_contexts[-1]
+                        variables.update({
+                            "ram_tool_reminder": True,
+                            "suggested_ram_checks": latest_ram_context.get("suggested_ram_checks", []),
+                            "ram_check_context": f"Based on goal analysis: {latest_ram_context.get('goal_analysis_summary', {}).get('current_goal', 'unknown')}"
+                        })
+                        if self.eevee.verbose:
+                            print(f"🧠 RAM tool reminder added: {len(latest_ram_context.get('suggested_ram_checks', []))} checks")
+                    else:
+                        variables.update({
+                            "ram_tool_reminder": False,
+                            "suggested_ram_checks": [],
+                            "ram_check_context": ""
+                        })
                     
                     # Priority check for dialogue interaction (verbose logging)
                     if dialogue_visible and prompt_type != "battle_analysis":
@@ -1689,6 +1789,7 @@ class ContinuousGameplay:
                             "cursor_on": movement_data.get("cursor_on", "unknown"),
                             "valid_buttons": movement_data.get("valid_buttons", [])
                         })
+                        # Note: RAM data is now added for ALL templates above, not just battle templates
                     
                     # Generate prompt - simple and direct
                     prompt = prompt_manager.get_prompt(
@@ -1854,10 +1955,6 @@ Use the pokemon_controller tool with your chosen button sequence."""
                     str(self.eevee.runs_dir),
                     day_number
                 )
-                print(f"📖 Pokemon episode diary saved: {diary_path}")
-                print(f"🎬 Episode #{day_number}: {session_data.get('goal', 'Pokemon Adventure')} completed!")
-            else:
-                print("WARNING:  No turn data available for diary generation")
                 
         except Exception as e:
             print(f"WARNING:  Failed to generate Pokemon episode diary: {e}")
@@ -1891,16 +1988,9 @@ Use the pokemon_controller tool with your chosen button sequence."""
                     "turns_completed": self.session.turns_completed,
                     "end_time": end_time
                 })
-                if update_success:
-                    print(f"✅ Neo4j session updated: {self.session.session_id}")
-                else:
-                    print(f"⚠️ Neo4j session update failed")
                 
                 # Close Neo4j connection
                 neo4j.close()
-                print(f"✅ Neo4j connection closed")
-            else:
-                print(f"⚠️ Neo4j writer not available for cleanup")
         except Exception as e:
             print(f"⚠️ Neo4j session cleanup error: {e}")
         
@@ -2804,6 +2894,9 @@ Return ONLY the improved template content, ready to replace the current template
                 print(f"   🎯 Suggested Next Goal: {suggested_next_goal}")
                 print(f"   📋 Transition Reason: {goal_transition_reason}")
             
+            # Add goal analysis context for RAM tool prompting
+            self._add_ram_tool_context_to_analysis(enhanced_analysis)
+            
             # ENHANCED: Check for goal advancement including blocked status (CRITICAL BUG FIX)
             goal_advanced = False
             
@@ -2874,6 +2967,51 @@ Return ONLY the improved template content, ready to replace the current template
         except Exception as e:
             print(f"❌ Goal-oriented planning review failed: {e}")
             return {"success": False, "error": str(e)}
+    
+    def _add_ram_tool_context_to_analysis(self, enhanced_analysis: Dict[str, Any]):
+        """
+        Add RAM tool context to prompt the AI to check Pokemon status and coordinates
+        Called after goal analysis to remind AI about available tools
+        """
+        try:
+            goal_status = enhanced_analysis.get("goal_status", "unknown")
+            progress_score = enhanced_analysis.get("progress_score", 0)
+            
+            # Create context based on goal analysis
+            ram_context = {
+                "ram_tool_reminder": True,
+                "goal_analysis_summary": {
+                    "current_goal": self.session.goal,
+                    "status": goal_status,
+                    "progress": progress_score,
+                    "analysis_timestamp": enhanced_analysis.get("analysis_timestamp", "")
+                },
+                "suggested_ram_checks": []
+            }
+            
+            # Add specific RAM check suggestions based on analysis
+            if "heal" in self.session.goal.lower() or progress_score < 5:
+                ram_context["suggested_ram_checks"].append("check_pokemon_hp_status")
+                ram_context["suggested_ram_checks"].append("check_current_location_for_pokemon_center")
+            
+            if goal_status in ["blocked", "stuck"] or "stuck" in enhanced_analysis.get("key_insight", "").lower():
+                ram_context["suggested_ram_checks"].append("check_current_coordinates")
+                ram_context["suggested_ram_checks"].append("check_accessible_exits")
+            
+            # Store this context for the next turn's prompt injection
+            if not hasattr(self, '_ram_tool_contexts'):
+                self._ram_tool_contexts = []
+            
+            self._ram_tool_contexts.append(ram_context)
+            
+            # Keep only last 3 contexts to avoid bloat
+            if len(self._ram_tool_contexts) > 3:
+                self._ram_tool_contexts = self._ram_tool_contexts[-3:]
+            
+            print(f"🧠 RAM Tool Context Added: {len(ram_context['suggested_ram_checks'])} suggested checks")
+            
+        except Exception as e:
+            print(f"⚠️ Failed to add RAM tool context: {e}")
     
     def _generate_strategic_context_analysis(self, recent_turns: List[Dict], current_turn: int) -> Dict[str, Any]:
         """

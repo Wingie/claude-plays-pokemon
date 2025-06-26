@@ -7,6 +7,7 @@ import sys
 import base64
 import json
 import re
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from PIL import Image, ImageDraw, ImageFont
@@ -49,6 +50,15 @@ class VisualAnalysis:
         
         # Step counter for file naming
         self.step_counter = 0
+        
+        # Initialize coordinate mapper for pathfinding foundation
+        try:
+            from coordinate_mapper import CoordinateMapper
+            self.coordinate_mapper = CoordinateMapper()
+            self.enable_coordinate_mapping = True
+        except ImportError:
+            self.coordinate_mapper = None
+            self.enable_coordinate_mapping = False
         
     def analyze_current_scene(self, screenshot_base64: str = None, verbose: bool = False, session_name: str = None, clean_output: bool = False) -> Dict:
         """
@@ -100,6 +110,30 @@ class VisualAnalysis:
         if self.save_logs:
             self._save_analysis_results(movement_data, result['response'], session_name)
         
+        # Record coordinates for pathfinding foundation
+        if self.enable_coordinate_mapping and ram_data.get("ram_available", False):
+            screenshot_path = self._get_current_screenshot_path(session_name)
+            session_id = session_name or f"session_{int(time.time())}"
+            
+            # Extract location data from enhanced RAM structure
+            location_data = ram_data.get("location", {})
+            coord_data = {
+                "map_id": (location_data.get("map_bank", 0) * 1000) + location_data.get("map_id", 0),
+                "x": location_data.get("x", 0),
+                "y": location_data.get("y", 0),
+                "map_name": location_data.get("location_name", "Unknown")
+            }
+            
+            self.coordinate_mapper.record_coordinate(
+                coord_data=coord_data,
+                screenshot_path=screenshot_path,
+                session_id=session_id,
+                scene_analysis=movement_data
+            )
+            
+            if verbose:
+                print(f"📍 Coordinate recorded: Map {location_data.get('map_bank', 0)}-{location_data.get('map_id', 0)} X:{location_data.get('x', 0)} Y:{location_data.get('y', 0)}")
+        
         if verbose:
             self._log_analysis_results(movement_data)
         
@@ -109,8 +143,34 @@ class VisualAnalysis:
         
         return movement_data
     
+    def _get_ram_coordinates(self) -> Dict[str, Any]:
+        """Get current map coordinates from RAM using enhanced compact game state"""
+        try:
+            import sys
+            from pathlib import Path
+            tests_path = Path(__file__).parent / "tests"
+            if str(tests_path) not in sys.path:
+                sys.path.insert(0, str(tests_path))
+            from analyse_skyemu_ram import SkyEmuClient, PokemonFireRedReader
+            
+            client = SkyEmuClient(debug=False)
+            reader = PokemonFireRedReader(client)
+            
+            # Get enhanced compact game state
+            ram_data = reader.get_compact_game_state()
+            
+            # Return the full RAM data structure for consistent usage
+            return ram_data
+            
+        except Exception as e:
+            return {
+                "ram_available": False,
+                "error": str(e),
+                "location": {"map_bank": 0, "map_id": 0, "x": 0, "y": 0, "location_name": "Error"}
+            }
+
     def _add_grid_overlay(self, screenshot_base64: str) -> str:
-        """Add light grey grid overlay to screenshot for spatial reference"""
+        """Add light grey grid overlay to screenshot for spatial reference and coordinates"""
         try:
             # Decode base64 to image
             image_bytes = base64.b64decode(screenshot_base64)
@@ -133,20 +193,118 @@ class VisualAnalysis:
             for y in range(0, height, tile_height):
                 draw.line([(0, y), (width, y)], fill=grid_color, width=1)
             
-            # Add coordinate labels
+            # Add coordinate labels (real world coordinates based on player position)
             try:
                 font_size = max(8, min(12, tile_width // 4))
                 font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", font_size)
             except:
                 font = ImageFont.load_default()
             
-            text_color = (204, 204, 204, 120)
-            for tile_x in range(self.grid_size):
-                for tile_y in range(self.grid_size):
-                    pixel_x = tile_x * tile_width
-                    pixel_y = tile_y * tile_height
-                    coord_text = f"{tile_x},{tile_y}"
-                    draw.text((pixel_x + 2, pixel_y + 2), coord_text, fill=text_color, font=font)
+            # Get player's real world coordinates from RAM
+            coords = self._get_ram_coordinates()
+            if coords.get("ram_available", False):
+                location = coords.get("location", {})
+                player_ram_x = location.get("x", 0)
+                player_ram_y = location.get("y", 0)
+                
+                # Calculate center grid position (where player is)
+                center_grid_x = self.grid_size // 2
+                center_grid_y = self.grid_size // 2
+                
+                text_color = (204, 204, 204, 120)
+                center_text_color = (255, 255, 0, 200)  # Yellow for player position
+                
+                for tile_x in range(self.grid_size):
+                    for tile_y in range(self.grid_size):
+                        pixel_x = tile_x * tile_width
+                        pixel_y = tile_y * tile_height
+                        
+                        # Calculate real world coordinates for this tile
+                        offset_x = tile_x - center_grid_x
+                        offset_y = tile_y - center_grid_y
+                        real_x = player_ram_x + offset_x
+                        real_y = player_ram_y + offset_y
+                        
+                        coord_text = f"{real_x},{real_y}"
+                        
+                        # Use different color for center tile (player position)
+                        if tile_x == center_grid_x and tile_y == center_grid_y:
+                            draw.text((pixel_x + 2, pixel_y + 2), coord_text, fill=center_text_color, font=font)
+                        else:
+                            draw.text((pixel_x + 2, pixel_y + 2), coord_text, fill=text_color, font=font)
+            else:
+                # Fallback to visual grid coordinates if RAM not available
+                text_color = (204, 204, 204, 120)
+                for tile_x in range(self.grid_size):
+                    for tile_y in range(self.grid_size):
+                        pixel_x = tile_x * tile_width
+                        pixel_y = tile_y * tile_height
+                        coord_text = f"{tile_x},{tile_y}"
+                        draw.text((pixel_x + 2, pixel_y + 2), coord_text, fill=text_color, font=font)
+            
+            # Add map info in top-right corner (map bank/ID only, not coordinates)
+            try:
+                if coords.get("ram_available", False):
+                    location = coords.get("location", {})
+                    map_bank = location.get("map_bank", 0)
+                    map_id = location.get("map_id", 0)
+                    
+                    # Create map display text (no coordinates since they're in the grid)
+                    map_display = f"Map:{map_bank}-{map_id}"
+                else:
+                    map_display = "Map:?"
+                
+                # Use larger font for map display
+                try:
+                    map_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 14)
+                except:
+                    map_font = ImageFont.load_default()
+                
+                # Get text dimensions for background box
+                bbox = draw.textbbox((0, 0), map_display, font=map_font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+                
+                # Position in top-right corner with padding
+                padding = 5
+                text_x = width - text_width - padding
+                text_y = padding
+                
+                # Draw black background box
+                box_coords = [
+                    (text_x - padding, text_y - padding),
+                    (text_x + text_width + padding, text_y + text_height + padding)
+                ]
+                draw.rectangle(box_coords, fill=(0, 0, 0, 200))
+                
+                # Draw white text
+                draw.text((text_x, text_y), map_display, fill=(255, 255, 255, 255), font=map_font)
+                
+            except Exception as map_error:
+                # Fallback map display if RAM reading fails
+                map_display = "Map:?"
+                draw.text((width - 60, 5), map_display, fill=(255, 255, 255, 255), font=font)
+            
+            # Add subtle player position indicator at screen center
+            try:
+                if coords.get("ram_available", False):
+                    # Draw small player position indicator at screen center
+                    center_x = width // 2
+                    center_y = height // 2
+                    
+                    # Draw a small yellow circle for player position
+                    circle_radius = 4
+                    
+                    # Draw circle outline
+                    circle_bbox = [
+                        center_x - circle_radius, center_y - circle_radius,
+                        center_x + circle_radius, center_y + circle_radius
+                    ]
+                    draw.ellipse(circle_bbox, outline=(255, 255, 0, 180), width=1)
+                    
+            except Exception as player_indicator_error:
+                # Player indicator is optional, don't fail if it doesn't work
+                pass
             
             # Composite and convert back to base64
             result = Image.alpha_composite(overlay_image, grid_overlay).convert('RGB')
@@ -217,14 +375,32 @@ class VisualAnalysis:
             # Use provider-specific template and inject RAM context if available
             prompt = template_content
             
-            # Add RAM context to the prompt if available
+            # Add comprehensive RAM context to the prompt if available
             if ram_data and ram_data.get("ram_available"):
+                location = ram_data.get("location", {})
+                player = ram_data.get("player", {})
+                party_summary = ram_data.get("party_summary", {})
+                quick_status = ram_data.get("quick_status", {})
+                
                 ram_context = f"""
 
 CURRENT GAME STATE (from RAM):
-- Location: Map {ram_data.get('map_bank', '?')}-{ram_data.get('map_id', '?')} ({ram_data.get('location_name', 'Unknown')})
-- Player Position: X={ram_data.get('player_x', '?')}, Y={ram_data.get('player_y', '?')}
-This spatial data should enhance your visual analysis of the current scene.
+Location: Map {location.get('map_bank', '?')}-{location.get('map_id', '?')} ({location.get('location_name', 'Unknown')})
+Position: X={location.get('x', '?')}, Y={location.get('y', '?')}
+Player: {player.get('name', 'Unknown')} | Money: {player.get('money', 'unknown')}
+
+Pokemon Party Status:
+- Total Pokemon: {party_summary.get('total_pokemon', 0)}
+- Healthy: {party_summary.get('healthy_pokemon', 0)} | Fainted: {party_summary.get('fainted_pokemon', 0)}
+- Party Health: {party_summary.get('party_health_status', 'unknown').upper()}
+- Needs Healing: {'YES' if quick_status.get('needs_healing', False) else 'NO'}
+
+Context:
+- At Pokemon Center: {'YES' if quick_status.get('at_pokemon_center', False) else 'NO'}
+- Can Battle: {'YES' if quick_status.get('can_battle', True) else 'NO'}
+- Emergency: {'YES' if quick_status.get('emergency_situation', False) else 'NO'}
+
+This game state data should inform your visual analysis and scene understanding.
 """
                 prompt = prompt + ram_context
 
@@ -555,6 +731,12 @@ This spatial data should enhance your visual analysis of the current scene.
     def reset_step_counter(self) -> None:
         """Reset step counter for new session"""
         self.step_counter = 0
+    
+    def _get_current_screenshot_path(self, session_name: str = None) -> str:
+        """Get the path for the current screenshot file"""
+        session_dir = self._get_session_dir(session_name)
+        screenshots_dir = session_dir / "sshots"
+        return str(screenshots_dir / f"step_{self.step_counter:04d}_grid.png")
     
     def _log_analysis_results(self, movement_data: Dict) -> None:
         """Log analysis results to console for debugging"""
