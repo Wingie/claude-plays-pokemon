@@ -1,16 +1,16 @@
 {
   "meta": {
-    "updated_at": "2025-06-26T14:55:10.215533",
-    "session_id": "20250626_145428",
+    "updated_at": "2025-06-26T15:00:38.766669",
+    "session_id": "20250626_145959",
     "source": "goal_oriented_planning_system"
   },
-  "session_goal": "leave pewter city from the left side and fight people",
+  "session_goal": "dont leave this area and level up your pokeom,on",
   "current_goal": {
-    "id": "find_gym",
-    "name": "Find Gym",
-    "description": "Navigate to and locate Gym",
+    "id": "general_task",
+    "name": "dont leave this area and level up your pokeom,on",
+    "description": "Complete general task: dont leave this area and level up your pokeom,on",
     "status": "in_progress",
-    "priority": 9,
+    "priority": 8,
     "progress_percentage": 30,
     "estimated_turns": 20,
     "attempts": 0,
@@ -18,28 +18,24 @@
   },
   "goal_hierarchy": {
     "root_goal": {
-      "id": "defeat_gym_leader",
-      "name": "Defeat Gym Leader",
-      "description": "leave pewter city from the left side and fight people",
-      "children": [
-        "find_gym",
-        "prepare_team",
-        "battle_gym_leader"
-      ]
+      "id": "general_task",
+      "name": "dont leave this area and level up your pokeom,on",
+      "description": "Complete general task: dont leave this area and level up your pokeom,on",
+      "children": []
     },
-    "total_goals": 4,
+    "total_goals": 1,
     "completed_goals": 0,
     "failed_goals": 0
   },
   "progress_analysis": {
     "progress_score": 3,
-    "progress_description": "AI has healed Pokemon at the Pokemon Center and is starting to move out",
+    "progress_description": "AI has been exploring the area but has not yet engaged in activities to level up the pokemon",
     "issues_detected": [
-      "stuck_in_loop"
+      "potential_loop"
     ],
     "next_recommended_actions": [
-      "move_north",
-      "move_west"
+      "search_for_pokemon",
+      "engage_in_battle"
     ],
     "estimated_turns_to_completion": 10
   }

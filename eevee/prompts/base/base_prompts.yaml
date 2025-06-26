@@ -233,16 +233,19 @@ pokemon_party_analysis:
     Recommended Actions: {recommended_goal_actions}
     
     **PRIORITY DECISION FRAMEWORK:**
-    1. **IF goal recommends "visit_pokemon_center" or similar navigation actions:**
+    1. **FIRST: Check if Pokemon actually need healing:**
+       - If all Pokemon have full/green HP: Exit menu (press "b") - no healing needed
+       - Only consider healing if Pokemon have damaged HP (yellow/red bars)
+    
+    2. **IF healing IS needed and goal recommends "visit_pokemon_center":**
        - Press "b" to exit Pokemon menu immediately
        - Return to overworld to navigate to Pokemon Center
-       - Do NOT try to heal Pokemon individually in menus
     
-    2. **IF goal recommends "use_potion" or item usage:**
-       - Only proceed if you have items available
+    3. **IF healing IS needed and goal recommends "use_potion":**
+       - Only proceed if you have healing items available
        - Otherwise exit menu and find Pokemon Center
     
-    3. **IF no specific goal recommendations:**
+    4. **IF no healing needed or no specific goal recommendations:**
        - Analyze Pokemon status as normal
        - Exit with "b" when analysis complete
     
@@ -330,13 +333,11 @@ exploration_strategy:
     - Press UP at building entrances to enter
     - Prioritize goal recommendations over random exploration
     
-    **POKEMON CENTER SEEKING (High Priority):**
-    If GOAL contains "heal" or "pokemon center":
+    **POKEMON CENTER SEEKING:**
+    Only if GOAL contains "heal" AND Pokemon actually need healing (damaged HP):
     - Look for red-roofed buildings in towns (Pokemon Centers)
     - Head toward buildings with red roofs when visible
-    - In towns, systematically check buildings by pressing A at entrances
-    - If near a building entrance, press A to enter and check for Nurse Joy
-    - Priority: Find Pokemon Center > Random exploration
+    - If Pokemon are already fully healed, ignore healing goals and focus on other objectives
     
     **VALID BUTTONS:**
     - Movement: "up", "down", "left", "right"
@@ -580,63 +581,44 @@ visual_context_analyzer_gemini:
   version: '3.0'
 
 pokemon_center_navigation:
-  name: Pokemon Center Healing Navigation (4-Step Process)
-  description: Efficiently navigate Pokemon Center for healing with state awareness
+  name: Pokemon Center Smart Navigation
+  description: Navigate Pokemon Center only when healing is actually needed
   template: |
-    Pokemon Center Healing Strategy
+    Pokemon Center Smart Navigation
     
     GOAL: {task}
     BUILDING: Pokemon Center
     
-    **4-STEP HEALING PROCESS:**
+    **FIRST: CHECK IF HEALING IS NEEDED**
+    - Look at your Pokemon's HP bars in the party status
+    - If all Pokemon have full/green HP bars: Exit Pokemon Center immediately (press ↓ to leave)
+    - Only proceed with healing if Pokemon have damaged HP (yellow/red bars)
     
-    **STEP 1 - APPROACH NURSE JOY:**
-    - If player far from counter: Press ↑ repeatedly until adjacent to Nurse Joy
-    - If player at counter: Proceed to Step 2
+    **IF HEALING IS NEEDED:**
+    1. Approach Nurse Joy at the counter
+    2. Press A to interact with Nurse Joy
+    3. Select "Yes" when asked to heal Pokemon
+    4. Wait for healing completion
+    5. Press A to acknowledge completion, then exit
     
-    **STEP 2 - INITIATE HEALING:**
-    - Press A to start conversation with Nurse Joy
-    - Look for healing dialogue options
-    
-    **STEP 3 - CONFIRM HEALING:**
-    - Press A to confirm "Yes, please heal my Pokemon"
-    - Wait for healing animation/sound
-    
-    **STEP 4 - COMPLETE & EXIT:**
-    - Press A when healing complete message appears
-    - Press ↓ repeatedly to exit Pokemon Center
-    
-    **CURRENT STATE ANALYSIS:**
-    Based on visual cues, determine current step:
-    - No dialogue visible → Step 1 (approach nurse)
-    - Nurse dialogue active → Step 2 or 3 (interact/confirm)  
-    - Healing complete message → Step 4 (exit)
-    - Outside Pokemon Center → GOAL COMPLETE
-    
-    **HEALING DIALOGUE RECOGNITION:**
-    - "Welcome to our Pokemon Center!" → Press A to continue
-    - "Would you like me to heal your Pokemon?" → Press A for "Yes"
-    - "It will take just a moment" → Wait for completion
-    - "Your Pokemon are fully healed!" → Press A then exit
+    **IF HEALING NOT NEEDED:**
+    - Simply exit the Pokemon Center (press ↓ repeatedly)
+    - Report that Pokemon are already healthy
     
     **RESPONSE FORMAT (MANDATORY):**
     Return ONLY a JSON object with no additional text:
     
     {{
-      "button_presses": ["up"],
-      "current_step": "1_approach_nurse",
-      "reasoning": "moving_toward_healing_counter", 
-      "progress": "approaching_nurse_joy",
-      "next_action": "continue_moving_up_until_adjacent",
+      "button_presses": ["down"],
+      "reasoning": "pokemon_already_healthy_exiting_center",
+      "observations": "all_pokemon_have_full_hp",
       "confidence": "high"
     }}
     
-    **EFFICIENCY RULES:**
-    - Maximum 2 button presses per turn
-    - Focus on direct path to Nurse Joy
-    - Recognize dialogue states to avoid getting stuck
-    - Exit immediately after healing completes
-    - If stuck in same position, try "a" to interact
+    **AVOID OBSESSIVE HEALING:**
+    - Don't assume healing is always needed
+    - Check Pokemon status before starting healing process
+    - Exit immediately if Pokemon are already healthy
   variables:
   - task
   version: '1.0'
