@@ -1,0 +1,16 @@
+{
+  "bookmarks": {
+    "test_location": {
+      "name": "test_location",
+      "map_bank": 3,
+      "map_id": 2,
+      "x": 28,
+      "y": 31,
+      "location_name": "Pewter City",
+      "timestamp": 1750943671.174453,
+      "notes": "Test bookmark from memory tools",
+      "visit_count": 1
+    }
+  },
+  "map_connections": []
+}

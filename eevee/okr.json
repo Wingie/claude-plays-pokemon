@@ -1,41 +1,43 @@
 {
   "meta": {
-    "updated_at": "2025-06-26T15:00:38.766669",
-    "session_id": "20250626_145959",
+    "updated_at": "2025-06-26T16:45:16.430211",
+    "session_id": "20250626_164506",
     "source": "goal_oriented_planning_system"
   },
-  "session_goal": "dont leave this area and level up your pokeom,on",
+  "session_goal": "go_east_to_exit_pewter_city",
   "current_goal": {
-    "id": "general_task",
-    "name": "dont leave this area and level up your pokeom,on",
-    "description": "Complete general task: dont leave this area and level up your pokeom,on",
-    "status": "in_progress",
+    "id": "explore_area",
+    "name": "Explore Current Area",
+    "description": "Look around current area to understand layout and find target",
     "priority": 8,
-    "progress_percentage": 30,
-    "estimated_turns": 20,
+    "progress_percentage": 20,
+    "estimated_turns": 10,
     "attempts": 0,
     "turns_spent": 0
   },
   "goal_hierarchy": {
     "root_goal": {
-      "id": "general_task",
-      "name": "dont leave this area and level up your pokeom,on",
-      "description": "Complete general task: dont leave this area and level up your pokeom,on",
-      "children": []
+      "id": "navigate_to_target_location",
+      "name": "Navigate to Target Location",
+      "description": "go_east_to_exit_pewter_city",
+      "children": [
+        "explore_area",
+        "navigate_to_target"
+      ]
     },
-    "total_goals": 1,
+    "total_goals": 3,
     "completed_goals": 0,
     "failed_goals": 0
   },
   "progress_analysis": {
-    "progress_score": 3,
-    "progress_description": "AI has been exploring the area but has not yet engaged in activities to level up the pokemon",
+    "progress_score": 2,
+    "progress_description": "AI has started moving but not in the intended direction for the session goal",
     "issues_detected": [
-      "potential_loop"
+      "wrong_direction"
     ],
     "next_recommended_actions": [
-      "search_for_pokemon",
-      "engage_in_battle"
+      "move_east",
+      "reorient_towards_east"
     ],
     "estimated_turns_to_completion": 10
   }

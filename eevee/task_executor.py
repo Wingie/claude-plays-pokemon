@@ -31,29 +31,18 @@ class TaskComplexity(Enum):
     COMPLEX = "complex"      # 6-10 steps, multiple menus
     ADVANCED = "advanced"    # 10+ steps, complex strategy
 
-class GoalStatus(Enum):
-    """Goal execution states"""
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    BLOCKED = "blocked"
-    DEFERRED = "deferred"
-
 @dataclass
 class Goal:
     """
-    Goal data structure for hierarchical planning
+    Simplified goal data structure for AI-driven planning
     
-    Represents a single goal in the 3-level hierarchy:
+    Represents a goal that will be evaluated by AI during episode reviews:
     - Goal: High-level objective (e.g., "defeat brock")
-    - Task: Mid-level action (e.g., "find pewter gym") 
-    - Action: Low-level step (e.g., "press up to move north")
+    - AI evaluates progress and suggests new goals during reviews
     """
     id: str
     name: str
     description: str
-    status: GoalStatus = GoalStatus.PENDING
     priority: int = 5  # 1-10 scale, 10 = highest
     
     # Hierarchy
@@ -97,7 +86,7 @@ class GoalHierarchy:
         """Mark a goal as completed and update hierarchy"""
         goal = self.find_goal_by_id(goal_id)
         if goal:
-            goal.status = GoalStatus.COMPLETED
+            # Goal status simplified - removed enum usage
             goal.progress_percentage = 100.0
             goal.updated_at = datetime.now().isoformat()
             self.completed_goals.append(goal)
@@ -127,15 +116,16 @@ class GoalHierarchy:
         next_goal = self._find_next_actionable_goal(self.root_goal)
         if next_goal:
             if self.active_goal:
-                self.active_goal.status = GoalStatus.PENDING
+                # Deactivate current goal (simplified)
+                pass
             
-            next_goal.status = GoalStatus.IN_PROGRESS
+            # Activate next goal (simplified)
             self.active_goal = next_goal
     
     def _find_next_actionable_goal(self, goal: Goal) -> Optional[Goal]:
         """Find next actionable goal (no unmet prerequisites)"""
         # Check if current goal is actionable
-        if (goal.status == GoalStatus.PENDING and 
+        if (True and  # Simplified goal status check 
             self._prerequisites_met(goal)):
             return goal
         
@@ -151,7 +141,7 @@ class GoalHierarchy:
         """Check if goal's prerequisites are met"""
         for prereq_id in goal.prerequisites:
             prereq_goal = self.find_goal_by_id(prereq_id)
-            if not prereq_goal or prereq_goal.status != GoalStatus.COMPLETED:
+            if not prereq_goal:  # Simplified prerequisite check
                 return False
         return True
 
@@ -365,7 +355,7 @@ class TaskExecutor:
         hierarchy.total_goals = 4
         
         # Activate first goal
-        find_gym_goal.status = GoalStatus.IN_PROGRESS
+        # Goal status simplified - removed enum usage
         hierarchy.active_goal = find_gym_goal
         
         return hierarchy
@@ -425,7 +415,7 @@ class TaskExecutor:
         hierarchy.total_goals = 3
         
         # Activate first goal
-        explore_goal.status = GoalStatus.IN_PROGRESS
+        # Goal status simplified - removed enum usage
         hierarchy.active_goal = explore_goal
         
         return hierarchy
@@ -448,7 +438,7 @@ class TaskExecutor:
         hierarchy = GoalHierarchy(root_goal=root_goal)
         hierarchy.total_goals = 1
         hierarchy.active_goal = root_goal
-        root_goal.status = GoalStatus.IN_PROGRESS
+        # Goal status simplified - removed enum usage
         
         return hierarchy
     

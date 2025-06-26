@@ -2890,10 +2890,8 @@ Return ONLY the improved template content, ready to replace the current template
             # Handle different goal status types for advancement/interruption
             if current_goal_status in ["completed", "context_changed", "blocked"]:
                 if current_goal_status == "blocked":
-                    # Handle blocked status with context-aware interruption
-                    goal_advanced = self._handle_blocked_goal_interruption(
-                        task_executor, progress_analysis, current_turn
-                    )
+                    # Handle blocked status - skip interruption handling
+                    goal_advanced = False
                 elif suggested_next_goal:
                     # Handle normal advancement for completed/context_changed
                     goal_advanced = self._attempt_goal_advancement(
@@ -3178,60 +3176,74 @@ Return ONLY the improved template content, ready to replace the current template
             print(f"WARNING: Failed to store periodic review: {e}")
     
     def _attempt_goal_advancement(self, task_executor, progress_analysis: Dict[str, Any], current_turn: int) -> bool:
-        """Attempt to advance to the next contextual goal based on AI analysis"""
+        """AI-driven goal advancement based on analysis"""
         try:
             suggested_next_goal = progress_analysis.get("suggested_next_goal", "")
-            goal_completion_indicators = progress_analysis.get("goal_completion_indicators", [])
             goal_transition_reason = progress_analysis.get("goal_transition_reason", "")
+            goal_status = progress_analysis.get("goal_status", "in_progress")
             
-            if not suggested_next_goal:
+            if not suggested_next_goal or goal_status not in ["completed", "context_changed"]:
                 return False
             
-            current_goal_hierarchy = task_executor.current_goal_hierarchy
-            if not current_goal_hierarchy:
-                return False
+            # Simple AI-driven goal update: Update session goal directly
+            old_goal = self.session.goal
+            self.session.goal = suggested_next_goal
             
-            current_goal = current_goal_hierarchy.get_current_goal()
-            if not current_goal:
-                return False
+            print(f"   ✅ AI Goal Evaluation: Previous goal completed")
+            print(f"   🎯 New Goal: '{suggested_next_goal}'")
+            print(f"   📝 Reason: {goal_transition_reason}")
+            print(f"   🔄 Goal changed from: '{old_goal}'")
             
-            # Create or find the suggested next goal
-            next_goal = self._create_or_update_contextual_goal(
-                suggested_next_goal, 
-                goal_completion_indicators,
-                goal_transition_reason,
-                current_goal,
-                current_goal_hierarchy
-            )
+            # Update OKR tracking with new goal
+            self._update_okr_with_new_goal(suggested_next_goal, goal_transition_reason)
             
-            if next_goal:
-                # Mark current goal as completed
-                current_goal.status = task_executor.GoalStatus.COMPLETED
-                current_goal.progress_percentage = 100.0
-                current_goal.updated_at = datetime.now().isoformat()
-                current_goal_hierarchy.completed_goals.append(current_goal)
-                
-                # Activate next goal
-                next_goal.status = task_executor.GoalStatus.IN_PROGRESS
-                current_goal_hierarchy.active_goal = next_goal
-                
-                print(f"   ✅ Completed Goal: '{current_goal.name}'")
-                print(f"   🎯 Activated Goal: '{next_goal.name}'")
-                print(f"   📝 Reason: {goal_transition_reason}")
-                
-                return True
+            return True
                 
         except Exception as e:
-            print(f"⚠️ Goal advancement failed: {e}")
+            print(f"⚠️ AI goal advancement failed: {e}")
+            print("✅ Continuing with current goal")
             return False
-        
-        return False
+    
+    def _update_okr_with_new_goal(self, new_goal: str, transition_reason: str):
+        """Update OKR tracking with new AI-determined goal"""
+        try:
+            okr_data = {
+                "meta": {
+                    "updated_at": datetime.now().isoformat(),
+                    "session_id": self.session.session_id,
+                    "source": "ai_driven_goal_system"
+                },
+                "session_goal": new_goal,
+                "goal_transition": {
+                    "previous_goal": getattr(self.session, '_previous_goal', 'Unknown'),
+                    "new_goal": new_goal,
+                    "transition_reason": transition_reason,
+                    "changed_at": datetime.now().isoformat()
+                },
+                "ai_evaluation": {
+                    "goal_determined_by_ai": True,
+                    "evaluation_method": "episode_review_analysis"
+                }
+            }
+            
+            # Save to okr.json
+            okr_file = Path(__file__).parent / "okr.json"
+            with open(okr_file, 'w') as f:
+                json.dump(okr_data, f, indent=2)
+            
+            # Store previous goal for tracking
+            self.session._previous_goal = getattr(self.session, 'goal', new_goal)
+            
+            print(f"   📊 OKR updated with new AI goal: {new_goal}")
+            
+        except Exception as e:
+            print(f"⚠️ Failed to update OKR: {e}")
     
     def _create_or_update_contextual_goal(self, suggested_goal_name: str, completion_indicators: List[str], 
                                         transition_reason: str, current_goal, goal_hierarchy) -> Optional[Any]:
         """Create or find the next contextual goal"""
         try:
-            from task_executor import Goal, GoalStatus
+            from task_executor import Goal
             
             # Try to find existing goal first
             existing_goal = goal_hierarchy.find_goal_by_id(suggested_goal_name.lower().replace(" ", "_"))
@@ -3280,7 +3292,6 @@ Return ONLY the improved template content, ready to replace the current template
                 id=goal_id,
                 name=goal_details["name"],
                 description=goal_details["description"],
-                status=GoalStatus.PENDING,
                 priority=goal_details["priority"],
                 parent_id=current_goal.parent_id or goal_hierarchy.root_goal.id,
                 estimated_turns=5,
@@ -3439,18 +3450,9 @@ Respond with valid JSON only.
                 progress_score = progress_analysis.get("progress_score", 0)
                 current_goal.progress_percentage = min(100.0, progress_score * 10)  # Convert 0-10 to 0-100
                 
-                # Update status if needed
+                # Goal status tracking simplified - removed enum usage
                 goal_status = progress_analysis.get("goal_status", "in_progress")
-                from task_executor import GoalStatus
-                
-                if goal_status == "completed":
-                    current_goal.status = GoalStatus.COMPLETED
-                elif goal_status == "failed":
-                    current_goal.status = GoalStatus.FAILED
-                elif goal_status == "blocked":
-                    current_goal.status = GoalStatus.BLOCKED
-                else:
-                    current_goal.status = GoalStatus.IN_PROGRESS
+                # Note: Goal status will be evaluated by AI during episode reviews
                 
                 # Update timestamp
                 current_goal.updated_at = datetime.now().isoformat()
@@ -3478,7 +3480,6 @@ Respond with valid JSON only.
                     "id": current_goal.id,
                     "name": current_goal.name,
                     "description": current_goal.description,
-                    "status": current_goal.status.value,
                     "priority": current_goal.priority,
                     "progress_percentage": current_goal.progress_percentage,
                     "estimated_turns": current_goal.estimated_turns,

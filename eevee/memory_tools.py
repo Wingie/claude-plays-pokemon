@@ -7,15 +7,17 @@ import json
 import time
 from typing import Dict, List, Any, Optional, Union
 from neo4j_compact_reader import Neo4jCompactReader
+from spatial_memory import SpatialMemory
 
 
 class MemoryTools:
     """Memory tools that AI agent can choose to use"""
     
     def __init__(self):
-        """Initialize memory tools with Neo4j connection"""
+        """Initialize memory tools with Neo4j connection and spatial memory"""
         self.reader = Neo4jCompactReader()
         self.session_id = f"session_{int(time.time())}"
+        self.spatial_memory = SpatialMemory()
         
     def close(self):
         """Close memory connections"""
@@ -276,6 +278,62 @@ class MemoryTools:
             return "location_risky"
         else:
             return "location_mixed"
+    
+    # SPATIAL MEMORY / BOOKMARK TOOLS
+    
+    def bookmark_current_location(self, name: str, ram_data: Dict[str, Any], notes: str = "") -> Dict[str, Any]:
+        """
+        Bookmark current location for future navigation
+        
+        Args:
+            name: Memorable name for this location
+            ram_data: Current RAM data containing position and map info
+            notes: Optional notes about this location
+            
+        Returns:
+            Dict with bookmark creation result
+        """
+        try:
+            return self.spatial_memory.bookmark_current_location(name, ram_data, notes)
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Bookmark creation failed: {str(e)}"
+            }
+    
+    def goto_bookmark(self, bookmark_name: str, current_ram_data: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Get navigation guidance to a previously bookmarked location
+        
+        Args:
+            bookmark_name: Name of the bookmarked location
+            current_ram_data: Current position data for calculating route
+            
+        Returns:
+            Dict with navigation guidance
+        """
+        try:
+            return self.spatial_memory.goto_bookmark(bookmark_name, current_ram_data)
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Navigation to bookmark failed: {str(e)}"
+            }
+    
+    def list_bookmarks(self) -> Dict[str, Any]:
+        """
+        List all saved bookmarks
+        
+        Returns:
+            Dict with all bookmarks and their details
+        """
+        try:
+            return self.spatial_memory.get_bookmarks_summary()
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to list bookmarks: {str(e)}"
+            }
 
 
 # TOOL FUNCTION DECLARATIONS FOR AI AGENT
@@ -359,6 +417,64 @@ def create_memory_tool_declarations():
                         }
                     },
                     "required": ["observation"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "bookmark_current_location",
+                "description": "Save current location with a memorable name for future navigation. Use when you discover important locations like Pokemon Centers, shops, or quest locations.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Memorable name for this location (e.g., 'pokemon_center_pewter', 'route_2_entrance')"
+                        },
+                        "ram_data": {
+                            "type": "object",
+                            "description": "Current RAM data containing position and map info"
+                        },
+                        "notes": {
+                            "type": "string",
+                            "description": "Optional notes about this location (e.g., 'healing available', 'trainer battle here')"
+                        }
+                    },
+                    "required": ["name", "ram_data"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "goto_bookmark",
+                "description": "Get navigation guidance to reach a previously bookmarked location. Use when you want to return to a specific place you've been before.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "bookmark_name": {
+                            "type": "string",
+                            "description": "Name of the bookmarked location to navigate to"
+                        },
+                        "current_ram_data": {
+                            "type": "object",
+                            "description": "Current position data for calculating route (optional)"
+                        }
+                    },
+                    "required": ["bookmark_name"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "list_bookmarks",
+                "description": "List all saved bookmarks with their locations and details. Use to see what locations you have saved for navigation.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
                 }
             }
         }

@@ -8,7 +8,7 @@ import base64
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 # Import prompt manager to get universal template
@@ -84,14 +84,17 @@ class VisualAnalysis:
         if self.save_logs:
             self._save_grid_image(grid_image_base64, session_name)
         
-        # Get movement analysis from Pixtral
-        result = self._call_pixtral_for_analysis(grid_image_base64, verbose)
+        # Collect RAM data for spatial awareness
+        ram_data = self._collect_ram_data()
+        
+        # Get movement analysis from Pixtral with RAM context
+        result = self._call_pixtral_for_analysis(grid_image_base64, verbose, ram_data)
         
         if not result["success"]:
             raise RuntimeError(f"Visual analysis failed: {result['error']}")
         
-        # Parse and return structured movement data
-        movement_data = self._parse_movement_response(result['response'])
+        # Parse and return structured movement data with RAM integration
+        movement_data = self._parse_movement_response(result['response'], ram_data)
         
         # Save analysis results if logging enabled
         if self.save_logs:
@@ -154,8 +157,32 @@ class VisualAnalysis:
         except Exception as e:
             raise RuntimeError(f"Failed to add grid overlay: {e}")
     
-    def _call_pixtral_for_analysis(self, grid_image_base64: str, verbose: bool = False) -> Dict:
-        """Call visual_context_analyzer template with hybrid mode support"""
+    def _collect_ram_data(self) -> Dict[str, Any]:
+        """Collect current RAM data from SkyEmu for spatial awareness"""
+        try:
+            # Import and initialize RAM analyzer
+            import sys
+            from pathlib import Path
+            tests_path = Path(__file__).parent / "tests"
+            if str(tests_path) not in sys.path:
+                sys.path.insert(0, str(tests_path))
+            from analyse_skyemu_ram import SkyEmuClient, PokemonFireRedReader
+            
+            client = SkyEmuClient(debug=False)
+            reader = PokemonFireRedReader(client)
+            
+            # Get compact game state using our new standardized method
+            ram_data = reader.get_compact_game_state()
+            
+            return ram_data
+            
+        except ImportError as e:
+            return {"ram_available": False, "error": f"RAM analyzer not available: {str(e)}"}
+        except Exception as e:
+            return {"ram_available": False, "error": f"RAM collection failed: {str(e)}"}
+    
+    def _call_pixtral_for_analysis(self, grid_image_base64: str, verbose: bool = False, ram_data: Dict = None) -> Dict:
+        """Call visual_context_analyzer template with hybrid mode support and RAM data integration"""
         try:
             import time
             start_time = time.time()
@@ -187,8 +214,19 @@ class VisualAnalysis:
                 error_msg = f"{template_name} template not found"
                 raise RuntimeError(error_msg)
             
-            # Use provider-specific template
+            # Use provider-specific template and inject RAM context if available
             prompt = template_content
+            
+            # Add RAM context to the prompt if available
+            if ram_data and ram_data.get("ram_available"):
+                ram_context = f"""
+
+CURRENT GAME STATE (from RAM):
+- Location: Map {ram_data.get('map_bank', '?')}-{ram_data.get('map_id', '?')} ({ram_data.get('location_name', 'Unknown')})
+- Player Position: X={ram_data.get('player_x', '?')}, Y={ram_data.get('player_y', '?')}
+This spatial data should enhance your visual analysis of the current scene.
+"""
+                prompt = prompt + ram_context
 
             # Log hybrid mode configuration
             if verbose and hybrid_config['enabled']:
@@ -257,8 +295,8 @@ class VisualAnalysis:
                 "error": str(e)
             }
     
-    def _parse_movement_response(self, response_text: str) -> Dict:
-        """Parse flexible visual analysis response with dynamic scene data"""
+    def _parse_movement_response(self, response_text: str, ram_data: Dict = None) -> Dict:
+        """Parse flexible visual analysis response with dynamic scene data and RAM integration"""
         import json  # Import at function level to be available in except block
         from evee_logger import get_comprehensive_logger
         
@@ -380,6 +418,26 @@ class VisualAnalysis:
                 {"key": "←", "action": "move_left", "result": "character_movement"},
                 {"key": "→", "action": "move_right", "result": "character_movement"}
             ]
+        
+        # Integrate RAM data into spatial_context if available
+        if ram_data and ram_data.get("ram_available"):
+            # Enhance spatial_context with RAM data
+            existing_spatial = result.get("spatial_context", "")
+            result["spatial_context"] = {
+                "ram_data": {
+                    "available": True,
+                    "map_bank": ram_data.get("map_bank"),
+                    "map_id": ram_data.get("map_id"),
+                    "player_x": ram_data.get("player_x"),
+                    "player_y": ram_data.get("player_y"),
+                    "location_name": ram_data.get("location_name")
+                },
+                "visual_context": existing_spatial
+            }
+        else:
+            # Ensure spatial_context exists even without RAM data
+            if "spatial_context" not in result:
+                result["spatial_context"] = {"ram_data": {"available": False}}
             
         return result
     

@@ -16,7 +16,7 @@ import time
 import sys # Added for stderr printing
 from enum import IntEnum, IntFlag
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any
 
 # --- Enums and Dataclasses (remain the same) ---
 class StatusCondition(IntFlag):
@@ -414,6 +414,57 @@ class PokemonFireRedReader(PokemonGameReader):
             print(f"Error assembling game state: {e}", file=sys.stderr)
             # Optionally log traceback: import traceback; traceback.print_exc()
             return None
+
+    def get_compact_game_state(self) -> Dict[str, Any]:
+        """
+        Get standardized compact game state for visual analysis integration
+        
+        Returns:
+            Dict with standardized RAM data structure for visual analysis system
+        """
+        try:
+            # Get full game state using existing method
+            game_state = self.read_game_state()
+            if not game_state:
+                return {
+                    "ram_available": False,
+                    "error": "Failed to read game state"
+                }
+            
+            # Extract map bank and ID from location string
+            map_bank = None
+            map_id = None
+            location_name = game_state.location
+            
+            # Parse location format: "Location Name [Bank X, Map Y]"
+            import re
+            bank_match = re.search(r'Bank (\d+)', location_name)
+            map_match = re.search(r'Map (\d+)', location_name)
+            
+            if bank_match and map_match:
+                map_bank = int(bank_match.group(1))
+                map_id = int(map_match.group(1))
+                # Extract clean location name (before the bracket)
+                clean_location = location_name.split(' [Bank')[0]
+            else:
+                clean_location = location_name
+            
+            # Return standardized format for visual analysis integration
+            return {
+                "ram_available": True,
+                "map_bank": map_bank,
+                "map_id": map_id,
+                "player_x": game_state.x,
+                "player_y": game_state.y,
+                "location_name": clean_location,
+                "raw_location": location_name  # Keep full location string for debugging
+            }
+            
+        except Exception as e:
+            return {
+                "ram_available": False,
+                "error": f"RAM analysis failed: {str(e)}"
+            }
 
     def _read_player_name(self) -> str:
         """Read the player's name"""
