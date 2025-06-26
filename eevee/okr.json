@@ -1,16 +1,16 @@
 {
   "meta": {
-    "updated_at": "2025-06-26T17:25:01.534513",
-    "session_id": "20250626_171625",
+    "updated_at": "2025-06-26T20:28:20.080106",
+    "session_id": "20250626_202751",
     "source": "goal_oriented_planning_system"
   },
-  "session_goal": "continue_battle_animation",
+  "session_goal": "enter_pewter_city_gym",
   "current_goal": {
     "id": "find_gym",
     "name": "Find Gym",
     "description": "Navigate to and locate Gym",
     "priority": 9,
-    "progress_percentage": 30,
+    "progress_percentage": 80,
     "estimated_turns": 20,
     "attempts": 0,
     "turns_spent": 0
@@ -19,7 +19,7 @@
     "root_goal": {
       "id": "defeat_gym_leader",
       "name": "Defeat Gym Leader",
-      "description": "continue_battle_animation",
+      "description": "enter_pewter_city_gym",
       "children": [
         "find_gym",
         "prepare_team",
@@ -31,13 +31,12 @@
     "failed_goals": 0
   },
   "progress_analysis": {
-    "progress_score": 3,
-    "progress_description": "AI is in the middle of a battle and needs to complete the battle animation",
-    "issues_detected": [
-      "stuck_in_loop"
-    ],
+    "progress_score": 8,
+    "progress_description": "AI has engaged in a battle indicating proximity to the gym",
+    "issues_detected": [],
     "next_recommended_actions": [
-      "continue_battle_animation"
+      "enter_building",
+      "interact_with_entrance"
     ],
     "estimated_turns_to_completion": 3
   }

@@ -384,24 +384,9 @@ class ContinuousGameplay:
                 # Step 4.2: Comprehensive turn data logging (overrides with enhanced data)
                 self._log_complete_turn_data(turn_count, game_context, ai_result, execution_result, movement_data)
                 
-                # Step 4.5: Goal-oriented planning review (frequent) + Periodic episode review (less frequent)
-                
-                # ENHANCED: Goal-oriented planning review runs every 5 turns for dynamic goal progression
-                goal_review_frequency = 5  # Run goal analysis every 5 turns for responsive goal advancement
-                if turn_count % goal_review_frequency == 0:
-                    print(f"\n🎯 GOAL PROGRESSION REVIEW (Turn {turn_count}): Analyzing progress and advancing goals...")
-                    self._run_goal_oriented_planning_independent(turn_count)
-                
-                # Standard periodic episode review runs less frequently for template improvements
+                # Step 4.5: Standard periodic episode review runs less frequently for template improvements
                 if hasattr(self, 'episode_review_frequency') and self.episode_review_frequency > 0:
-                    # EMERGENCY: Check for catastrophic performance needing immediate intervention
-                    emergency_review_needed = self._check_emergency_review_needed(turn_count)
-                    
-                    if emergency_review_needed or turn_count % self.episode_review_frequency == 0:
-                        if emergency_review_needed:
-                            print(f"\n🚨 EMERGENCY REVIEW TRIGGERED: Catastrophic performance detected at turn {turn_count}")
-                        else:
-                            print(f"\n📊 PERIODIC REVIEW: Analyzing last {self.episode_review_frequency} turns...")
+                    if turn_count % self.episode_review_frequency == 0:
                         self._run_periodic_episode_review(turn_count)
                 
                 # Step 5: Wait before next turn
@@ -1933,130 +1918,157 @@ Use the pokemon_controller tool with your chosen button sequence."""
                 print("WARNING: No recent turns available for analysis")
                 return
             
-            # Run AI-powered analysis and template improvement
-            improvement_result = self._run_ai_powered_review(recent_turns)
-            
-            # NEW: Goal-oriented planning analysis
+            # Goal-oriented planning analysis
             goal_planning_result = self._run_goal_oriented_planning_review(recent_turns, current_turn)
             
-            if improvement_result["success"]:
-                changes_applied = improvement_result["changes_applied"]
-                
-                if changes_applied > 0:
-                    print(f"\nINIT: AI-POWERED PROMPT LEARNING: Applied {changes_applied} improvements")
-                    
-                    for change in improvement_result.get("changes", []):
-                        print(f"   📝 {change['template']} v{change['old_version']} → v{change['new_version']}")
-                        print(f"      Reason: {change['reasoning']}")
-                    
-                    # CRITICAL: Reload prompt templates to use the updates immediately
-                    if hasattr(self.eevee, 'prompt_manager') and self.eevee.prompt_manager:
-                        self.eevee.prompt_manager.reload_templates()
-                        print(f"   🔄 RELOADED PROMPT TEMPLATES - AI will now use improved versions")
-                    
-                    # Save detailed periodic review
-                    self._save_periodic_review(current_turn, improvement_result, recent_turns)
-                        
-                else:
-                    # Use AI-powered performance analysis instead of primitive metrics
-                    ai_performance_result = self._ai_evaluate_performance(recent_turns, current_turn)
-                    
-                    if ai_performance_result["success"]:
-                        performance_score = ai_performance_result["performance_score"] 
-                        issues = ai_performance_result["issues"]
-                        
-                        if performance_score >= 0.7 and not issues:
-                            print(f"\n✅ AI PERFORMANCE ANALYSIS: Excellent gameplay detected")
-                            print(f"   AI Performance Score: {performance_score:.2f}")
-                            print(f"   Assessment: {ai_performance_result.get('assessment', 'No major issues detected')}")
-                        else:
-                            print(f"\n📊 AI ANALYSIS: Issues identified but no template improvements generated")
-                            print(f"   AI Performance Score: {performance_score:.2f}")
-                            if issues:
-                                print(f"   Issues Detected: {', '.join(issues)}")
-                            print(f"   Assessment: {ai_performance_result.get('assessment', 'Complex patterns require further observation')}")
-                    else:
-                        # Fallback to enhanced statistical analysis if AI analysis fails
-                        enhanced_metrics = self._get_enhanced_performance_metrics(recent_turns)
-                        
-                        print(f"\n📊 PERFORMANCE REVIEW: AI analysis unavailable, using metrics")
-                        print(f"   Navigation efficiency: {enhanced_metrics['navigation_efficiency']:.2f}")
-                        print(f"   Complex stuck patterns: {enhanced_metrics['stuck_patterns']}")
-                        print(f"   Oscillation patterns: {enhanced_metrics['oscillations']}")
-                        print(f"   Directional bias: {enhanced_metrics['directional_bias']:.2f}")
-            else:
-                print(f"\n❌ AI REVIEW FAILED: {improvement_result.get('message', 'Unknown error')}")
-                if improvement_result.get('error'):
-                    print(f"   Error details: {improvement_result['error']}")
-                
+            # AI-powered template improvement analysis
+            ai_performance_result = self._ai_evaluate_performance(recent_turns, current_turn)
+            
+            print("goal_planning_result", goal_planning_result)
+            print("ai_performance_result", ai_performance_result)
+
         except Exception as e:
             print(f"WARNING: Periodic episode review failed: {e}")
             if hasattr(self.eevee, 'debug') and self.eevee.debug:
                 import traceback
                 traceback.print_exc()
     
-    def _get_quick_performance_metrics(self, recent_turns: List[Dict]) -> Dict[str, float]:
-        """Get quick performance metrics without full episode review analysis"""
-        if not recent_turns:
-            return {'navigation_efficiency': 0.0, 'stuck_patterns': 0}
-        
-        # Count stuck patterns (consecutive identical actions)
-        stuck_patterns = 0
-        prev_action = None
-        consecutive_count = 0
-        
-        for turn in recent_turns:
-            current_action = str(turn.get('button_presses', []))
-            if current_action == prev_action and current_action != "[]":
-                consecutive_count += 1
-                if consecutive_count >= 3:
-                    stuck_patterns += 1
-            else:
-                consecutive_count = 0
-            prev_action = current_action
-        
-        # Calculate navigation efficiency
-        unique_actions = len(set(str(turn.get('button_presses', [])) for turn in recent_turns))
-        total_actions = len(recent_turns)
-        action_diversity = unique_actions / max(1, total_actions)
-        stuck_penalty = max(0, 1 - (stuck_patterns / 20))  # Normalize for smaller sample
-        navigation_efficiency = (action_diversity + stuck_penalty) / 2
-        
-        return {
-            'navigation_efficiency': navigation_efficiency,
-            'stuck_patterns': stuck_patterns
-        }
-    
     def _ai_evaluate_performance(self, recent_turns: List[Dict], current_turn: int) -> Dict[str, Any]:
-        """Use Gemini 2.0 Flash Thinking to analyze Pokemon gameplay performance"""
+        """Use Gemini to analyze template usage and suggest improvements"""
         try:
-            # Use enhanced stuck detection for analysis context
-            # Build AI performance analysis prompt (without stuck detection interference)
-            analysis_prompt = self._build_ai_performance_analysis_prompt(recent_turns, [], current_turn)
+            # Extract template and playbook info from recent turns
+            template_usage = {}
+            for turn in recent_turns[-10:]:  # Look at last 10 turns
+                template = turn.get("template_used", "unknown")
+                playbook = turn.get("playbook_used", "unknown")
+                success = turn.get("goal_progress_aligned", False)
+                
+                key = f"{template}+{playbook}"
+                if key not in template_usage:
+                    template_usage[key] = {"successes": 0, "failures": 0, "turns": []}
+                
+                if success:
+                    template_usage[key]["successes"] += 1
+                else:
+                    template_usage[key]["failures"] += 1
+                template_usage[key]["turns"].append(turn)
             
-            # Call Gemini for intelligent performance analysis
-            api_result = self.eevee._call_gemini_api(
-                prompt=analysis_prompt,
-                image_data=None,  # Text-only analysis for now
-                use_tools=False,
-                max_tokens=1500
-            )
+            # Find templates that need improvement (more failures than successes)
+            templates_to_improve = []
+            for key, stats in template_usage.items():
+                if stats["failures"] > stats["successes"] and stats["failures"] >= 2:
+                    template, playbook = key.split("+")
+                    templates_to_improve.append({
+                        "template": template,
+                        "playbook": playbook,
+                        "failure_rate": stats["failures"] / (stats["successes"] + stats["failures"]),
+                        "example_turns": stats["turns"][:3]  # Get 3 examples
+                    })
             
-            if api_result["error"]:
+            if not templates_to_improve:
                 return {
-                    "success": False,
-                    "error": f"Gemini API failed: {api_result['error']}"
+                    "success": True,
+                    "message": "No templates need improvement",
+                    "templates_analyzed": len(template_usage)
                 }
             
-            # Parse Gemini's response for performance assessment
-            analysis_text = api_result.get("text", "")
-            return self._parse_ai_performance_response(analysis_text, [])
+            # For each problematic template, ask Gemini for improvements
+            improvements_made = 0
+            for template_info in templates_to_improve[:1]:  # Only improve 1 template per review
+                improvement = self._improve_template_with_gemini(template_info)
+                if improvement["success"]:
+                    improvements_made += 1
+            
+            return {
+                "success": True,
+                "improvements_made": improvements_made,
+                "templates_analyzed": len(template_usage),
+                "problematic_templates": len(templates_to_improve)
+            }
             
         except Exception as e:
             return {
                 "success": False,
-                "error": f"AI performance evaluation failed: {e}"
+                "error": f"Template analysis failed: {e}"
             }
+    
+    def _improve_template_with_gemini(self, template_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Ask Gemini to improve a template and update the YAML file directly"""
+        try:
+            template_name = template_info["template"]
+            playbook_name = template_info["playbook"]
+            failure_rate = template_info["failure_rate"]
+            example_turns = template_info["example_turns"]
+            
+            # Read current template content
+            template_path = Path(__file__).parent / "prompts" / "base" / f"{template_name}.yaml"
+            if not template_path.exists():
+                return {"success": False, "error": f"Template file not found: {template_path}"}
+            
+            with open(template_path, 'r') as f:
+                current_content = f.read()
+            
+            # Build prompt for Gemini
+            improvement_prompt = f"""You are improving a Pokemon AI prompt template that has a {failure_rate:.0%} failure rate.
+
+Template: {template_name}
+Playbook: {playbook_name}
+
+Current template content:
+```yaml
+{current_content}
+```
+
+Failed turn examples:
+"""
+            for i, turn in enumerate(example_turns[:2]):
+                improvement_prompt += f"\nExample {i+1}:\n"
+                improvement_prompt += f"- Scene: {turn.get('scene_type', 'unknown')}\n"
+                improvement_prompt += f"- Buttons pressed: {turn.get('button_presses', [])}\n"
+                improvement_prompt += f"- AI reasoning: {turn.get('reasoning', 'none')}\n"
+                improvement_prompt += f"- Goal: {turn.get('goal', 'unknown')}\n"
+            
+            improvement_prompt += """
+
+Please improve this template to better handle these scenarios. Focus on:
+1. Making the instructions clearer for the AI
+2. Adding specific guidance for the failed scenarios
+3. Keeping the YAML structure intact
+4. Preserving the version number but incrementing it by 0.1
+
+Output ONLY the improved YAML content, nothing else."""
+
+            # Call Gemini for improvement
+            api_result = self.eevee._call_gemini_api(
+                prompt=improvement_prompt,
+                image_data=None,
+                use_tools=False,
+                max_tokens=2000
+            )
+            
+            if api_result["error"]:
+                return {"success": False, "error": f"Gemini API failed: {api_result['error']}"}
+            
+            improved_content = api_result.get("text", "").strip()
+            
+            # Basic validation - ensure it's YAML-like
+            if not improved_content or "template_name:" not in improved_content:
+                return {"success": False, "error": "Invalid template response from Gemini"}
+            
+            # Write directly to file (YOLO approach as requested)
+            with open(template_path, 'w') as f:
+                f.write(improved_content)
+            
+            print(f"✅ Updated template: {template_name} (failure rate was {failure_rate:.0%})")
+            
+            return {
+                "success": True,
+                "template": template_name,
+                "file_path": str(template_path)
+            }
+            
+        except Exception as e:
+            return {"success": False, "error": f"Template improvement failed: {e}"}
     
     def _build_ai_performance_analysis_prompt(self, recent_turns: List[Dict], stuck_indices: List[int], current_turn: int) -> str:
         """Build comprehensive prompt for AI performance analysis"""
@@ -2068,7 +2080,11 @@ Use the pokemon_controller tool with your chosen button sequence."""
         for i, turn in enumerate(recent_turns[-10:]):  # Last 10 turns for context
             turn_num = current_turn - len(recent_turns) + i + 1
             buttons = turn.get("button_presses", [])
-            analysis = turn.get("ai_analysis", "")[:100]  # First 100 chars
+            analysis = turn.get("ai_analysis", "")
+            if isinstance(analysis, str):
+                analysis = analysis[:100]  # First 100 chars
+            else:
+                analysis = str(analysis)[:100] if analysis else ""
             
             stuck_marker = " [STUCK]" if i in stuck_indices else ""
             button_summary.append(f"Turn {turn_num}: {buttons}{stuck_marker}")
@@ -2181,63 +2197,7 @@ Focus on Pokemon-specific gameplay understanding. A score of 0.75 means "good pe
                 "parse_error": str(e)
             }
     
-    def _get_enhanced_performance_metrics(self, recent_turns: List[Dict]) -> Dict[str, Any]:
-        """Enhanced statistical analysis using comprehensive stuck detection (fallback for AI failure)"""
-        if not recent_turns:
-            return {
-                'navigation_efficiency': 0.0, 
-                'stuck_patterns': 0,
-                'oscillations': 0,
-                'directional_bias': 0.0
-            }
-        
-        # Use the new comprehensive stuck detection
-        # Performance analysis without stuck detection interference - let AI learn naturally
-        exact_reps = 0
-        oscillations = 0
-        multibutton_reps = 0
-        directional_bias_turns = 0
-        
-        # Calculate navigation efficiency without stuck detection
-        total_turns = len(recent_turns)
-        stuck_ratio = 0.0  # No artificial stuck detection
-        
-        # Diversity of actions (all turns considered equally)
-        non_stuck_turns = recent_turns  # All turns treated equally
-        if non_stuck_turns:
-            unique_actions = len(set(str(turn.get('button_presses', [])) for turn in non_stuck_turns))
-            action_diversity = unique_actions / len(non_stuck_turns)
-        else:
-            action_diversity = 0.0
-        
-        # Enhanced efficiency calculation
-        navigation_efficiency = (1 - stuck_ratio) * 0.7 + action_diversity * 0.3
-        
-        # Directional bias calculation
-        direction_counts = {"up": 0, "down": 0, "left": 0, "right": 0}
-        total_directions = 0
-        
-        for turn in recent_turns:
-            for button in turn.get("button_presses", []):
-                if button in direction_counts:
-                    direction_counts[button] += 1
-                    total_directions += 1
-        
-        max_direction_ratio = max(direction_counts.values()) / max(1, total_directions)
-        
-        return {
-            'navigation_efficiency': navigation_efficiency,
-            'stuck_patterns': 0,  # Fixed: No stuck detection in this system
-            'oscillations': oscillations,
-            'directional_bias': max_direction_ratio,
-            'pattern_breakdown': {
-                'exact_repetitions': exact_reps,
-                'oscillations': oscillations,
-                'multibutton_repetitions': multibutton_reps,
-                'directional_bias_turns': directional_bias_turns
-            }
-        }
-                
+      
     def _run_ai_powered_review(self, recent_turns: List[Dict]) -> Dict[str, Any]:
         """Use AI to analyze recent turns and identify templates that need improvement"""
         try:
@@ -2790,46 +2750,6 @@ Return ONLY the improved template content, ready to replace the current template
             print(f"WARNING: Failed to log learning event: {e}")
     
 
-    def _run_goal_oriented_planning_independent(self, current_turn: int) -> Dict[str, Any]:
-        """
-        Independent goal-oriented planning review that runs frequently for dynamic goal progression
-        
-        This method reads session data directly from file to avoid data sync issues and
-        runs independently of the main periodic review system for responsive goal advancement.
-        """
-        try:
-            print(f"🎯 GOAL PROGRESSION: Analyzing recent activity for goal advancement...")
-            
-            # Load recent turns directly from session data file to avoid sync issues
-            recent_turns = []
-            if hasattr(self, 'session_data_file') and self.session_data_file.exists():
-                try:
-                    with open(self.session_data_file, 'r') as f:
-                        session_data = json.load(f)
-                    
-                    all_turns = session_data.get("turns", [])
-                    # Get last 10 turns for goal analysis (sufficient for goal progression decisions)
-                    recent_turns = all_turns[-10:] if len(all_turns) > 10 else all_turns
-                    print(f"   📊 Loaded {len(recent_turns)} recent turns from session data")
-                    
-                except Exception as e:
-                    print(f"⚠️ Failed to load session data: {e}")
-                    return {"success": False, "error": "Failed to load session data"}
-            else:
-                print(f"⚠️ Session data file not found")
-                return {"success": False, "error": "Session data file not available"}
-            
-            if not recent_turns:
-                print(f"⚠️ No recent turns available for goal analysis")
-                return {"success": False, "error": "No recent turns available"}
-            
-            # Run goal-oriented planning analysis with loaded data
-            return self._run_goal_oriented_planning_review(recent_turns, current_turn)
-            
-        except Exception as e:
-            print(f"❌ Independent goal planning failed: {e}")
-            return {"success": False, "error": str(e)}
-
     def _run_goal_oriented_planning_review(self, recent_turns: List[Dict], current_turn: int) -> Dict[str, Any]:
         """
         Analyze recent turns and update goal hierarchy for autonomous planning
@@ -2957,32 +2877,48 @@ Return ONLY the improved template content, ready to replace the current template
     
     def _generate_strategic_context_analysis(self, recent_turns: List[Dict], current_turn: int) -> Dict[str, Any]:
         """
-        Generate comprehensive strategic context analysis for prompt injection
+        Generate strategic context analysis using movement data from vision model
         
-        Analyzes movement patterns, performance metrics, and strategic insights
-        to provide rich context for strategic decision-making prompts.
+        Analyzes the last 20 movement patterns from the vision model
+        to provide context for strategic decision-making.
         """
         try:
             analysis_timestamp = datetime.now().isoformat()
             turns_analyzed = len(recent_turns)
             
+            # Extract movement data from last 20 turns
+            last_20_turns = recent_turns[-20:] if len(recent_turns) > 20 else recent_turns
+            movement_data = []
+            
+            for turn in last_20_turns:
+                # Extract movement/buttons from each turn
+                buttons = turn.get("button_presses", [])
+                scene = turn.get("scene_type", "unknown")
+                context = turn.get("context_detected", "unknown")
+                movement_data.append({
+                    "buttons": buttons,
+                    "scene": scene,
+                    "context": context
+                })
+            
             # Analyze movement patterns
             movement_analysis = self._analyze_movement_patterns(recent_turns)
             
-            # Generate performance metrics
-            performance_metrics = self._get_enhanced_performance_metrics(recent_turns)
+            # Simple performance score based on movement variety
+            unique_moves = len(set(str(m["buttons"]) for m in movement_data))
+            performance_score = min(unique_moves / 10.0, 1.0)  # More variety = better score
             
-            # Create strategic insights
-            strategic_insights = self._generate_strategic_insights(recent_turns, movement_analysis, performance_metrics)
+            # Create strategic insights without performance metrics
+            strategic_insights = self._generate_strategic_insights(recent_turns, movement_analysis, {})
             
             return {
                 "analysis_timestamp": analysis_timestamp,
                 "turns_analyzed": turns_analyzed,
                 "current_turn": current_turn,
+                "movement_data": movement_data,
                 "movement_pattern_summary": movement_analysis.get("summary", "Unknown pattern"),
                 "movement_patterns": movement_analysis,
-                "performance_score": performance_metrics.get("navigation_efficiency", 0.0),
-                "performance_metrics": performance_metrics,
+                "performance_score": performance_score,
                 "key_insight": strategic_insights.get("primary_insight", "No clear patterns detected"),
                 "strategic_recommendations": strategic_insights.get("recommendations", []),
                 "behavioral_analysis": strategic_insights.get("behavioral_analysis", "Standard exploration behavior"),
