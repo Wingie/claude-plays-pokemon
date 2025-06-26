@@ -1,44 +1,44 @@
 {
   "meta": {
-    "updated_at": "2025-06-26T16:45:16.430211",
-    "session_id": "20250626_164506",
+    "updated_at": "2025-06-26T17:25:01.534513",
+    "session_id": "20250626_171625",
     "source": "goal_oriented_planning_system"
   },
-  "session_goal": "go_east_to_exit_pewter_city",
+  "session_goal": "continue_battle_animation",
   "current_goal": {
-    "id": "explore_area",
-    "name": "Explore Current Area",
-    "description": "Look around current area to understand layout and find target",
-    "priority": 8,
-    "progress_percentage": 20,
-    "estimated_turns": 10,
+    "id": "find_gym",
+    "name": "Find Gym",
+    "description": "Navigate to and locate Gym",
+    "priority": 9,
+    "progress_percentage": 30,
+    "estimated_turns": 20,
     "attempts": 0,
     "turns_spent": 0
   },
   "goal_hierarchy": {
     "root_goal": {
-      "id": "navigate_to_target_location",
-      "name": "Navigate to Target Location",
-      "description": "go_east_to_exit_pewter_city",
+      "id": "defeat_gym_leader",
+      "name": "Defeat Gym Leader",
+      "description": "continue_battle_animation",
       "children": [
-        "explore_area",
-        "navigate_to_target"
+        "find_gym",
+        "prepare_team",
+        "battle_gym_leader"
       ]
     },
-    "total_goals": 3,
+    "total_goals": 4,
     "completed_goals": 0,
     "failed_goals": 0
   },
   "progress_analysis": {
-    "progress_score": 2,
-    "progress_description": "AI has started moving but not in the intended direction for the session goal",
+    "progress_score": 3,
+    "progress_description": "AI is in the middle of a battle and needs to complete the battle animation",
     "issues_detected": [
-      "wrong_direction"
+      "stuck_in_loop"
     ],
     "next_recommended_actions": [
-      "move_east",
-      "reorient_towards_east"
+      "continue_battle_animation"
     ],
-    "estimated_turns_to_completion": 10
+    "estimated_turns_to_completion": 3
   }
 }
