@@ -282,12 +282,12 @@ exploration_strategy:
     If dialogue is visible in the visual analysis, press A to engage/continue dialogue immediately.
     
     **STEP 2 - COORDINATE-BASED PATHFINDING (PRIORITY #1):**
-    **MANDATORY**: Check for coordinate grid overlay on screenshot FIRST
-    - ALWAYS read X,Y coordinates from the visual overlay displayed on every tile
-    - Your current position ({current_x},{current_y}) is marked at screen center
-    - MUST identify target coordinates before any movement
-    - Use pathfinding_action when target coordinates are visible on screen
-    - Pathfinding generates optimal button sequences automatically
+    **MANDATORY**: Check coordinate_tags from visual analysis FIRST
+    - Visual system provides coordinate_tags with objects and their locations
+    - Look for interesting targets: trainers, pokemon_centers, route_exits, buildings
+    - Your current position ({current_x},{current_y}) from RAM data
+    - Extract target coordinates from coordinate_tags for navigation
+    - Use pathfinding_action with target_x, target_y when targets found
     
     **STEP 3 - MANUAL NAVIGATION (only if pathfinding unavailable):**
     If coordinates are not visible or pathfinding fails:
@@ -298,9 +298,9 @@ exploration_strategy:
     
     **PATHFINDING-FIRST STRATEGY:**
     - ALWAYS attempt coordinate-based navigation before manual movement
-    - Read target coordinates directly from screenshot overlay
+    - Extract target coordinates from coordinate_tags in visual analysis
+    - Priority targets: trainer > pokemon_center > route_exit > building
     - Justify why manual movement is chosen over pathfinding
-    - Pathfinding is more efficient than step-by-step navigation
     
     **GOAL-BASED NAVIGATION:**
     Current Task: {task}
@@ -311,34 +311,34 @@ exploration_strategy:
     
     **POKEMON CENTER PATHFINDING:**
     Only if GOAL contains "heal" AND Pokemon actually need healing (damaged HP):
-    - SCAN screenshot for red-roofed buildings (Pokemon Centers)
-    - READ coordinates of Pokemon Center from visual overlay
+    - CHECK coordinate_tags for "pokemon_center" or "nurse_joy" objects
+    - EXTRACT coordinates from matching coordinate_tags entry
     - USE pathfinding_action to navigate directly to Pokemon Center coordinates
-    - EXAMPLE: See Pokemon Center at coordinates 15,10 → use pathfinding_action
+    - EXAMPLE: coordinate_tags shows pokemon_center at 15,10 → use pathfinding_action
     - FALLBACK: Manual navigation only if center coordinates not visible
     - If Pokemon are already fully healed, ignore healing goals and focus on other objectives
     
     **PATHFINDING SYSTEM (PRIMARY NAVIGATION METHOD):**
     Current Coordinates: Map {current_map_id} at ({current_x},{current_y})
     
-    **COORDINATE OVERLAY READING (MANDATORY FIRST STEP):**
-    - CRITICAL: Every screenshot has a coordinate grid overlay with X,Y numbers on ALL tiles
-    - You MUST read coordinate numbers DIRECTLY from the visual overlay before any action
-    - Your current position ({current_x},{current_y}) is at screen center with player sprite
-    - ALWAYS scan for target destinations and read their displayed coordinates
-    - Each tile shows its coordinates visually - this is your primary navigation data
+    **COORDINATE_TAGS ANALYSIS (MANDATORY FIRST STEP):**
+    - CRITICAL: Visual analysis provides coordinate_tags with object locations and descriptions
+    - You MUST check coordinate_tags for navigation targets before any action
+    - Your current position ({current_x},{current_y}) from RAM data
+    - ALWAYS scan coordinate_tags for interesting destinations (trainers, buildings, exits)
+    - coordinate_tags format: {{"x": 31, "y": 17, "object": "trainer", "description": "..."}}
     
     **PATHFINDING INTEGRATION (ALWAYS USE WHEN POSSIBLE):**
-    - STEP 1: Identify target location on screen and read its coordinates
-    - STEP 2: Use pathfinding_action with exact coordinates from visual overlay
-    - STEP 3: Let pathfinding system generate optimal movement sequence
-    - Example: See "15,20" on target tile → use pathfinding_action with those coordinates
+    - STEP 1: Check coordinate_tags for navigation targets (trainer, pokemon_center, etc.)
+    - STEP 2: Extract x,y coordinates from matching coordinate_tags entry
+    - STEP 3: Use pathfinding_action with target_x, target_y from coordinate_tags
+    - Example: coordinate_tags shows trainer at 31,17 → use pathfinding_action with target_x: 31, target_y: 17
     - **EFFICIENCY**: Pathfinding replaces 5-10 manual button presses with 1 action
     - **ACCURACY**: Eliminates getting stuck or lost during navigation
     
     **COORDINATE VALIDATION REQUIREMENTS:**
-    - MUST confirm you can see coordinate numbers on screenshot
-    - MUST identify target coordinates before movement decisions
+    - MUST check coordinate_tags array for available navigation targets
+    - MUST extract target coordinates from coordinate_tags before movement decisions  
     - MUST explain why pathfinding cannot be used if choosing manual movement
     
     **VALID BUTTONS:**
@@ -356,9 +356,9 @@ exploration_strategy:
       "pathfinding_action": "move_to_coordinate",
       "target_x": 10,
       "target_y": 15,
-      "reasoning": "pathfinding_to_coordinates_read_from_visual_overlay_at_x10_y15",
-      "observations": "Target coordinates 10,15 visible on screenshot overlay, using pathfinding for efficient navigation",
-      "coordinate_source": "visual_overlay",
+      "reasoning": "pathfinding_to_trainer_from_coordinate_tags_at_x10_y15",
+      "observations": "Found trainer at coordinates 10,15 in coordinate_tags, using pathfinding for efficient navigation",
+      "coordinate_source": "coordinate_tags",
       "confidence": "high"
     }}
     ```
@@ -367,8 +367,8 @@ exploration_strategy:
     ```json
     {{
       "button_presses": ["up"],
-      "reasoning": "manual_movement_because_coordinates_not_visible_or_pathfinding_failed",
-      "observations": "No coordinate overlay visible, using manual movement",
+      "reasoning": "manual_movement_because_no_targets_in_coordinate_tags",
+      "observations": "No interesting targets found in coordinate_tags, using manual exploration",
       "context_detected": "navigation",
       "confidence": "medium"
     }}
@@ -378,8 +378,9 @@ exploration_strategy:
     
     **MANDATORY FIELDS FOR PATHFINDING RESPONSES:**
     - pathfinding_action: "move_to_coordinate" (ONLY - no button_presses field)
-    - coordinate_source: "visual_overlay" (confirms you read coordinates from screenshot)
-    - reasoning: Must explain coordinate reading and pathfinding choice
+    - target_x, target_y: Exact coordinates from coordinate_tags
+    - coordinate_source: "coordinate_tags" (confirms you read coordinates from visual analysis)
+    - reasoning: Must explain which object/target was chosen from coordinate_tags
     
     **MANDATORY FIELDS FOR MANUAL RESPONSES:**
     - button_presses: Array of movement buttons (ONLY - no pathfinding_action field)
