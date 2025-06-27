@@ -819,7 +819,7 @@ pokemon_center_navigation:
     **ALTERNATIVELY - Use Pathfinding Tool for Precise Exit:**
     {{
       "pathfinding_action": "move_to_coordinate",
-      "target_coordinates": {{"x": {current_x}, "y": {current_y} + 5}},
+      "target_coordinates": {{"x": x, "y": y}},
       "reasoning": "using_pathfinder_to_exit_pokemon_center",
       "observations": "Read exit coordinates from visual overlay and navigate there",
       "confidence": "high"

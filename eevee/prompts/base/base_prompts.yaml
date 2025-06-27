@@ -76,13 +76,13 @@ stuck_recovery:
     Return ONLY a JSON object with no additional text:
     
     ```json
-    {
+    {{
       "button_presses": ["left"],
       "reasoning": "stuck_pattern_break",
       "observations": "same_position_3turns",
       "context_detected": "navigation",
       "confidence": "medium"
-    }
+    }}
     ```
     
     Do not include any text before or after the JSON. No markdown, no code blocks, no explanations.
@@ -272,29 +272,14 @@ exploration_strategy:
     GOAL: {task}
     RECENT ACTIONS: {recent_actions}
     
-    **DIALOGUE PRIORITY (HIGHEST):**
-    Dialogue Visible: {dialogue_visible}
-    Dialogue Text: {dialogue_text}
-    Available Responses: {dialogue_buttons}
-    
-    **CRITICAL: If dialogue_visible is true:**
-    - ALWAYS press A to continue/advance dialogue: {dialogue_text}
-    - NEVER move away from dialogue - interaction takes absolute priority
-    - Available dialogue options: {dialogue_buttons}
-    - Dialogue interaction overrides ALL movement and exploration actions
-    
-    **VISUAL CONTEXT PROVIDED:**
-    Scene Type: {scene_type}
-    Spatial Context: {spatial_context}
-    Character Position: {character_position}
-    Visual Description: {visual_description}
-    Valid Movements: {valid_movements}
-    Confidence: {confidence}
+    **VISUAL ANALYSIS DATA:**
+    Use the visual analysis JSON to understand the current scene and available actions.
+    Check for dialogue, obstacles, Pokemon Centers, trainers, and coordinate overlays.
     
     **NAVIGATION ANALYSIS INSTRUCTIONS:**
     
     **STEP 1 - CHECK FOR DIALOGUE FIRST:**
-    If dialogue_visible is true, press A to engage/continue dialogue immediately.
+    If dialogue is visible in the visual analysis, press A to engage/continue dialogue immediately.
     
     **STEP 2 - COORDINATE-BASED PATHFINDING (PRIORITY #1):**
     **MANDATORY**: Check for coordinate grid overlay on screenshot FIRST
@@ -306,9 +291,9 @@ exploration_strategy:
     
     **STEP 3 - MANUAL NAVIGATION (only if pathfinding unavailable):**
     If coordinates are not visible or pathfinding fails:
-    - Use character_position and spatial_context for precise movement planning
-    - Consider valid_movements for safe direction choices
-    - Analyze visual_description for obstacles and opportunities
+    - Use visual analysis data for movement planning
+    - Check valid movements from visual analysis
+    - Analyze visual description for obstacles and opportunities
     - One button press per decision for careful movement
     
     **PATHFINDING-FIRST STRATEGY:**
@@ -317,21 +302,12 @@ exploration_strategy:
     - Justify why manual movement is chosen over pathfinding
     - Pathfinding is more efficient than step-by-step navigation
     
-    **GOAL PRIORITY SYSTEM:**
-    Current Goal: {current_goal_name}
-    Goal Status: {current_goal_status}
-    Progress: {goal_progress}%
-    Recommended Actions: {recommended_goal_actions}
-    
-    **COORDINATE-BASED GOAL NAVIGATION:**
-    - IF goal recommends "visit_pokemon_center" or specific locations:
-      1. FIRST: Scan screenshot for target building coordinates
-      2. READ coordinates from visual overlay (e.g., Pokemon Center at 12,8)
-      3. USE pathfinding_action with target coordinates
-      4. FALLBACK: Manual navigation only if coordinates not visible
-    - Look for red-roofed buildings and read their coordinate positions
-    - Use pathfinding for efficient goal-directed movement
-    - Prioritize coordinate-based navigation over random exploration
+    **GOAL-BASED NAVIGATION:**
+    Current Task: {task}
+    - IF task involves healing: Look for red-roofed Pokemon Centers
+    - IF task involves exploration: Systematically explore unexplored areas  
+    - IF task involves specific locations: Use coordinates to navigate efficiently
+    - Always prioritize coordinate-based pathfinding over manual movement
     
     **POKEMON CENTER PATHFINDING:**
     Only if GOAL contains "heal" AND Pokemon actually need healing (damaged HP):
@@ -343,7 +319,6 @@ exploration_strategy:
     - If Pokemon are already fully healed, ignore healing goals and focus on other objectives
     
     **PATHFINDING SYSTEM (PRIMARY NAVIGATION METHOD):**
-    Pathfinding Available: {pathfinding_available}
     Current Coordinates: Map {current_map_id} at ({current_x},{current_y})
     
     **COORDINATE OVERLAY READING (MANDATORY FIRST STEP):**
@@ -377,32 +352,30 @@ exploration_strategy:
     
     **OPTION 1: Pathfinding Tool (use whenever coordinates are visible):**
     ```json
-    {
+    {{
       "pathfinding_action": "move_to_coordinate",
-      "target_coordinates": {"x": 10, "y": 15},
       "reasoning": "pathfinding_to_coordinates_read_from_visual_overlay_at_x10_y15",
       "observations": "Target coordinates 10,15 visible on screenshot overlay, using pathfinding for efficient navigation",
       "coordinate_source": "visual_overlay",
       "confidence": "high"
-    }
+    }}
     ```
     
     **OPTION 2: Manual Movement (only when pathfinding unavailable):**
     ```json
-    {
+    {{
       "button_presses": ["up"],
       "reasoning": "manual_movement_because_coordinates_not_visible_or_pathfinding_failed",
       "observations": "No coordinate overlay visible, using manual movement",
       "context_detected": "navigation",
       "confidence": "medium"
-    }
+    }}
     ```
     
     **FORBIDDEN**: Do NOT include both pathfinding_action AND button_presses in the same response!
     
     **MANDATORY FIELDS FOR PATHFINDING RESPONSES:**
     - pathfinding_action: "move_to_coordinate" (ONLY - no button_presses field)
-    - target_coordinates: Exact x,y values you see on screen  
     - coordinate_source: "visual_overlay" (confirms you read coordinates from screenshot)
     - reasoning: Must explain coordinate reading and pathfinding choice
     
@@ -416,31 +389,9 @@ exploration_strategy:
   variables:
   - task
   - recent_actions
-  - scene_type
-  - spatial_context
-  - character_position
-  - visual_description
-  - valid_movements
-  - confidence
-  - current_goal_name
-  - current_goal_status
-  - goal_progress
-  - recommended_goal_actions
-  - dialogue_visible
-  - dialogue_text
-  - dialogue_buttons
-  - ram_available
-  - current_pokemon_party
-  - party_health_summary
-  - battle_context
-  - pathfinding_available
-  - current_coordinates
   - current_map_id
   - current_x
   - current_y
-  - current_map_name
-  - active_pokemon
-  - backup_pokemon
   version: '6.4'
 inventory_analysis:
   name: Pokemon Inventory Analysis (JSON Response)
@@ -611,43 +562,87 @@ visual_context_analyzer_gemini:
     - **inventory_analysis**: Bag screen, item lists, "ITEMS/KEY ITEMS/POKEBALLS"
     - **pokemon_party_analysis**: Pokemon summary, party status, level up screens
 
+    **COORDINATE ANALYSIS (New Enhancement):**
+    🗺️ The screenshot contains a coordinate grid overlay with X,Y numbers on each tile.
+    Look for interesting objects/locations and note their coordinates:
+    
+    **Objects to identify with coordinates:**
+    - Pokemon Centers (buildings with red roofs)
+    - NPCs/Trainers (human characters)
+    - Items on ground (pokeballs, objects)
+    - Route exits/cave entrances
+    - Tall grass areas
+    - Water/surf areas
+    - Buildings/shops/gyms
+    
+    Include coordinate_tags array in your response with format:
+    "coordinate_tags": [
+      {{"x": 15, "y": 8, "object": "pokemon_center", "description": "Pokemon Center with red roof", "map_id": "current_map"}},
+      {{"x": 12, "y": 6, "object": "trainer", "description": "Trainer facing south", "map_id": "current_map"}},
+      {{"x": 18, "y": 5, "object": "route_exit", "description": "Path leading to next route", "map_id": "current_map"}}
+    ]
+    
+    **IMPORTANT**: Always include "map_id": "current_map" for each coordinate tag to track which map the coordinates belong to.
+
     **RESPONSE FORMAT:**
-    Return JSON only with core fields + whatever scene-specific fields are relevant:
+    Return JSON only with core fields + coordinate_tags + whatever scene-specific fields are relevant:
+
+    **For Navigation Scenes:**
+    ```json
+    {{
+      "scene_type": "navigation",
+      "coordinate_tags": [
+        {{"x": 15, "y": 8, "object": "pokemon_center", "description": "Pokemon Center with red roof", "map_id": "current_map"}},
+        {{"x": 12, "y": 6, "object": "trainer", "description": "Trainer facing south", "map_id": "current_map"}}
+      ],
+      "valid_buttons": [
+        {{"key": "↑", "action": "move_up", "result": "character_movement"}},
+        {{"key": "→", "action": "move_right", "result": "character_movement"}}
+      ],
+      "recommended_template": "exploration_strategy",
+      "confidence": "high"
+    }}
+    ```
 
     **For Battle Scenes:**
     ```json
-    {
+    {{
       "scene_type": "battle",
-      "our_pokemon": {"name": "PIKACHU", "hp": "22/35", "level": 12},
-      "enemy_pokemon": {"name": "RATTATA", "level": 8},
+      "our_pokemon": {{"name": "PIKACHU", "hp": "22/35", "level": 12}},
+      "enemy_pokemon": {{"name": "RATTATA", "level": 8}},
       "battle_phase": "main_menu",
       "cursor_on": "FIGHT",
       "valid_buttons": [
-        {"key": "A", "action": "select_fight", "result": "open_move_menu"},
-        {"key": "→", "action": "cursor_right", "result": "select_bag"}
+        {{"key": "A", "action": "select_fight", "result": "open_move_menu"}},
+        {{"key": "→", "action": "cursor_right", "result": "select_bag"}}
       ],
       "recommended_template": "battle_analysis",
       "confidence": "high"
-    }
+    }}
     ```
 
     **For Pokemon Center Scenes:**
     ```json
-    {
+    {{
       "scene_type": "pokemon_center",
       "building_type": "pokemon_center",
       "location": "pewter_city",
+      "coordinate_tags": [
+        {{"x": 15, "y": 5, "object": "nurse_joy", "description": "Nurse Joy behind healing counter", "map_id": "current_map"}},
+        {{"x": 18, "y": 5, "object": "pc_terminal", "description": "PC computer for Pokemon storage", "map_id": "current_map"}},
+        {{"x": 12, "y": 10, "object": "exit_door", "description": "Exit door to return to town", "map_id": "current_map"}}
+      ],
       "npcs_visible": ["nurse_joy"],
       "services_available": ["healing", "pc_access"],
       "healing_progress": "need_to_approach|at_counter|in_dialogue|healing_complete",
       "valid_buttons": [
-        {"key": "↑", "action": "approach_nurse", "result": "move_to_healing_counter"},
-        {"key": "A", "action": "interact", "result": "start_healing_dialogue"},
-        {"key": "↓", "action": "exit_building", "result": "return_to_town"}
+        {{"key": "↑", "action": "approach_nurse", "result": "move_to_healing_counter"}},
+        {{"key": "A", "action": "interact", "result": "start_healing_dialogue"}},
+        {{"key": "↓", "action": "exit_building", "result": "return_to_town"}}
       ],
       "recommended_template": "pokemon_center_navigation",
       "confidence": "high"
-    }
+    }}
     ```
 
     **CRITICAL: Always choose exactly one template from the predefined list. No complex logic needed.**
@@ -704,7 +699,6 @@ pokemon_center_navigation:
     - Press ↓ repeatedly until outside Pokemon Center
     
     **PATHFINDING ASSISTANCE:**
-    Pathfinding Available: {pathfinding_available}
     Current Coordinates: Map {current_map_id} at ({current_x},{current_y})
     
     **COORDINATE OVERLAY READING (VISUAL ONLY):**
@@ -768,13 +762,14 @@ pokemon_center_navigation:
     }}
     
     **ALTERNATIVELY - Use Pathfinding Tool for Precise Exit:**
+    ```json
     {{
       "pathfinding_action": "move_to_coordinate",
-      "target_coordinates": {{"x": {current_x}, "y": {current_y} + 5}},
       "reasoning": "using_pathfinder_to_exit_pokemon_center",
       "observations": "Read exit coordinates from visual overlay and navigate there",
       "confidence": "high"
     }}
+    ```
     
     {{% endif %}}
     
@@ -794,12 +789,9 @@ pokemon_center_navigation:
   - current_pokemon_party
   - battle_context
   - location_data
-  - pathfinding_available
-  - current_coordinates
   - current_map_id
   - current_x
   - current_y
-  - current_map_name
   version: '1.0'
 
 services_interaction:

@@ -184,35 +184,35 @@
 - **Visual Overlay**: Every screenshot shows X,Y coordinates on all tiles
 - **Current Position**: Always visible at screen center with player sprite
 - **Target Reading**: Look for destination coordinates on screen overlay
-- **Action Format**: Use `target_coordinates` instead of manual button presses
+- **Action Format**: Use manual button presses for navigation
 
-### **Coordinate Navigation Examples**
+### **Navigation Examples**
 
 #### Example 1: Pokemon Center Navigation
 ```json
-{
-  "target_coordinates": {"x": 15, "y": 8},
-  "reasoning": "Pokemon Center visible at coordinates 15,8 on visual overlay",
-  "coordinate_source": "visual_overlay"
-}
+{{
+  "button_presses": ["up", "up", "right"],
+  "reasoning": "Moving toward Pokemon Center visible ahead",
+  "context_detected": "navigation"
+}}
 ```
 
 #### Example 2: Trainer Approach
 ```json
-{
-  "target_coordinates": {"x": 22, "y": 12},
-  "reasoning": "Trainer visible at 22,12, navigating for efficient approach",
-  "coordinate_source": "visual_overlay"
-}
+{{
+  "button_presses": ["down", "left"],
+  "reasoning": "Moving toward trainer for battle",
+  "context_detected": "navigation"
+}}
 ```
 
 #### Example 3: Exit Navigation
 ```json
-{
-  "target_coordinates": {"x": 18, "y": 5},
-  "reasoning": "Route exit visible at 18,5, using coordinate navigation",
-  "coordinate_source": "visual_overlay"
-}
+{{
+  "button_presses": ["right", "right", "up"],
+  "reasoning": "Heading toward route exit",
+  "context_detected": "navigation"
+}}
 ```
 
 ### **When to Use Manual vs Coordinate Navigation**

@@ -393,13 +393,12 @@ class ContinuousGameplay:
                 time.sleep(self.turn_delay)
                 
             except Exception as e:
-                print(f"L Error in turn {turn_count}: {e}")
-                if self.eevee.debug:
-                    import traceback
-                    traceback.print_exc()
-                
+                import traceback
+                traceback.print_exc()
+                print(f"L Error in turn {turn_count}: {e}")                    
+                exit()
                 # Continue with next turn
-                time.sleep(self.turn_delay)
+                # time.sleep(self.turn_delay)
         
         # Session ended
         self.session.status = "completed" if self.running else "stopped"
@@ -510,18 +509,21 @@ class ContinuousGameplay:
                 # ENHANCED: Store movement data for turn storage
                 self._last_movement_data = movement_data
                 
+                # OUTPUT: Display visual analysis JSON for debugging pathfinding
+                if movement_data:
+                    print("=== VISUAL JSON ===")
+                    import json
+                    # Remove internal metadata for cleaner output
+                    clean_movement_data = {k: v for k, v in movement_data.items() if k not in ['_meta' and 'raw_pixtral_response']}
+                    movement_data = clean_movement_data
+                    print(json.dumps(clean_movement_data, indent=2, ensure_ascii=False))
                     
             except Exception as e:
                 import traceback
                 print(traceback.format_exc())
                 print(f"WARNING: Visual analysis failed: {e}")
                 print(f"💀 CRITICAL: Cannot proceed without visual analysis - terminating script")
-                # Clear metadata on failure
-                self._last_visual_prompt = ''
-                self._last_visual_response = f'Error: {e}'
-                self._last_visual_processing_time = None
-                # Re-raise the exception to crash the script as required
-                raise RuntimeError(f"Visual analysis failure is fatal - cannot proceed without visual data: {e}") from e
+                exit()
         
         # STAGE 1.5: Load Goal Context from okr.json
         okr_data = self._load_okr_context()
@@ -590,8 +592,8 @@ class ContinuousGameplay:
                     try:
                         json_data = json.loads(json_match.group(1))
                         
-                        # Check for pathfinding action first
                         if "pathfinding_action" in json_data:
+                            print(json_data)
                             api_result["pathfinding_action"] = json_data["pathfinding_action"]
                             api_result["target_coordinates"] = json_data.get("target_coordinates", {})
                             # Use the correct pathfinding method

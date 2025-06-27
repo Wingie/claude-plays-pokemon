@@ -599,14 +599,15 @@ This game state data should inform your visual analysis and scene understanding.
         if ram_data and ram_data.get("ram_available"):
             # Enhance spatial_context with RAM data
             existing_spatial = result.get("spatial_context", "")
+            location = ram_data.get("location", {})
             result["spatial_context"] = {
                 "ram_data": {
                     "available": True,
-                    "map_bank": ram_data.get("map_bank"),
-                    "map_id": ram_data.get("map_id"),
-                    "player_x": ram_data.get("player_x"),
-                    "player_y": ram_data.get("player_y"),
-                    "location_name": ram_data.get("location_name")
+                    "map_bank": location.get("map_bank"),
+                    "map_id": location.get("map_id"),
+                    "player_x": location.get("x"),
+                    "player_y": location.get("y"),
+                    "location_name": location.get("location_name")
                 },
                 "visual_context": existing_spatial
             }
@@ -751,13 +752,7 @@ This game state data should inform your visual analysis and scene understanding.
             else:
                 debug_logger.log_debug('INFO', f"Movement Data Keys: {list(movement_data.keys())}")
         else:
-            print(f"🔍 Visual Analysis Results:")
-            print(f"   Step: {self.step_counter}")
-            if 'raw_pixtral_response' in movement_data:
-                response_preview = movement_data['raw_pixtral_response'][:100]
-                print(f"   Response Preview: {response_preview}...")
-            else:
-                print(f"   Movement Data Keys: {list(movement_data.keys())}")
+            print(f" Visual Analysis DONE for  Step: {self.step_counter}")
     
     def _log_clean_console_output(self, movement_data: Dict) -> None:
         """Output clean JSON for visual analysis to console"""
