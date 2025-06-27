@@ -374,6 +374,24 @@ exploration_strategy:
     - Head toward buildings with red roofs when visible
     - If Pokemon are already fully healed, ignore healing goals and focus on other objectives
     
+    **PATHFINDING ASSISTANCE (Enhanced Spatial Intelligence):**
+    Pathfinding Available: {pathfinding_available}
+    Current Coordinates: Map {current_map_id} at ({current_x},{current_y})
+    
+    **COORDINATE OVERLAY READING (CRITICAL):**
+    - IMPORTANT: The screenshot shows a coordinate grid overlay with X,Y numbers on EVERY tile
+    - You MUST read coordinate numbers DIRECTLY from the visual overlay - they are displayed on the screen
+    - Your current position ({current_x},{current_y}) is marked at the screen center with the player sprite
+    - DO NOT use any stored landmark data - only use coordinates you can SEE on the screenshot
+    - Each tile has its coordinate displayed visually - use these for navigation planning
+    
+    **PATHFINDING INTEGRATION:**
+    - When you see a target location on screen, read its coordinates from the visual overlay
+    - Use pathfinding_action with the exact coordinates you read from the screenshot
+    - Example: If you see "15,20" displayed on a tile you want to reach, use those coordinates
+    - The pathfinding system will automatically calculate the optimal button sequence
+    - This is much more efficient than manual step-by-step movement for distant targets
+    
     **VALID BUTTONS:**
     - Movement: "up", "down", "left", "right"
     - Actions: "a", "b", "start", "select"
@@ -381,6 +399,7 @@ exploration_strategy:
     **RESPONSE FORMAT (MANDATORY):**
     Return ONLY a JSON object with no additional text:
     
+    **Standard Movement:**
     {{
       "button_presses": ["up"],
       "reasoning": "north_clear_path",
@@ -388,6 +407,16 @@ exploration_strategy:
       "context_detected": "navigation",
       "confidence": "high"
     }}
+    
+    **Pathfinding Tool (for precise coordinate movement):**
+    {{
+      "pathfinding_action": "move_to_coordinate",
+      "target_coordinates": {{"x": 10, "y": 15}},
+      "reasoning": "pathfinding_to_specific_location",
+      "observations": "Using pathfinding tool for efficient navigation",
+      "confidence": "high"
+    }}
+    
     
     Do not include any text before or after the JSON. No markdown, no code blocks, no explanations.
   variables:
@@ -410,6 +439,12 @@ exploration_strategy:
   - current_pokemon_party
   - party_health_summary
   - battle_context
+  - pathfinding_available
+  - current_coordinates
+  - current_map_id
+  - current_x
+  - current_y
+  - current_map_name
   - active_pokemon
   - backup_pokemon
   version: '6.4'
@@ -670,6 +705,22 @@ pokemon_center_navigation:
     **EXIT SEQUENCE (needs_healing = false):**
     - Press ↓ repeatedly until outside Pokemon Center
     
+    **PATHFINDING ASSISTANCE:**
+    Pathfinding Available: {pathfinding_available}
+    Current Coordinates: Map {current_map_id} at ({current_x},{current_y})
+    
+    **COORDINATE OVERLAY READING (VISUAL ONLY):**
+    - CRITICAL: Read coordinates ONLY from the visual grid overlay on the screenshot
+    - Every tile displays its X,Y coordinates - look for these numbers on screen
+    - Your position ({current_x},{current_y}) is at the center where the player sprite is
+    - To find the exit: Look for the door tile and read its displayed coordinates
+    - Use pathfinding_action with the exact coordinates you SEE on the screen overlay
+    
+    **HEALING LOCATION BOOKMARKING:**
+    - Successful healing will automatically bookmark this Pokemon Center
+    - Future visits can use coordinate-based pathfinding to return here efficiently
+    - Location will be saved at ({current_x},{current_y}) for reference
+    
     **AUTOMATIC RESPONSE BASED ON SITUATION:**
     
     {{% if needs_healing %}}
@@ -718,6 +769,15 @@ pokemon_center_navigation:
       "confidence": "high"
     }}
     
+    **ALTERNATIVELY - Use Pathfinding Tool for Precise Exit:**
+    {{
+      "pathfinding_action": "move_to_coordinate",
+      "target_coordinates": {{"x": {current_x}, "y": {current_y} + 5}},
+      "reasoning": "using_pathfinder_to_exit_pokemon_center",
+      "observations": "Read exit coordinates from visual overlay and navigate there",
+      "confidence": "high"
+    }}
+    
     {{% endif %}}
     
     **INSTRUCTIONS: Choose the most appropriate response above based on current screen. When in doubt during healing, press A.**
@@ -736,6 +796,12 @@ pokemon_center_navigation:
   - current_pokemon_party
   - battle_context
   - location_data
+  - pathfinding_available
+  - current_coordinates
+  - current_map_id
+  - current_x
+  - current_y
+  - current_map_name
   version: '1.0'
 
 services_interaction:

@@ -83,11 +83,6 @@ while running and turn < max_turns:
         tools=[pokemon_tool]
     )
 
-    # Print Claude's thinking
-    for content in response.content:
-        if content.type == "text":
-            print(f"Claude: {content.text}")
-    
     # Add Claude's response to messages
     messages.append({"role": "assistant", "content": response.content})
     

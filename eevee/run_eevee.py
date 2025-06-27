@@ -589,15 +589,24 @@ class ContinuousGameplay:
                 if json_match:
                     try:
                         json_data = json.loads(json_match.group(1))
-                        if "button_presses" in json_data:
+                        
+                        # Check for pathfinding action first
+                        if "pathfinding_action" in json_data:
+                            api_result["pathfinding_action"] = json_data["pathfinding_action"]
+                            api_result["target_coordinates"] = json_data.get("target_coordinates", {})
+                            # Use the correct pathfinding method
+                            target_x = json_data.get("target_coordinates", {}).get("x", 0)
+                            target_y = json_data.get("target_coordinates", {}).get("y", 0)
+                            api_result["button_presses"] = self._execute_pathfinding_to_coordinate(target_x, target_y)
+                        elif "button_presses" in json_data:
                             api_result["button_presses"] = json_data["button_presses"]
                         else:
                             from evee_logger import get_comprehensive_logger
                             debug_logger = get_comprehensive_logger()
                             if debug_logger:
-                                debug_logger.log_debug('WARNING', 'No button_presses in JSON response')
+                                debug_logger.log_debug('WARNING', 'No button_presses or pathfinding_action in JSON response')
                             else:
-                                print("WARNING: No button_presses in JSON response")
+                                print("WARNING: No button_presses or pathfinding_action in JSON response")
                             api_result["button_presses"] = ["b"]  # Simple fallback
                     except json.JSONDecodeError as e:
                         from evee_logger import get_comprehensive_logger
@@ -728,6 +737,9 @@ class ContinuousGameplay:
         
         # Track goal progress
         self._track_goal_progress(ai_result, execution_result)
+        
+        # Detect healing and create healing bookmarks
+        self._detect_and_bookmark_healing(ai_result, execution_result)
         
         # Store in memory if available
         if self.eevee.memory:
@@ -1580,6 +1592,152 @@ class ContinuousGameplay:
             if self.eevee.debug:
                 print(f"WARNING: Goal progress tracking failed: {e}")
     
+    def _detect_and_bookmark_healing(self, ai_result: Dict[str, Any], execution_result: Dict[str, Any]):
+        """Detect successful healing and automatically bookmark Pokemon Center locations"""
+        try:
+            # Only check if action was successful
+            if not execution_result.get("success", False):
+                return
+            
+            # Get current and previous RAM data
+            current_ram_data = self._collect_ram_data()
+            if not current_ram_data or not current_ram_data.get("ram_available", False):
+                return
+            
+            # Check if we're at a Pokemon Center and if healing may have occurred
+            current_location = current_ram_data.get("location", {})
+            at_pokemon_center = current_ram_data.get("quick_status", {}).get("at_pokemon_center", False)
+            location_name = current_location.get("location_name", "")
+            
+            # Only check healing at Pokemon Centers
+            if not at_pokemon_center and "pokemon center" not in location_name.lower():
+                return
+            
+            # Check if we have stored previous RAM data for comparison
+            if not hasattr(self, '_previous_ram_data'):
+                # Store current RAM data for next comparison
+                self._previous_ram_data = current_ram_data
+                return
+            
+            previous_ram_data = self._previous_ram_data
+            
+            # Use healing bookmark system to detect and bookmark healing
+            try:
+                from healing_bookmark_system import HealingBookmarkSystem
+                healing_system = HealingBookmarkSystem()
+                
+                # Detect if healing occurred
+                healing_detected = healing_system.detect_healing_success(previous_ram_data, current_ram_data)
+                
+                if healing_detected:
+                    # Create location data for bookmarking
+                    location_data = {
+                        "map_id": (current_location.get("map_bank", 0) * 1000) + current_location.get("map_id", 0),
+                        "x": current_location.get("x", 0),
+                        "y": current_location.get("y", 0),
+                        "map_name": current_location.get("location_name", "Pokemon Center"),
+                        "location_name": current_location.get("location_name", "Pokemon Center")
+                    }
+                    
+                    # Calculate approximate healing duration (basic estimate)
+                    healing_duration = 5.0  # Simple assumption: ~5 seconds per healing
+                    
+                    # Create bookmark
+                    session_id = getattr(self.session, 'session_id', 'unknown')
+                    bookmark_success = healing_system.bookmark_healing_location(
+                        location_data, previous_ram_data, current_ram_data, 
+                        session_id, healing_duration
+                    )
+                    
+                    if bookmark_success and self.eevee.verbose:
+                        print(f"🏥 HEALING BOOKMARK: Successfully saved {location_data['location_name']} at ({location_data['x']},{location_data['y']})")
+                        party_summary = current_ram_data.get("party_summary", {})
+                        print(f"   Health status: {party_summary.get('party_health_status', 'unknown')} - {party_summary.get('healthy_pokemon', 0)}/{party_summary.get('total_pokemon', 0)} healthy")
+                        
+            except ImportError:
+                if self.eevee.verbose:
+                    print("⚠️ Healing bookmark system not available")
+            
+            # Always update previous RAM data for next comparison
+            self._previous_ram_data = current_ram_data
+            
+        except Exception as e:
+            if self.eevee.debug:
+                print(f"WARNING: Healing detection failed: {e}")
+    
+    def _execute_pathfinding_to_coordinate(self, target_x: int, target_y: int) -> List[str]:
+        """Smart pathfinding loop - moves one step at a time, validates with RAM"""
+        executed_buttons = []
+        max_attempts = 20  # Prevent infinite loops
+        
+        if self.eevee.verbose:
+            print(f"🧭 PATHFINDING LOOP: Moving to ({target_x},{target_y}) step by step")
+        
+        for attempt in range(max_attempts):
+            # Get current position from RAM
+            ram_data = self._collect_ram_data()
+            if not ram_data or not ram_data.get("ram_available", False):
+                if self.eevee.verbose:
+                    print("⚠️ RAM data not available for pathfinding")
+                break
+                
+            location_data = ram_data.get("location", {})
+            current_x = location_data.get("x", 0)
+            current_y = location_data.get("y", 0)
+            
+            # Check if we've reached target
+            if current_x == target_x and current_y == target_y:
+                if self.eevee.verbose:
+                    print(f"   ✅ Reached target ({target_x},{target_y}) in {attempt} steps")
+                break
+                
+            # Calculate next move (one button only)
+            dx = target_x - current_x
+            dy = target_y - current_y
+            
+            if abs(dx) > abs(dy):
+                button = "right" if dx > 0 else "left"
+            else:
+                button = "down" if dy > 0 else "up"
+                
+            if self.eevee.verbose:
+                print(f"   Step {attempt+1}: ({current_x},{current_y}) → pressing {button}")
+                
+            # Press button and wait for movement
+            old_x, old_y = current_x, current_y
+            if self.eevee.controller:
+                self.eevee.controller.press_button(button)
+                time.sleep(0.5)  # Wait for movement to complete
+                
+                # Check if position actually changed
+                new_ram = self._collect_ram_data()
+                if new_ram and new_ram.get("ram_available", False):
+                    new_location = new_ram.get("location", {})
+                    new_x = new_location.get("x", old_x)
+                    new_y = new_location.get("y", old_y)
+                    
+                    if new_x != old_x or new_y != old_y:
+                        executed_buttons.append(button)
+                        if self.eevee.verbose:
+                            print(f"      ✅ Moved to ({new_x},{new_y})")
+                    else:
+                        # Blocked - try alternative or give up
+                        if self.eevee.verbose:
+                            print(f"      ❌ Movement blocked, trying alternative")
+                        executed_buttons.append("b")  # Back up or cancel
+                        break
+                else:
+                    executed_buttons.append(button)  # Hope for the best if RAM unavailable
+            else:
+                if self.eevee.verbose:
+                    print("⚠️ Controller not available")
+                break
+        
+        if self.eevee.verbose:
+            print(f"   📊 Pathfinding completed: {len(executed_buttons)} buttons executed")
+            
+        return executed_buttons if executed_buttons else ["b"]  # Always return something
+    
     def _log_template_selection(self, goal_text: str, selected_template: str, 
                                visual_template: str, metadata: Dict, context: Dict):
         """Log detailed template selection information"""
@@ -1771,6 +1929,57 @@ class ContinuousGameplay:
                             "ram_tool_reminder": False,
                             "suggested_ram_checks": [],
                             "ram_check_context": ""
+                        })
+                    
+                    # Add pathfinding context for navigation assistance
+                    try:
+                        from ai_pathfinding_tools import AIPathfindingTools
+                        pathfinding_tools = AIPathfindingTools()
+                        
+                        if pathfinding_tools.available and ram_data and ram_data.get("ram_available", False):
+                            # Build current coordinates from RAM data
+                            current_coords = {
+                                "map_id": (location_data.get("map_bank", 0) * 1000) + location_data.get("map_id", 0) if isinstance(location_data, dict) else 0,
+                                "x": location_data.get("x", 0) if isinstance(location_data, dict) else 0,
+                                "y": location_data.get("y", 0) if isinstance(location_data, dict) else 0,
+                                "map_name": location_data.get("location_name", "Unknown") if isinstance(location_data, dict) else "Unknown"
+                            }
+                            
+                            # Add pathfinding variables for AI decision making  
+                            variables.update({
+                                "pathfinding_available": True,
+                                "current_coordinates": current_coords,
+                                # Flatten coordinates for template access
+                                "current_map_id": current_coords.get("map_id", 0),
+                                "current_x": current_coords.get("x", 0), 
+                                "current_y": current_coords.get("y", 0),
+                                "current_map_name": current_coords.get("map_name", "Unknown"),
+                                "pathfinding_tools_ready": True
+                            })
+                            
+                            if self.eevee.verbose:
+                                print(f"🧭 PATHFINDING AVAILABLE: Coordinates ({current_coords['x']},{current_coords['y']}) - Grid overlay visible to AI")
+                        else:
+                            variables.update({
+                                "pathfinding_available": False,
+                                "current_coordinates": {},
+                                "current_map_id": 0,
+                                "current_x": 0,
+                                "current_y": 0,
+                                "current_map_name": "Unknown",
+                                "pathfinding_tools_ready": False
+                            })
+                    except ImportError:
+                        if self.eevee.verbose:
+                            print("⚠️ Pathfinding tools not available")
+                        variables.update({
+                            "pathfinding_available": False,
+                            "current_coordinates": {},
+                            "current_map_id": 0,
+                            "current_x": 0,
+                            "current_y": 0,
+                            "current_map_name": "Unknown",
+                            "pathfinding_tools_ready": False
                         })
                     
                     # Priority check for dialogue interaction (verbose logging)
