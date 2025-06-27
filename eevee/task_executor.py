@@ -947,7 +947,24 @@ Be specific and actionable in your recommendations."""
                             actions_taken.append(f"pressed_{button}")
                             time.sleep(0.3)
             
-            # Handle target_coordinates (coordinate navigation)
+            # Handle pathfinding_action (NEW - AI specifies target coordinates directly)
+            elif "pathfinding_action" in response_data and response_data["pathfinding_action"] == "move_to_coordinate":
+                target_x = response_data.get("target_x")
+                target_y = response_data.get("target_y")
+                print(f"🎯 AI wants to move to ({target_x},{target_y})")
+                
+                if target_x is not None and target_y is not None:
+                    success = self.agent.navigate_to_coordinates(target_x, target_y)
+                    if success:
+                        actions_taken.append(f"pathfinding_to_{target_x}_{target_y}")
+                    else:
+                        actions_taken.append("pathfinding_failed")
+                        print(f"❌ Pathfinding failed to ({target_x},{target_y})")
+                else:
+                    print("⚠️ Pathfinding action but missing target_x or target_y")
+                    actions_taken.append("pathfinding_missing_coordinates")
+            
+            # Handle target_coordinates (LEGACY - coordinate navigation)
             elif "target_coordinates" in response_data:
                 coords = response_data["target_coordinates"]
                 print("** RECEIVED REQUEST TO PATHFIND! ***",coords)

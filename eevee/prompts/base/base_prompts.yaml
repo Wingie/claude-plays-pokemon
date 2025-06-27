@@ -354,6 +354,8 @@ exploration_strategy:
     ```json
     {{
       "pathfinding_action": "move_to_coordinate",
+      "target_x": 10,
+      "target_y": 15,
       "reasoning": "pathfinding_to_coordinates_read_from_visual_overlay_at_x10_y15",
       "observations": "Target coordinates 10,15 visible on screenshot overlay, using pathfinding for efficient navigation",
       "coordinate_source": "visual_overlay",
@@ -765,8 +767,10 @@ pokemon_center_navigation:
     ```json
     {{
       "pathfinding_action": "move_to_coordinate",
+      "target_x": 12,
+      "target_y": 10,
       "reasoning": "using_pathfinder_to_exit_pokemon_center",
-      "observations": "Read exit coordinates from visual overlay and navigate there",
+      "observations": "Read exit coordinates 12,10 from visual overlay and navigate there",
       "confidence": "high"
     }}
     ```
