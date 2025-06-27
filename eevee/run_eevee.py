@@ -950,7 +950,7 @@ class ContinuousGameplay:
             model_used="pixtral-12b-2409",
             provider_used="mistral",
             timestamp=datetime.now().isoformat(),
-            success=bool(movement_data.get('valid_sequences', {}).get('1_move')),
+            success=bool(movement_data and movement_data.get('valid_sequences', {}).get('1_move')),
             processing_time_ms=getattr(self, '_last_visual_processing_time', None)
         )
     
@@ -996,13 +996,15 @@ class ContinuousGameplay:
         
         # Visual analysis quality check (if available)
         if movement_data:
-            # Check for new visual context analyzer format
-            valid_moves = movement_data.get('valid_movements', [])
-            # Fallback to old format if needed
-            if not valid_moves:
-                valid_moves = movement_data.get('valid_sequences', {}).get('1_move', [])
-            if not valid_moves:
-                return False  # Skip turns with no valid movements detected
+            # Check if visual analysis has any useful data
+            has_valid_data = any([
+                movement_data.get('valid_movements'),
+                movement_data.get('valid_sequences', {}).get('1_move'),
+                movement_data.get('scene_type'),
+                movement_data.get('confidence')
+            ])
+            if not has_valid_data:
+                return False  # Skip turns with no valid visual data
         
         return True
     
@@ -1794,18 +1796,23 @@ class ContinuousGameplay:
                     
                     if self.eevee.verbose:
                         print(f"✅ _build_ai_prompt TEMPLATE SELECTION: {prompt_type} (goal-aware)")
-                        print(f"   Scene: {movement_data.get('scene_type', 'unknown')}")
+                        scene_type = movement_data.get('scene_type', 'unknown') if movement_data else 'unknown'
+                        print(f"   Scene: {scene_type}")
                         print(f"   Goal Status: {okr_data.get('current_goal', {}).get('status', 'unknown') if okr_data else 'no goal'}")
                         print(f"   Playbook: {playbook}")
                     
                     # Add visual context variables
                     variables.update({
-                        "scene_type": movement_data.get("scene_type", "unknown"),
-                        "spatial_context": movement_data.get("spatial_context", ""),
-                        "character_position": movement_data.get("character_position", ""),
-                        "visual_description": movement_data.get("visual_description", ""),
-                        "valid_movements": movement_data.get("valid_movements", []),
-                        "confidence": movement_data.get("confidence", "unknown")
+                        "visual_analysis_json": json.dumps(movement_data) if movement_data else "{}"
+                    })
+                    
+                    # Add required template variables with defaults
+                    variables.update({
+                        "task": self.session.goal or "explore",
+                        "recent_actions": "[]",  # TODO: Track real recent actions
+                        "current_map_id": 0,     # Will be updated from RAM data below
+                        "current_x": 0,          # Will be updated from RAM data below
+                        "current_y": 0           # Will be updated from RAM data below
                     })
                     
                     # Add goal context variables from okr.json (always provide defaults)
@@ -1833,16 +1840,9 @@ class ContinuousGameplay:
                             "goal_hierarchy": self.session.goal or "General gameplay"
                         })
                         
-                    # Add dialogue variables (always provide defaults for exploration_strategy template)
-                    dialogue_visible = movement_data.get("dialogue_visible", False) if movement_data else False
-                    dialogue_text = movement_data.get("dialogue_text", "") if movement_data else ""
-                    dialogue_buttons = movement_data.get("dialogue_buttons", []) if movement_data else []
-                    
+                    # Pass raw visual analysis JSON instead of processing individual fields
                     variables.update({
-                        "dialogue_visible": dialogue_visible,
-                        "dialogue_text": dialogue_text,
-                        "dialogue_buttons": dialogue_buttons,
-                        "dialogue_present": dialogue_visible  # legacy variable for compatibility
+                        "visual_analysis_json": json.dumps(movement_data) if movement_data else "{}"
                     })
                     
                     # CRITICAL FIX: Add RAM data for ALL templates, not just battle templates
@@ -1892,6 +1892,14 @@ class ContinuousGameplay:
                             "active_pokemon": party_data[0] if party_data else None,
                             "backup_pokemon": [p for p in party_data[1:] if not p.get("is_fainted", True)] if len(party_data) > 1 else []
                         })
+                        
+                        # Update coordinate variables with real RAM data
+                        if isinstance(location_data, dict):
+                            variables.update({
+                                "current_map_id": location_data.get("map_id", 0),
+                                "current_x": location_data.get("x", 0),
+                                "current_y": location_data.get("y", 0)
+                            })
                         
                         if self.eevee.verbose:
                             print(f"🩺 POKEMON HEALTH DATA: {party_summary.get('party_health_status', 'unknown')} - {party_summary.get('healthy_pokemon', 0)}/{party_summary.get('total_pokemon', 0)} healthy")
@@ -1983,20 +1991,17 @@ class ContinuousGameplay:
                         })
                     
                     # Priority check for dialogue interaction (verbose logging)
+                    dialogue_visible = movement_data.get("dialogue_visible", False) if movement_data else False
                     if dialogue_visible and prompt_type != "battle_analysis":
                         if self.eevee.verbose:
+                            dialogue_text = movement_data.get("dialogue_text", "") if movement_data else ""
                             print(f"   💬 DIALOGUE DETECTED: Prioritizing interaction")
                             print(f"      Text: {dialogue_text[:50]}..." if len(dialogue_text) > 50 else f"      Text: {dialogue_text}")
                     
                     # Add battle-specific variables if using battle template
                     if prompt_type == "battle_analysis":
                         variables.update({
-                            "battle_phase": movement_data.get("battle_phase", "unknown"),
-                            "our_pokemon": movement_data.get("our_pokemon", "unknown"),
-                            "enemy_pokemon": movement_data.get("enemy_pokemon", "unknown"),
-                            "move_options": movement_data.get("move_options", []),
-                            "cursor_on": movement_data.get("cursor_on", "unknown"),
-                            "valid_buttons": movement_data.get("valid_buttons", [])
+                            "visual_analysis_json": json.dumps(movement_data) if movement_data else "{}"
                         })
                         # Note: RAM data is now added for ALL templates above, not just battle templates
                     
@@ -2023,12 +2028,13 @@ class ContinuousGameplay:
                     
                     # Add fallback values
                     variables.update({
-                        "scene_type": "navigation",
-                        "spatial_context": "Visual analysis unavailable",
-                        "character_position": "unknown", 
-                        "visual_description": "No visual analysis data",
-                        "valid_movements": ["up", "down", "left", "right"],
-                        "confidence": "low"
+                        "visual_analysis_json": "{}",
+                        "task": self.session.goal or "explore",
+                        "recent_actions": "[]",
+                        "current_goal_name": self.session.goal or "explore",
+                        "current_map_id": 0,
+                        "current_x": 0,
+                        "current_y": 0
                     })
                     
                     prompt = prompt_manager.get_prompt(

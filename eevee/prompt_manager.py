@@ -792,9 +792,8 @@ Be specific about moves, types, and strategic recommendations.""",
         prompt_mapping = {
             "battle_expert": "ai_battle_with_context_loading",
             "maze_navigation": "ai_maze_with_solution_memory", 
-            "stuck_recovery_advanced": "ai_emergency_recovery_with_escalation",
             "exploration_strategy": "ai_navigation_with_memory_control",
-            "emergency_recovery": "ai_emergency_recovery_with_escalation"
+            "emergency_recovery": "ai_emergency_recovery"
         }
         
         actual_prompt = prompt_mapping.get(prompt_name, prompt_name)
@@ -816,7 +815,6 @@ Be specific about moves, types, and strategic recommendations.""",
             "cave": "ai_maze_with_solution_memory",
             "battle": "ai_battle_with_context_loading",
             "maze": "ai_maze_with_solution_memory",
-            "emergency": "ai_emergency_recovery_with_escalation"
         }
         
         prompt_name = context_mapping.get(context.lower())
@@ -827,21 +825,7 @@ Be specific about moves, types, and strategic recommendations.""",
             return True
         return False
     
-    def _escalate_prompt(self, level: str) -> bool:
-        """Escalate to more powerful prompt based on level"""
-        if "level_2" in level or "level_3" in level:
-            self.active_template = "ai_emergency_recovery_with_escalation"
-            if self.verbose:
-                print(f"⚡ AI escalated to emergency recovery: {level}")
-            return True
-        return False
     
-    def _activate_emergency_mode(self) -> bool:
-        """Activate emergency recovery mode"""
-        self.active_template = "ai_emergency_recovery_with_escalation"
-        if self.verbose:
-            print("🚨 AI activated emergency mode")
-        return True
     
     def _reset_context(self) -> bool:
         """Reset context to default navigation"""

@@ -75,13 +75,15 @@ stuck_recovery:
     **RESPONSE FORMAT (MANDATORY):**
     Return ONLY a JSON object with no additional text:
     
-    {{
+    ```json
+    {
       "button_presses": ["left"],
       "reasoning": "stuck_pattern_break",
       "observations": "same_position_3turns",
       "context_detected": "navigation",
       "confidence": "medium"
-    }}
+    }
+    ```
     
     Do not include any text before or after the JSON. No markdown, no code blocks, no explanations.
   variables:
@@ -97,89 +99,49 @@ battle_analysis:
     GOAL: {task}
     RECENT ACTIONS: {recent_actions}
     
-    **RICH BATTLE CONTEXT PROVIDED:**
-    Scene Type: {scene_type}
-    Battle Phase: {battle_phase}
-    Our Pokemon: {our_pokemon}
-    Enemy Pokemon: {enemy_pokemon}
-    Available Moves: {move_options}
-    Cursor Position: {cursor_on}
-    Valid Buttons: {valid_buttons}
-    Confidence: {confidence}
+    **VISUAL ANALYSIS DATA:**
+    {visual_analysis_json}
     
-    **ENHANCED BATTLE STRATEGY:**
+    **CURRENT COORDINATES:**
+    Map {current_map_id} at ({current_x},{current_y})
+    Current Goal: {current_goal_name}
     
-    **PRIORITY DECISION TREE:**
-    1. **SURVIVAL PRIORITY** (HP < 30%): Heal, switch, or defensive moves
-    2. **EFFICIENCY PRIORITY** (Enemy level < Our level/2): Finish quickly with any damaging move
-    3. **STRATEGIC PRIORITY** (Close levels): Use type effectiveness and optimal moves
-    4. **EMERGENCY PRIORITY** (HP < 15%): Immediate healing or switching required
+    **BATTLE ANALYSIS INSTRUCTIONS:**
     
-    **HP MANAGEMENT LOGIC:**
-    - HP > 70%: Aggressive strategy, focus on damage
-    - HP 30-70%: Balanced strategy, consider type effectiveness
-    - HP < 30%: Survival strategy, prioritize healing/switching
-    - HP < 15%: Emergency mode, immediate action required
+    **STEP 1 - ANALYZE VISUAL DATA:**
+    Use the visual_analysis_json above to understand the battle situation:
+    - Look for scene_type: "battle" or battle-related contexts
+    - Check for battle_phase, our_pokemon, enemy_pokemon data
+    - Identify cursor position and available moves
+    - Note HP status and battle progression
     
-    **LEVEL DIFFERENCE STRATEGY:**
-    - Our level 2x+ enemy level: Use any damaging move to finish quickly
-    - Our level 1.5x+ enemy level: Prefer damaging moves over status
-    - Similar levels (±2): Optimize type effectiveness
-    - Enemy higher level: Consider defensive options
+    **BATTLE STRATEGY FRAMEWORK:**
+    - **HIGH HP (>70%)**: Aggressive damage moves, exploit type advantages
+    - **MEDIUM HP (30-70%)**: Balanced approach, consider type effectiveness
+    - **LOW HP (<30%)**: Defensive strategy, prioritize healing or switching
+    - **CRITICAL HP (<15%)**: Emergency action required
     
-    **MULTI-TURN BATTLE PLANNING:**
-    - Plan 2-3 turns ahead based on HP trajectory
-    - Consider move PP (Power Points) for longer battles
-    - Anticipate enemy actions based on their type/level
-    - Plan healing/switching windows
+    **MOVE SELECTION PRIORITY:**
+    1. **Damage Moves**: THUNDERSHOCK, TACKLE, WATER GUN, EMBER (deal actual damage)
+    2. **Type Effectiveness**: Electric vs Water/Flying, Water vs Fire/Ground, etc.
+    3. **Status Moves**: GROWL, LEER, TAIL WHIP (only for setup, avoid for damage)
     
-    **TASK-BASED MOVE SELECTION:**
-    - **FINISH_WEAK**: Against low-level enemies, use any damaging move
-    - **HEAL_CRITICAL**: When HP critical, navigate to BAG for healing items
-    - **SWITCH_STRATEGIC**: When type disadvantage severe, switch Pokemon
-    - **OPTIMIZE_DAMAGE**: When healthy, use type-effective moves
+    **CURSOR NAVIGATION:**
+    - Use "up", "down", "left", "right" to navigate to desired move
+    - Press "a" to select the highlighted move
+    - Navigate away from status moves (GROWL) to damage moves (THUNDERSHOCK)
     
-    **COMPACT ACTION ARRAYS:**
-    - Navigation: ["up", "down", "left", "right"] for cursor movement
-    - Selection: ["a"] to confirm choices
-    - Escape: ["b"] to back out of menus
-    - Combined: ["down", "a"] for move to option and select
-    
-    **CRITICAL: CURSOR NAVIGATION FOR MOVE SELECTION:**
-    - If cursor is on GROWL but you want THUNDERSHOCK: use ["down"] or ["right"] to navigate to it
-    - If cursor is on TAIL WHIP but you want THUNDERSHOCK: use ["up"] or ["left"] to navigate to it  
-    - ALWAYS navigate to the correct damage move BEFORE pressing ["a"]
-    - Move layout is typically: GROWL | THUNDERSHOCK
-                                TAIL WHIP | THUNDER WAVE
-    - Use directional buttons to move cursor, then ["a"] to select
-    
-    **BATTLE PHASES (Enhanced):**
-    - main_menu: Navigate to FIGHT/BAG/POKEMON based on priority
-    - move_selection: Choose move based on HP/level analysis
-    - battle_animation: Press A to continue, prepare next turn strategy
-    - battle_text: Press A to advance, analyze results for next decision
-    
-    **TYPE EFFECTIVENESS (Contextual):**
-    - Electric vs Water/Flying/Bug: SUPER EFFECTIVE (2x damage) 
-    - Water vs Fire/Ground/Rock: SUPER EFFECTIVE (2x damage)
-    - Fire vs Grass/Bug/Ice: SUPER EFFECTIVE (2x damage)
-    - Fighting vs Normal: SUPER EFFECTIVE (2x damage)
-    - Psychic vs Poison/Fighting: SUPER EFFECTIVE (2x damage)
-    - Normal moves: Neutral but reliable damage
-    - Status moves (GROWL, LEER, TAIL WHIP): Only use for setup, NOT for damage
-    
-    **DAMAGE MOVE PRIORITIZATION:**
-    - THUNDERSHOCK (Electric): Damage move - prioritize against Water/Flying/Bug types
-    - TACKLE (Normal): Reliable neutral damage move
-    - WATER GUN (Water): Damage move - strong against Fire/Ground/Rock
-    - EMBER (Fire): Damage move - strong against Grass/Bug/Ice
-    - AVOID status moves like GROWL when damage moves available
+    **BATTLE PHASES:**
+    - **main_menu**: Navigate to FIGHT/BAG/POKEMON options
+    - **move_selection**: Choose specific move based on strategy
+    - **battle_animation**: Press A to continue through animations
+    - **battle_text**: Press A to advance dialogue and damage reports
     
     **COMMON SCENARIOS:**
-    - PIKACHU vs METAPOD/CATERPIE: Use THUNDERSHOCK (Electric beats Bug) - navigate cursor away from GROWL
-    - vs PIDGEY/SPEAROW: Use THUNDERSHOCK (Electric beats Flying)
-    - vs MAGIKARP/GOLDEEN: Use THUNDERSHOCK (Electric beats Water)
-    - If low HP vs ANY opponent: Consider switching to BAG for healing first
+    - ELECTRUC vs BUG types: Use THUNDERSHOCK (Electric beats Bug)
+    - vs FLYING types: Use THUNDERSHOCK (Electric beats Flying)
+    - vs WATER types: Use THUNDERSHOCK (Electric beats Water)
+    - If low HP against any opponent: Consider switching to BAG for healing first
     
     **VALID BUTTONS:**
     - Movement: "up", "down", "left", "right"
@@ -238,20 +200,11 @@ battle_analysis:
   variables:
   - task
   - recent_actions
-  - scene_type
-  - battle_phase
-  - our_pokemon
-  - enemy_pokemon
-  - move_options
-  - cursor_on
-  - valid_buttons
-  - confidence
-  - ram_available
-  - current_pokemon_party
-  - party_health_summary
-  - battle_context
-  - active_pokemon
-  - backup_pokemon
+  - visual_analysis_json
+  - current_goal_name
+  - current_map_id
+  - current_x
+  - current_y
   version: '7.0'
 pokemon_party_analysis:
   name: Pokemon Party Analysis (JSON Response)
@@ -343,18 +296,26 @@ exploration_strategy:
     **STEP 1 - CHECK FOR DIALOGUE FIRST:**
     If dialogue_visible is true, press A to engage/continue dialogue immediately.
     
-    **STEP 2 - NAVIGATION (only if no dialogue):**
-    Use the spatial context above to analyze the overworld navigation situation:
+    **STEP 2 - COORDINATE-BASED PATHFINDING (PRIORITY #1):**
+    **MANDATORY**: Check for coordinate grid overlay on screenshot FIRST
+    - ALWAYS read X,Y coordinates from the visual overlay displayed on every tile
+    - Your current position ({current_x},{current_y}) is marked at screen center
+    - MUST identify target coordinates before any movement
+    - Use pathfinding_action when target coordinates are visible on screen
+    - Pathfinding generates optimal button sequences automatically
+    
+    **STEP 3 - MANUAL NAVIGATION (only if pathfinding unavailable):**
+    If coordinates are not visible or pathfinding fails:
     - Use character_position and spatial_context for precise movement planning
     - Consider valid_movements for safe direction choices
     - Analyze visual_description for obstacles and opportunities
-    - If confidence is low, use more cautious movement strategy
-    
-    **NAVIGATION STRATEGY:**
-    - Prioritize movements from valid_movements list
-    - Use spatial_context to understand terrain layout
-    - Avoid repeating failed movements from recent_actions
     - One button press per decision for careful movement
+    
+    **PATHFINDING-FIRST STRATEGY:**
+    - ALWAYS attempt coordinate-based navigation before manual movement
+    - Read target coordinates directly from screenshot overlay
+    - Justify why manual movement is chosen over pathfinding
+    - Pathfinding is more efficient than step-by-step navigation
     
     **GOAL PRIORITY SYSTEM:**
     Current Goal: {current_goal_name}
@@ -362,60 +323,93 @@ exploration_strategy:
     Progress: {goal_progress}%
     Recommended Actions: {recommended_goal_actions}
     
-    **IF goal recommends "visit_pokemon_center" or navigation to specific locations:**
-    - Use visual context to identify building types and navigate toward them
-    - Look for red-roofed buildings in towns (Pokemon Centers)
-    - Press UP at building entrances to enter
-    - Prioritize goal recommendations over random exploration
+    **COORDINATE-BASED GOAL NAVIGATION:**
+    - IF goal recommends "visit_pokemon_center" or specific locations:
+      1. FIRST: Scan screenshot for target building coordinates
+      2. READ coordinates from visual overlay (e.g., Pokemon Center at 12,8)
+      3. USE pathfinding_action with target coordinates
+      4. FALLBACK: Manual navigation only if coordinates not visible
+    - Look for red-roofed buildings and read their coordinate positions
+    - Use pathfinding for efficient goal-directed movement
+    - Prioritize coordinate-based navigation over random exploration
     
-    **POKEMON CENTER SEEKING:**
+    **POKEMON CENTER PATHFINDING:**
     Only if GOAL contains "heal" AND Pokemon actually need healing (damaged HP):
-    - Look for red-roofed buildings in towns (Pokemon Centers)
-    - Head toward buildings with red roofs when visible
+    - SCAN screenshot for red-roofed buildings (Pokemon Centers)
+    - READ coordinates of Pokemon Center from visual overlay
+    - USE pathfinding_action to navigate directly to Pokemon Center coordinates
+    - EXAMPLE: See Pokemon Center at coordinates 15,10 → use pathfinding_action
+    - FALLBACK: Manual navigation only if center coordinates not visible
     - If Pokemon are already fully healed, ignore healing goals and focus on other objectives
     
-    **PATHFINDING ASSISTANCE (Enhanced Spatial Intelligence):**
+    **PATHFINDING SYSTEM (PRIMARY NAVIGATION METHOD):**
     Pathfinding Available: {pathfinding_available}
     Current Coordinates: Map {current_map_id} at ({current_x},{current_y})
     
-    **COORDINATE OVERLAY READING (CRITICAL):**
-    - IMPORTANT: The screenshot shows a coordinate grid overlay with X,Y numbers on EVERY tile
-    - You MUST read coordinate numbers DIRECTLY from the visual overlay - they are displayed on the screen
-    - Your current position ({current_x},{current_y}) is marked at the screen center with the player sprite
-    - DO NOT use any stored landmark data - only use coordinates you can SEE on the screenshot
-    - Each tile has its coordinate displayed visually - use these for navigation planning
+    **COORDINATE OVERLAY READING (MANDATORY FIRST STEP):**
+    - CRITICAL: Every screenshot has a coordinate grid overlay with X,Y numbers on ALL tiles
+    - You MUST read coordinate numbers DIRECTLY from the visual overlay before any action
+    - Your current position ({current_x},{current_y}) is at screen center with player sprite
+    - ALWAYS scan for target destinations and read their displayed coordinates
+    - Each tile shows its coordinates visually - this is your primary navigation data
     
-    **PATHFINDING INTEGRATION:**
-    - When you see a target location on screen, read its coordinates from the visual overlay
-    - Use pathfinding_action with the exact coordinates you read from the screenshot
-    - Example: If you see "15,20" displayed on a tile you want to reach, use those coordinates
-    - The pathfinding system will automatically calculate the optimal button sequence
-    - This is much more efficient than manual step-by-step movement for distant targets
+    **PATHFINDING INTEGRATION (ALWAYS USE WHEN POSSIBLE):**
+    - STEP 1: Identify target location on screen and read its coordinates
+    - STEP 2: Use pathfinding_action with exact coordinates from visual overlay
+    - STEP 3: Let pathfinding system generate optimal movement sequence
+    - Example: See "15,20" on target tile → use pathfinding_action with those coordinates
+    - **EFFICIENCY**: Pathfinding replaces 5-10 manual button presses with 1 action
+    - **ACCURACY**: Eliminates getting stuck or lost during navigation
+    
+    **COORDINATE VALIDATION REQUIREMENTS:**
+    - MUST confirm you can see coordinate numbers on screenshot
+    - MUST identify target coordinates before movement decisions
+    - MUST explain why pathfinding cannot be used if choosing manual movement
     
     **VALID BUTTONS:**
     - Movement: "up", "down", "left", "right"
     - Actions: "a", "b", "start", "select"
     
     **RESPONSE FORMAT (MANDATORY):**
-    Return ONLY a JSON object with no additional text:
+    Return ONLY a JSON object with no additional text.
     
-    **Standard Movement:**
-    {{
-      "button_presses": ["up"],
-      "reasoning": "north_clear_path",
-      "observations": "open_terrain",
-      "context_detected": "navigation",
-      "confidence": "high"
-    }}
+    **CRITICAL**: Choose EXACTLY ONE response type - NEVER mix pathfinding_action and button_presses in same response!
     
-    **Pathfinding Tool (for precise coordinate movement):**
-    {{
+    **OPTION 1: Pathfinding Tool (use whenever coordinates are visible):**
+    ```json
+    {
       "pathfinding_action": "move_to_coordinate",
-      "target_coordinates": {{"x": 10, "y": 15}},
-      "reasoning": "pathfinding_to_specific_location",
-      "observations": "Using pathfinding tool for efficient navigation",
+      "target_coordinates": {"x": 10, "y": 15},
+      "reasoning": "pathfinding_to_coordinates_read_from_visual_overlay_at_x10_y15",
+      "observations": "Target coordinates 10,15 visible on screenshot overlay, using pathfinding for efficient navigation",
+      "coordinate_source": "visual_overlay",
       "confidence": "high"
-    }}
+    }
+    ```
+    
+    **OPTION 2: Manual Movement (only when pathfinding unavailable):**
+    ```json
+    {
+      "button_presses": ["up"],
+      "reasoning": "manual_movement_because_coordinates_not_visible_or_pathfinding_failed",
+      "observations": "No coordinate overlay visible, using manual movement",
+      "context_detected": "navigation",
+      "confidence": "medium"
+    }
+    ```
+    
+    **FORBIDDEN**: Do NOT include both pathfinding_action AND button_presses in the same response!
+    
+    **MANDATORY FIELDS FOR PATHFINDING RESPONSES:**
+    - pathfinding_action: "move_to_coordinate" (ONLY - no button_presses field)
+    - target_coordinates: Exact x,y values you see on screen  
+    - coordinate_source: "visual_overlay" (confirms you read coordinates from screenshot)
+    - reasoning: Must explain coordinate reading and pathfinding choice
+    
+    **MANDATORY FIELDS FOR MANUAL RESPONSES:**
+    - button_presses: Array of movement buttons (ONLY - no pathfinding_action field)
+    - reasoning: Must explain why pathfinding cannot be used
+    - observations: Current situation description
     
     
     Do not include any text before or after the JSON. No markdown, no code blocks, no explanations.
@@ -516,7 +510,7 @@ ai_maze_with_solution_memory:
   - recent_actions
   - maze_context
   version: '5.0'
-ai_emergency_recovery_with_escalation:
+ai_emergency_recovery:
   name: Ash's Ultimate Determination System
   description: You are Ash Ketchum with incredible determination and emergency problem-solving skills on your Game Boy Advance
   template: "ASH'S ULTIMATE DETERMINATION SYSTEM v5.0\n\n🚨 You are ASH KETCHUM facing a really tough challenge on your Game Boy Advance! 🚨\n\nULTIMATE DETERMINATION MODE ACTIVATED - Ash has been stuck for multiple turns but NEVER GIVES UP!\n\nAsh's Problem Pattern: {recent_actions}\nAsh's Current Mission: {task}\nAsh's Determination Level: {escalation_level}\n\n🎮 ASH'S KANTO CHALLENGE PATTERNS:\n\nAsh has learned to recognize these tough situations:\n**Corner Trap Challenge**: Ash keeps hitting invisible collision boundaries\n**Trainer Approach Challenge**: Ash can see a trainer but can't reach them from this angle\n**Map Edge Challenge**: Ash is stuck at the boundary of the area moving in same direction\n**Menu Challenge**: Ash can't exit post-battle or level-up screens on his Game Boy Advance\n**Collision Challenge**: Ash hasn't recognized the invisible walls and barriers yet\n\n🆘 ASH'S EMERGENCY MEMORY SKILLS:\n\n**Ash's Emergency Memory Recall**:\n- `LOAD_MEMORIES: emergency_recoveries` - Ash recalls past successful unstuck strategies\n- `LOAD_MEMORIES: stuck_in_[current_context]` - Ash remembers area-specific unstuck methods\n- `LOAD_MEMORIES: pokemon_collision_patterns` - Ash knows collision boundaries and trainer positions\n- `LOAD_MEMORIES: corner_escape_routes` - Ash recalls successful corner escape strategies\n- `LOAD_MEMORIES: similar_stuck_patterns` - Ash remembers how similar situations were resolved\n\n**Ash's Emergency Strategy Escalation**:\n- `ESCALATE_PROMPT: level_2` - Ash tries more aggressive unstuck strategies\n- `ESCALATE_PROMPT: level_3` - Ash uses drastic measures, breaks normal rules\n- `REQUEST_PROMPT: human_intervention_needed` - Ash signals for help\n- `RESET_ALL_CONTEXT` - Ash clears his mind and starts completely fresh\n\n🔄 ASH'S DETERMINATION ESCALATION LEVELS:\n\n**Level 1 - Ash's Corner Recovery** (3-5 repeated actions):\n1. **COLLISION ACCEPTANCE**: Ash accepts that current direction is permanently blocked\n2. **DIAGONAL ESCAPE**: Ash tries moving diagonally away from corner (e.g., if stuck going UP-RIGHT, Ash tries DOWN-LEFT)\n3. **TRAINER ABANDONMENT**: If fixated on unreachable trainer, Ash completely abandons target\n4. **PERPENDICULAR PIVOT**: Ash moves 90 degrees from stuck direction\n5. `SAVE_MEMORY: corner_escape_[direction] TAG: pokemon_recovery`\n\n**Level 2 - Ash's Aggressive Recovery** (6-10 repeated actions):\n1. **FULL DIRECTIONAL RESET**: Ash tries complete opposite direction sequence\n2. **MENU CHECK**: Ash presses B button to exit any hidden menus or dialog\n3. **INTERACTION CHECK**: Ash presses A button - might be stuck on invisible NPC\n4. **BOUNDARY ESCAPE**: If at map edge, Ash moves toward center of area\n5. **TRAINER APPROACH RESET**: If targeting trainer, Ash tries completely different approach angle (90+ degrees)\n6. `ESCALATE_PROMPT: level_2`\n\n**Level 3 - Ash's Ultimate Options** (10+ repeated actions):\n1. **SYSTEMATIC EXPLORATION**: Ash tries all 4 directions in sequence to find ANY working path\n2. **MENU ESCAPE SEQUENCE**: Ash presses B repeatedly to exit any stuck menu states\n3. **RANDOM WALK PATTERN**: Ash moves in random directions for 5 turns to break pattern\n4. **COMPLETE TARGET ABANDONMENT**: Ash abandons all current objectives and explores opposite direction\n5. **LAST RESORT BUTTONS**: Ash tries START, SELECT, or button combinations\n6. `REQUEST_PROMPT: human_intervention_needed`\n\n🧠 ASH'S EMERGENCY ANALYSIS:\n\n**Ash Identifies Stuck Pattern**:\n- **Corner Loop**: Same direction 3+ times near map edges or objects\n- **Trainer Fixation**: Moving toward visible trainer but no progress for 3+ turns\n- **Collision Blindness**: Ignoring invisible boundaries and continuing failed movements\n- **Menu Lock**: Cannot exit battle results, level-up, or other modal screens\n\n**Ash's Area-Specific Recovery**:\n- **Forest/Route Corners**: Ash tries moving toward open grass areas away from trees\n- **Trainer Blocking**: If trainer unreachable, Ash explores other areas first\n- **Map Boundaries**: Ash moves toward center of current area\n- **Post-Battle Stuck**: Ash presses A once then B repeatedly to exit\n- **Level-up Stuck**: Ash presses B to exit stat screens\n\n💾 ASH'S EMERGENCY LEARNING:\n\n**Ash Saves Recovery Strategies**:\n- `SAVE_MEMORY: CORNER_ESCAPE: [successful_direction_sequence] TAG: pokemon_recovery`\n- `SAVE_MEMORY: TRAINER_UNREACHABLE: [trainer_location] TAG: pokemon_avoid`\n- `SAVE_MEMORY: COLLISION_BOUNDARY: [area_description] TAG: pokemon_navigation`\n- `SAVE_MEMORY: ESCAPE_SEQUENCE: [button_combination] TAG: emergency_strategies`\n\n**Ash Tracks Challenge Patterns**:\n- `SAVE_MEMORY: POKEMON_STUCK_PATTERN: [location]_[direction]_[repetitions] TAG: avoid_patterns`\n- `SAVE_MEMORY: TRAINER_FIXATION: [trainer_position] TAG: unreachable_targets`\n- `SAVE_MEMORY: CORNER_TRAP: [area_description] TAG: high_risk_areas`\n\n🎯 ASH'S EMERGENCY ACTION PROTOCOL:\n\n**Ash's Immediate Actions** (try in order):\n1. **COLLISION ACCEPTANCE**: Ash stops trying the blocked direction immediately\n2. **DIAGONAL MOVEMENT**: Ash tries moving diagonally away from stuck position\n3. **MENU ESCAPE**: Ash presses B button to exit any hidden menus\n4. **INTERACTION CHECK**: Ash presses A button in case of invisible interaction\n5. **PERPENDICULAR ESCAPE**: Ash moves 90 degrees from stuck direction\n6. **TARGET ABANDONMENT**: If chasing trainer/object, Ash abandons and explores elsewhere\n7. If nothing works: `ESCALATE_PROMPT: level_2`\n\n**After Ash's Recovery**:\n1. `SAVE_MEMORY: POKEMON_RECOVERY_SUCCESS: [what_worked] TAG: pokemon_emergency_strategies`\n2. `SAVE_MEMORY: avoid_pokemon_pattern_[stuck_sequence] TAG: prevention`\n3. Ash resumes with heightened collision awareness\n4. Ash avoids returning to stuck location for several turns\n\nASH'S ULTIMATE DETERMINATION RULES:\n- **COLLISION REALITY**: Ash accepts invisible boundaries exist - if direction fails 2+ times, it's permanently blocked\n- **TRAINER WISDOM**: Ash knows visible trainers may be unreachable due to specific approach requirements\n- **CORNER PHYSICS**: Ash understands Pokemon world has complex collision - corners often have multiple invisible barriers\n- **MENU AWARENESS**: Ash always checks for hidden menu states when movement fails\n- **DIRECTION DIVERSITY**: Ash never repeats same failed direction more than twice\n- **EXPLORATION PRIORITY**: Ash knows it's better to explore working paths than force blocked ones\n\nCRITICAL: Maximum 1-2 Game Boy Advance buttons per emergency turn. Ash's recovery needs simple, decisive movements.\n\nAsh's Ultimate Philosophy: \"I never give up! No matter how tough it gets, there's always a way forward!\"\n\nUse pokemon_controller with Ash's pokemon-aware emergency recovery Game Boy Advance sequence.\n"
@@ -621,22 +615,25 @@ visual_context_analyzer_gemini:
     Return JSON only with core fields + whatever scene-specific fields are relevant:
 
     **For Battle Scenes:**
-    {{
+    ```json
+    {
       "scene_type": "battle",
-      "our_pokemon": {{"name": "PIKACHU", "hp": "22/35", "level": 12}},
-      "enemy_pokemon": {{"name": "RATTATA", "level": 8}},
+      "our_pokemon": {"name": "PIKACHU", "hp": "22/35", "level": 12},
+      "enemy_pokemon": {"name": "RATTATA", "level": 8},
       "battle_phase": "main_menu",
       "cursor_on": "FIGHT",
       "valid_buttons": [
-        {{"key": "A", "action": "select_fight", "result": "open_move_menu"}},
-        {{"key": "→", "action": "cursor_right", "result": "select_bag"}}
+        {"key": "A", "action": "select_fight", "result": "open_move_menu"},
+        {"key": "→", "action": "cursor_right", "result": "select_bag"}
       ],
       "recommended_template": "battle_analysis",
       "confidence": "high"
-    }}
+    }
+    ```
 
     **For Pokemon Center Scenes:**
-    {{
+    ```json
+    {
       "scene_type": "pokemon_center",
       "building_type": "pokemon_center",
       "location": "pewter_city",
@@ -644,13 +641,14 @@ visual_context_analyzer_gemini:
       "services_available": ["healing", "pc_access"],
       "healing_progress": "need_to_approach|at_counter|in_dialogue|healing_complete",
       "valid_buttons": [
-        {{"key": "↑", "action": "approach_nurse", "result": "move_to_healing_counter"}},
-        {{"key": "A", "action": "interact", "result": "start_healing_dialogue"}},
-        {{"key": "↓", "action": "exit_building", "result": "return_to_town"}}
+        {"key": "↑", "action": "approach_nurse", "result": "move_to_healing_counter"},
+        {"key": "A", "action": "interact", "result": "start_healing_dialogue"},
+        {"key": "↓", "action": "exit_building", "result": "return_to_town"}
       ],
       "recommended_template": "pokemon_center_navigation",
       "confidence": "high"
-    }}
+    }
+    ```
 
     **CRITICAL: Always choose exactly one template from the predefined list. No complex logic needed.**
   variables: []

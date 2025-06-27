@@ -84,7 +84,7 @@
 - **"buy items and heal"** → `services_interaction`
 
 ### **Emergency Detection**
-- Stuck pattern detection → `ai_emergency_recovery_with_escalation`
+- Stuck pattern detection → `ai_emergency_recovery`
 - Low HP detection → `pokemon_center_navigation` (high priority)
 - Context-based emergency overrides
 
@@ -103,13 +103,13 @@
 5. **Shopping goals**: "buy pokeballs at the mart" → `services_interaction`
 6. **Quest goals**: "talk to professor oak about pokedex" → `narrative_interaction`
 7. **Exploration goals**: "explore viridian forest" → `exploration_strategy`
-8. **Emergency goals**: "get unstuck from this area" → `ai_emergency_recovery_with_escalation`
+8. **Emergency goals**: "get unstuck from this area" → `ai_emergency_recovery`
 9. **Sequential goals**: "heal pokemon then challenge gym" → `pokemon_center_navigation`
 10. **Navigation goals**: "navigate to next area" → `ai_navigation_with_memory_control`
 11. **Visual compatibility**: Healing goal with exploration visual → `pokemon_center_navigation`
 
 ### **Advanced Priority Resolution** ✅
-- **Emergency override**: "explore cave but getting stuck" → `ai_emergency_recovery_with_escalation`
+- **Emergency override**: "explore cave but getting stuck" → `ai_emergency_recovery`
 - **Dialogue priority**: "talk to npc while exploring" → `narrative_interaction`
 - **Sequential parsing**: "heal pokemon and fight gym leader" → `pokemon_center_navigation`
 

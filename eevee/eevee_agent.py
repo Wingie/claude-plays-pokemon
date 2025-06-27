@@ -405,72 +405,21 @@ class EeveeAgent:
                 print(f"️ ASCII overlay creation failed: {e}")
             ascii_overlay = "ASCII overlay not available"
 
-        overworld_prompt = f"""# Pokemon Overworld Navigation Expert
-
-You are analyzing a Pokemon overworld screenshot with an ASCII grid overlay to help with navigation.
-
-**ASCII GRID OVERLAY (8x8 map of current screen):**
-```
-{ascii_overlay}
-```
-
-**GRID LEGEND:**
-- P = Player position (where you are now)
-- . = Grass/walkable area 
-- - = Path/road (walkable)
-- T = Tree (BLOCKED - cannot walk through)
-- B = Building (BLOCKED)
-- # = Wall (BLOCKED)
-- ~ = Water (BLOCKED)
-
-**NAVIGATION TASK:**
-Based on the ASCII grid above, determine the safest movement direction to avoid obstacles.
-
-**RESPONSE FORMAT:**
-```json
-{{
-    "is_overworld": true/false,
-    "player_position": "center/top/bottom/left/right",
-    "ascii_analysis": "Brief description of what you see in the grid",
-    "blocked_directions": ["up", "down", "left", "right"],
-    "clear_directions": ["up", "down", "left", "right"],
-    "recommended_movement": "up/down/left/right",
-    "obstacle_warning": "What specific obstacles to avoid",
-    "navigation_notes": "Smart movement advice based on the grid"
-}}
-```
-
-**CRITICAL:** Look at the ASCII grid to see where trees (T) and obstacles are positioned relative to the player (P). Recommend movement towards open areas (.) or paths (-), NOT towards trees (T) or walls (#).
-
-Analyze the grid and provide safe navigation guidance."""
-
+        # REMOVED: ASCII Grid Analysis System
+        # This was conflicting with coordinate overlay system
+        # Now using direct coordinate-based navigation instead
+        
         try:
-            # Use Gemini API for overworld detection
-            result = self._call_gemini_api(
-                prompt=overworld_prompt,
-                image_data=image_data,
-                use_tools=False,
-                max_tokens=500
-            )
-            
-            if result.get("error"):
-                return {"error": result["error"], "is_overworld": False}
-            
-            # Try to parse JSON response
-            text_response = result.get("text", "")
-            
-            # Extract JSON from response
-            json_match = re.search(r'```json\s*(\{.*?\})\s*```', text_response, re.DOTALL)
-            if json_match:
-                try:
-                    overworld_data = json.loads(json_match.group(1))
-                    overworld_data["raw_analysis"] = text_response
-                    return overworld_data
-                except json.JSONDecodeError:
-                    pass
-            
-            # Fallback: Parse key information from text
-            return self._parse_overworld_text_response(text_response)
+            # Return basic overworld detection without ASCII analysis
+            return {
+                "is_overworld": True,
+                "player_position": "center", 
+                "blocked_directions": [],
+                "clear_directions": ["up", "down", "left", "right"],
+                "recommended_movement": "up",  # Default
+                "obstacle_warning": "",
+                "navigation_notes": "Using coordinate-based navigation"
+            }
             
         except Exception as e:
             if self.verbose:
@@ -1791,78 +1740,16 @@ Keep it concise but informative."""
         }
         
         try:
-            # Use Gemini API to detect specific landmarks
-            landmark_prompt = """# Pokemon Visual Landmark Detection Expert
-
-Analyze this Pokemon screenshot to identify key landmarks and game state.
-
-**LANDMARK DETECTION TASKS:**
-1. **Pokemon Center** - Look for red roof buildings, "POKEMON CENTER" signs, or distinctive healing building architecture
-2. **Viridian Forest** - Look for dense forest areas, tree patterns, or "VIRIDIAN FOREST" text
-3. **Route Signs** - Look for numbered route signs (Route 1, Route 2, etc.)
-4. **Town Entrances** - Look for building clusters, town name signs
-5. **Battle Screens** - Look for Pokemon battle interface, HP bars, move selections
-6. **Menu Screens** - Look for game menus, item lists, Pokemon party screens
-
-**GAME STATE DETECTION:**
-- **Overworld**: Walking around the game world, seeing grass/trees/buildings
-- **Battle**: Pokemon battle in progress with HP bars and moves
-- **Menu**: Game menus, inventory, Pokemon status screens
-- **Indoor**: Inside buildings like Pokemon Centers
-
-**RESPONSE FORMAT:**
-```json
-{
-    "detected_landmarks": ["pokemon_center", "route_sign", "viridian_forest"],
-    "game_state": "overworld/battle/menu/indoor",
-    "confidence": 0.8,
-    "landmark_details": {
-        "pokemon_center": "Red roof building visible in upper area",
-        "route_sign": "Route 1 sign visible on right side"
-    },
-    "navigation_advice": "Brief guidance based on landmarks detected"
-}
-```
-
-Focus on identifying specific, actionable landmarks that can help with navigation."""
-
-            # Call Gemini API for landmark detection
-            result = self._call_gemini_api(
-                prompt=landmark_prompt,
-                image_data=screenshot_data,
-                use_tools=False,
-                max_tokens=400
-            )
+            # REMOVED: Pokemon Visual Landmark Detection Expert
+            # This was causing conflicts with coordinate overlay system
+            # Now using direct coordinate-based analysis instead
             
-            if result.get("error"):
-                landmarks["error"] = result["error"]
-                return landmarks
-            
-            # Parse landmark response
-            text_response = result.get("text", "")
-            
-            # Try to extract JSON response
-            json_match = re.search(r'```json\s*(\{.*?\})\s*```', text_response, re.DOTALL)
-            if json_match:
-                try:
-                    landmark_data = json.loads(json_match.group(1))
-                    landmarks["detected"] = landmark_data.get("detected_landmarks", [])
-                    landmarks["confidence_score"] = landmark_data.get("confidence", 0.5)
-                    landmarks["landmark_details"] = landmark_data.get("landmark_details", {})
-                    landmarks["navigation_advice"] = landmark_data.get("navigation_advice", "")
-                    
-                    # Set game state flags
-                    game_state = landmark_data.get("game_state", "unknown")
-                    landmarks["likely_overworld"] = game_state == "overworld"
-                    landmarks["likely_battle"] = game_state == "battle"
-                    landmarks["likely_menu"] = game_state == "menu"
-                    
-                except json.JSONDecodeError:
-                    # Fallback to text parsing
-                    landmarks = self._parse_landmark_text(text_response)
-            else:
-                # Fallback to text parsing
-                landmarks = self._parse_landmark_text(text_response)
+            landmarks["detected_landmarks"] = []
+            landmarks["game_state"] = "overworld"  # Default assumption
+            landmarks["confidence"] = 0.5
+            landmarks["likely_overworld"] = True
+            landmarks["likely_battle"] = False
+            landmarks["likely_menu"] = False
             
             return landmarks
             
@@ -2247,4 +2134,89 @@ Focus on identifying specific, actionable landmarks that can help with navigatio
                 
         except Exception as e:
             print(f" Neo4j connection test error: {e}")
+            return False
+    
+    def navigate_to_coordinates(self, target_x: int, target_y: int) -> bool:
+        """
+        Navigate to specific coordinates using pathfinding tools
+        
+        Args:
+            target_x: Target X coordinate
+            target_y: Target Y coordinate
+            
+        Returns:
+            True if navigation successful, False otherwise
+        """
+        try:
+            from ai_pathfinding_tools import AIPathfindingTools
+            
+            pathfinding_tools = AIPathfindingTools()
+            
+            if not pathfinding_tools.available:
+                if self.verbose:
+                    print(f"⚠️ Pathfinding tools not available")
+                return False
+            
+            # Get current position from RAM if available
+            current_coords = {"map_id": 0, "x": 0, "y": 0}  # Default fallback
+            
+            # Extract real coordinates from RAM data
+            try:
+                from analyse_skyemu_ram import analyze_skyemu_ram_state
+                ram_data = analyze_skyemu_ram_state()
+                if ram_data and ram_data.get("location"):
+                    location = ram_data["location"]
+                    if isinstance(location, dict):
+                        current_coords = {
+                            "map_id": location.get("map_id", 0),
+                            "x": location.get("x", 0), 
+                            "y": location.get("y", 0)
+                        }
+            except Exception as e:
+                if self.verbose:
+                    print(f"⚠️ Could not get current coordinates from RAM: {e}")
+            
+            if self.verbose:
+                print(f"🧭 Pathfinding from {current_coords} to ({target_x}, {target_y})")
+            
+            # Use pathfinding tools to generate route
+            pathfinding_result = pathfinding_tools.pathfind_to_coordinate(
+                current_coords=current_coords,
+                target_x=target_x,
+                target_y=target_y,
+                reason="AI_strategic_navigation"
+            )
+            
+            if not pathfinding_result.get("success", False):
+                if self.verbose:
+                    print(f"❌ Pathfinding failed: {pathfinding_result.get('error', 'Unknown error')}")
+                return False
+            
+            # Execute the button sequence from pathfinding
+            button_sequence = pathfinding_result.get("button_sequence", [])
+            if not button_sequence:
+                if self.verbose:
+                    print("⚠️ No button sequence generated by pathfinding")
+                return False
+            
+            if self.verbose:
+                print(f"🎮 Executing pathfinding sequence: {button_sequence}")
+            
+            # Execute each button in the sequence
+            for button in button_sequence:
+                if button in ['up', 'down', 'left', 'right', 'a', 'b', 'start', 'select']:
+                    self.controller.press_button(button)
+                    time.sleep(0.3)  # Small delay between buttons
+                else:
+                    if self.verbose:
+                        print(f"⚠️ Invalid button in sequence: {button}")
+            
+            if self.verbose:
+                print(f"✅ Pathfinding navigation completed")
+            
+            return True
+            
+        except Exception as e:
+            if self.verbose:
+                print(f"❌ Pathfinding navigation error: {e}")
             return False

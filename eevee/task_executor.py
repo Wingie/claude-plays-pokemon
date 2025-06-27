@@ -631,22 +631,38 @@ class TaskExecutor:
             return step_result
     
     def _execute_analysis_step(self, step: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a screen analysis step"""
-        # Capture current screen
+        """Execute a coordinate-aware screen analysis step"""
+        # Capture current screen with coordinate overlay
         context = self.agent._capture_current_context()
         
-        # Get analysis prompt based on step requirements
-        analysis_prompt = self._build_step_analysis_prompt(step, context)
-        
         try:
-            # Use centralized LLM API for screen analysis
+            # Use coordinate-aware prompt from prompt manager
+            from prompt_manager import PromptManager
+            
+            prompt_manager = PromptManager()
+            
+            # Build variables for exploration_strategy template
+            template_vars = {
+                "task": step.get("description", "analyze current area"),
+                "recent_actions": "[]",  # TODO: Pass real recent actions
+                "visual_analysis_json": "{}",  # Empty JSON as fallback
+                "current_goal_name": "analyze current area",
+                "current_map_id": 0,  # Will use fallback - main flow gets real data
+                "current_x": 0,       # Will use fallback - main flow gets real data
+                "current_y": 0        # Will use fallback - main flow gets real data
+            }
+            
+            # Get coordinate-aware prompt
+            strategic_prompt = prompt_manager.get_prompt("exploration_strategy", template_vars)
+            
+            # Use centralized LLM API for strategic analysis
             from llm_api import call_llm
             
             llm_response = call_llm(
-                prompt=analysis_prompt,
+                prompt=strategic_prompt,
                 image_data=context["screenshot_data"],
                 max_tokens=800,
-                model=self.agent.current_model if hasattr(self.agent, 'current_model') else None
+                model="mistral-large-latest"  # Use strategic model
             )
             
             if llm_response.error:
@@ -658,13 +674,13 @@ class TaskExecutor:
                 "status": StepStatus.COMPLETED.value,
                 "analysis": analysis,
                 "screenshot_path": context["screenshot_path"],
-                "actions_taken": ["screen_analysis"]
+                "actions_taken": ["coordinate_aware_analysis"]
             }
             
         except Exception as e:
             return {
                 "status": StepStatus.FAILED.value,
-                "error": f"Analysis failed: {str(e)}"
+                "error": f"Coordinate analysis failed: {str(e)}"
             }
     
     def _execute_navigation_step(self, step: Dict[str, Any]) -> Dict[str, Any]:
@@ -779,43 +795,63 @@ Respond with either "CONDITION_MET" or "CONDITION_NOT_MET" followed by a brief e
             }
     
     def _execute_analysis_and_action_step(self, step: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a combined analysis and action step"""
-        # This is the most complex step type that combines analysis with action
+        """Execute simplified screenshot->strategy->action flow"""
+        # SIMPLIFIED FLOW: Screenshot -> Strategy -> Action
         context = self.agent._capture_current_context()
         
-        # Build comprehensive prompt for analysis and action
-        action_prompt = self._build_action_prompt(step, context)
-        
         try:
-            # Use centralized LLM API for analysis and action
+            # Use coordinate-aware exploration_strategy prompt directly
+            from prompt_manager import PromptManager
+            
+            prompt_manager = PromptManager()
+            
+            # Build variables for exploration_strategy template
+            current_goal = "explore"
+            if hasattr(self, 'goal_hierarchy') and self.goal_hierarchy:
+                current_goal = self.goal_hierarchy.get_current_goal().name
+            
+            template_vars = {
+                "task": step.get("description", current_goal),
+                "recent_actions": "[]",
+                "visual_analysis_json": "{}",
+                "current_goal_name": current_goal,
+                "current_map_id": 0,  # Will use fallback - main flow gets real data
+                "current_x": 0,       # Will use fallback - main flow gets real data  
+                "current_y": 0        # Will use fallback - main flow gets real data
+            }
+            
+            # Get strategic prompt that outputs JSON with either button_presses or target_coordinates
+            strategic_prompt = prompt_manager.get_prompt("exploration_strategy", template_vars)
+            
+            # Use strategic model (Mistral) for decision making
             from llm_api import call_llm
             
             llm_response = call_llm(
-                prompt=action_prompt,
+                prompt=strategic_prompt,
                 image_data=context["screenshot_data"],
-                max_tokens=1000,
-                model=self.agent.current_model if hasattr(self.agent, 'current_model') else None
+                max_tokens=800,
+                model="mistral-large-latest"
             )
             
             if llm_response.error:
-                raise Exception(f"LLM API error: {llm_response.error}")
+                raise Exception(f"Strategic LLM API error: {llm_response.error}")
             
-            analysis = llm_response.text or ""
-            
-            # Parse any action recommendations from the analysis
-            actions_taken = self._parse_and_execute_actions(analysis)
+            # Parse JSON response and execute actions
+            response_text = llm_response.text or ""
+            actions_taken = self._parse_and_execute_strategic_response(response_text)
             
             return {
                 "status": StepStatus.COMPLETED.value,
-                "analysis": analysis,
+                "analysis": response_text,
                 "actions_taken": actions_taken,
-                "screenshot_path": context["screenshot_path"]
+                "screenshot_path": context["screenshot_path"],
+                "execution_method": "simplified_strategic_flow"
             }
             
         except Exception as e:
             return {
                 "status": StepStatus.FAILED.value,
-                "error": f"Analysis and action step failed: {str(e)}"
+                "error": f"Strategic flow failed: {str(e)}"
             }
     
     def _build_step_analysis_prompt(self, step: Dict[str, Any], context: Dict) -> str:
@@ -881,6 +917,56 @@ Be specific and actionable in your recommendations."""
                 self.agent.controller.press_button(direction)
                 actions_taken.append(f"pressed_{direction}")
                 time.sleep(0.3)
+        
+        return actions_taken
+    
+    def _parse_and_execute_strategic_response(self, response_text: str) -> List[str]:
+        """Parse strategic JSON response and execute actions"""
+        actions_taken = []
+        
+        try:
+            # Try to parse JSON response
+            import json
+            import re
+            
+            # Extract JSON from response text
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if not json_match:
+                raise ValueError("No JSON found in response")
+            
+            json_str = json_match.group(0)
+            response_data = json.loads(json_str)
+            
+            # Handle button_presses (manual movement)
+            if "button_presses" in response_data:
+                buttons = response_data["button_presses"]
+                if isinstance(buttons, list):
+                    for button in buttons:
+                        if button in ['up', 'down', 'left', 'right', 'a', 'b', 'start', 'select']:
+                            self.agent.controller.press_button(button)
+                            actions_taken.append(f"pressed_{button}")
+                            time.sleep(0.3)
+            
+            # Handle target_coordinates (coordinate navigation)
+            elif "target_coordinates" in response_data:
+                coords = response_data["target_coordinates"]
+                print("** RECEIVED REQUEST TO PATHFIND! ***",coords)
+                if isinstance(coords, dict) and "x" in coords and "y" in coords:
+                    # Execute coordinate navigation
+                    success = self.agent.navigate_to_coordinates(coords["x"], coords["y"])
+                    if success:
+                        actions_taken.append(f"navigated_to_{coords['x']}_{coords['y']}")
+                    else:
+                        actions_taken.append("navigation_failed")
+                        print("#### pathfinder script fails but triggered to {coords} #####")
+            
+            else:
+                # No valid action found, fallback to text parsing
+                actions_taken = self._parse_and_execute_actions(response_text)
+            
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            # Fallback to text-based action parsing
+            actions_taken = self._parse_and_execute_actions(response_text)
         
         return actions_taken
     

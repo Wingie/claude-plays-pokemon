@@ -178,9 +178,100 @@
 - **Soft Locks**: Save frequently
 - **Camera Issues**: Reset view if possible
 
+## 🎯 **PATHFINDING TOOLS & COORDINATE NAVIGATION**
+
+### **Coordinate-Based Navigation (PRIMARY METHOD)**
+- **Visual Overlay**: Every screenshot shows X,Y coordinates on all tiles
+- **Current Position**: Always visible at screen center with player sprite
+- **Target Reading**: Look for destination coordinates on screen overlay
+- **Action Format**: Use `target_coordinates` instead of manual button presses
+
+### **Coordinate Navigation Examples**
+
+#### Example 1: Pokemon Center Navigation
+```json
+{
+  "target_coordinates": {"x": 15, "y": 8},
+  "reasoning": "Pokemon Center visible at coordinates 15,8 on visual overlay",
+  "coordinate_source": "visual_overlay"
+}
+```
+
+#### Example 2: Trainer Approach
+```json
+{
+  "target_coordinates": {"x": 22, "y": 12},
+  "reasoning": "Trainer visible at 22,12, navigating for efficient approach",
+  "coordinate_source": "visual_overlay"
+}
+```
+
+#### Example 3: Exit Navigation
+```json
+{
+  "target_coordinates": {"x": 18, "y": 5},
+  "reasoning": "Route exit visible at 18,5, using coordinate navigation",
+  "coordinate_source": "visual_overlay"
+}
+```
+
+### **When to Use Manual vs Coordinate Navigation**
+
+#### ✅ **Use Coordinate Navigation When**:
+- Target coordinates are visible on screenshot overlay
+- Destination is more than 2-3 tiles away
+- Need to navigate around obstacles efficiently
+- Moving to specific locations (Pokemon Centers, exits, trainers)
+- Goal-directed navigation
+
+#### ❌ **Use Manual Movement When**:
+- Coordinate overlay not visible on screenshot
+- Target is adjacent (1 tile away)
+- In tight spaces requiring precise positioning
+- Coordinate navigation system reports failure
+
+### **Coordinate Navigation Best Practices**
+
+1. **Always Read Coordinates First**
+   - Scan screenshot for X,Y numbers on tiles
+   - Identify your current position coordinates
+   - Locate target destination coordinates
+
+2. **Validate Coordinate Sources**
+   - Confirm coordinates are from visual overlay
+   - Don't guess or estimate coordinate values
+   - Use exact coordinates seen on screen
+
+3. **Coordinate Navigation Response Requirements**
+   - Include `coordinate_source: "visual_overlay"`
+   - Specify exact target coordinates from screen
+   - Explain why coordinate navigation is chosen over manual movement
+
+4. **Efficiency Benefits**
+   - Replaces 5-10 manual button presses with 1 coordinate navigation action
+   - Eliminates getting stuck on obstacles
+   - Optimal movement paths automatically calculated
+   - Reduces navigation time significantly
+
+### **Navigation Decision Tree**
+
+```
+1. Can you see coordinate overlay on screenshot?
+   └─ YES: Read target coordinates → Use target_coordinates
+   └─ NO: Use manual button presses
+
+2. Is target more than 2 tiles away?
+   └─ YES: Prefer coordinate navigation for efficiency
+   └─ NO: Manual movement acceptable
+
+3. Are you navigating to specific destination?
+   └─ YES: Use coordinate navigation for accuracy
+   └─ NO: Exploration can use manual movement
+```
+
 ## 📊 Performance Metrics
-- Exploration efficiency
-- Trainer encounter rate
-- Item discovery rate
-- Time per area
-- Ash gets better over time as he learns the game's patterns
+- **Coordinate navigation usage rate**: Should be >70% when coordinates visible
+- **Navigation efficiency**: Steps per destination reached
+- **Coordinate accuracy**: Successful navigation vs failed attempts
+- **Exploration coverage**: Areas mapped with coordinate system
+- Ash gets better over time as he learns to prioritize coordinate-based navigation

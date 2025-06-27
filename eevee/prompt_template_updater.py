@@ -364,7 +364,6 @@ class PromptTemplateUpdater:
             f.write(f"{'='*60}\n")
             f.write(self._create_diff(change.old_content, change.new_content))
         
-        print(f"📝 Change logged: {change_file}")
     
     def _create_diff(self, old_content: str, new_content: str) -> str:
         """Create a unified diff between old and new content"""

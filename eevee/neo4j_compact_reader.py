@@ -295,7 +295,7 @@ class Neo4jCompactReader:
                 result = session.run("MATCH (t:Turn) RETURN count(t) as turn_count").single()
                 turn_count = result["turn_count"] if result else 0
                 
-                print(f"✅ Neo4j connection OK, {turn_count} turns available")
+                # print(f"✅ Neo4j connection OK, {turn_count} turns available")
                 return True
                 
         except Exception as e:

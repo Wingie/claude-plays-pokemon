@@ -448,7 +448,6 @@ class PokemonFireRedReader(PokemonGameReader):
             if 0 <= decrypted_money <= 999999:
                 return decrypted_money
             else:
-                print(f"Warning: Decrypted money value {decrypted_money} seems invalid. Using 0.", file=sys.stderr)
                 return 0 # Or maybe return None? Let's return 0 for display.
 
         except Exception as e:

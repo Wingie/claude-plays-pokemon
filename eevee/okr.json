@@ -1,16 +1,16 @@
 {
   "meta": {
-    "updated_at": "2025-06-26T21:53:22.865157",
-    "session_id": "20250626_215130",
+    "updated_at": "2025-06-27T10:11:40.503335",
+    "session_id": "20250627_095949",
     "source": "goal_oriented_planning_system"
   },
-  "session_goal": "determine_current_location",
+  "session_goal": "heal_pokemon",
   "current_goal": {
     "id": "general_task",
-    "name": "determine_current_location",
-    "description": "Complete general task: determine_current_location",
+    "name": "heal_pokemon",
+    "description": "Complete general task: heal_pokemon",
     "priority": 8,
-    "progress_percentage": 40,
+    "progress_percentage": 30,
     "estimated_turns": 20,
     "attempts": 0,
     "turns_spent": 0
@@ -18,8 +18,8 @@
   "goal_hierarchy": {
     "root_goal": {
       "id": "general_task",
-      "name": "determine_current_location",
-      "description": "Complete general task: determine_current_location",
+      "name": "heal_pokemon",
+      "description": "Complete general task: heal_pokemon",
       "children": []
     },
     "total_goals": 1,
@@ -27,15 +27,14 @@
     "failed_goals": 0
   },
   "progress_analysis": {
-    "progress_score": 4,
-    "progress_description": "AI has been inside the Pokemon Center but the last action indicates an unknown environment, suggesting the need to re-evaluate the current location and situation.",
+    "progress_score": 3,
+    "progress_description": "AI is currently engaged in a battle and Pidgey's HP is critically low, necessitating a shift in focus to healing",
     "issues_detected": [
-      "unknown_observation",
-      "possible_context_change"
+      "immediate_healing_required"
     ],
     "next_recommended_actions": [
-      "identify_current_location",
-      "observe_surroundings"
+      "navigate_to_bag",
+      "use_healing_item"
     ],
     "estimated_turns_to_completion": 3
   }
