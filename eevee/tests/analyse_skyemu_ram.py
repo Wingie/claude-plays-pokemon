@@ -238,21 +238,29 @@ class PokemonGameReader:
 class PokemonFireRedReader(PokemonGameReader):
     """Reader for Pokémon FireRed/LeafGreen"""
 
-    # Updated addresses based on DataCrystal wiki and verified sources
+    # Updated addresses based on Data Crystal official documentation
     ADDRESSES = {
         'party_count': 0x02024029,     # Number of Pokémon in party (part of PlayerData struct)
         'party_data': 0x02024284,      # Start of party Pokémon data array (6 * 100 bytes)
-        'player_name': 0x0202402C,     # Player's name (in PlayerData struct, 7 bytes + terminator)
         
-        # Corrected coordinates based on SaveBlock8 structure
-        'save_block_8_ptr': 0x03005008,  # Pointer to SaveBlock8
-        'player_coords_offset': 0x0000,   # X,Y coordinates (2 bytes each) from SaveBlock8
-        'map_bank_offset': 0x0004,        # Current Map Bank offset from SaveBlock8
-        'map_id_offset': 0x0005,          # Current Map Number offset from SaveBlock8
+        # DMA-protected save blocks (from Data Crystal)
+        'save_block_8_ptr': 0x03005008,  # Pointer to SaveBlock (map data)
+        'save_block_1_ptr': 0x0300500C,  # Pointer to SaveBlock (personal data)
+        'save_block_2_ptr': 0x03005010,  # Pointer to SaveBlock (box data)
         
-        # Money addresses - need both value and key
-        'save_block_1_ptr': 0x0300500C,   # Pointer to SaveBlock1
-        'money_offset': 0x0290,           # Money offset from SaveBlock1
+        # Player coordinates (from SaveBlock map data)
+        'player_coords_x_offset': 0x0000,   # X coordinate offset from SaveBlock8
+        'player_coords_y_offset': 0x0002,   # Y coordinate offset from SaveBlock8
+        
+        # Map data (from SaveBlock map data)
+        'map_id_offset': 0x0004,          # Current Map offset from SaveBlock8
+        'map_bank_offset': 0x0005,        # Current Map Bank offset from SaveBlock8
+        
+        # Player data (from SaveBlock personal data)
+        'player_name_offset': 0x0000,     # Player name offset from SaveBlock1 (8 bytes)
+        
+        # Money addresses (from SaveBlock map data, Data Crystal confirmed)
+        'money_hidden_offset': 0x0218,    # Money_Hidden offset from SaveBlock8
         'money_key_offset': 0x0F20,       # Money encryption key offset from SaveBlock1
 
         # Item Pockets (Addresses relative to start of Save Block 1 at 0x02025840)
@@ -349,6 +357,30 @@ class PokemonFireRedReader(PokemonGameReader):
         145: "Zapdos", 146: "Moltres", 147: "Dratini", 148: "Dragonair", 149: "Dragonite", 150: "Mewtwo",
         151: "Mew"
     }
+
+    # Pokemon experience growth rate tables (Gen 3)
+    # Each entry represents experience needed to reach that level
+    EXPERIENCE_TABLES = {
+        'fast': [0, 6, 21, 51, 100, 172, 274, 409, 583, 800, 1064, 1382, 1757, 2195, 2700, 3276, 3930, 4665, 5487, 6400, 7408, 8518, 9733, 11059, 12500, 14060, 15746, 17561, 19511, 21600, 23832, 26214, 28749, 31443, 34300, 37324, 40522, 43897, 47455, 51200, 55136, 59270, 63605, 68147, 72900, 77868, 83058, 88473, 94119, 100000, 106120, 112486, 119101, 125971, 133100, 140492, 148154, 156089, 164303, 172800, 181584, 190662, 200037, 209715, 219700, 229996, 240610, 251545, 262807, 274400, 286328, 298598, 311213, 324179, 337500, 351180, 365226, 379641, 394431, 409600, 425152, 441094, 457429, 474163, 491300, 508844, 526802, 545177, 563975, 583200, 602856, 622950, 643485, 664467, 685900, 707788, 730138, 752953, 776239, 800000],
+        'medium_fast': [0, 8, 27, 64, 125, 216, 343, 512, 729, 1000, 1331, 1728, 2197, 2744, 3375, 4096, 4913, 5832, 6859, 8000, 9261, 10648, 12167, 13824, 15625, 17576, 19683, 21952, 24389, 27000, 29791, 32768, 35937, 39304, 42875, 46656, 50653, 54872, 59319, 64000, 68921, 74088, 79507, 85184, 91125, 97336, 103823, 110592, 117649, 125000, 132651, 140608, 148877, 157464, 166375, 175616, 185193, 195112, 205379, 216000, 226981, 238328, 250047, 262144, 274625, 287496, 300763, 314432, 328509, 343000, 357911, 373248, 389017, 405224, 421875, 438976, 456533, 474552, 493039, 512000, 531441, 551368, 571787, 592704, 614125, 636056, 658503, 681472, 704969, 729000, 753571, 778688, 804357, 830584, 857375, 884736, 912673, 941192, 970299, 1000000],
+        'medium_slow': [0, 9, 57, 96, 135, 179, 236, 314, 419, 560, 742, 973, 1261, 1612, 2035, 2535, 3120, 3798, 4575, 5460, 6458, 7577, 8825, 10208, 11735, 13411, 15244, 17242, 19411, 21760, 24294, 27021, 29949, 33084, 36435, 40007, 43808, 47846, 52127, 56660, 61450, 66505, 71833, 77440, 83335, 89523, 96012, 102810, 109923, 117360, 125126, 133229, 141677, 150476, 159635, 169159, 179056, 189334, 199999, 211060, 222522, 234393, 246681, 259392, 272535, 286115, 300140, 314618, 329555, 344960, 360838, 377197, 394043, 411384, 429235, 447591, 466464, 485862, 505791, 526260, 547274, 568841, 590969, 613664, 636935, 660787, 685228, 710266, 735907, 762160, 789030, 816525, 844653, 873420, 902835, 932903, 963632, 995030, 1027103, 1059860],
+        'slow': [0, 10, 33, 80, 156, 270, 428, 640, 911, 1250, 1663, 2160, 2746, 3430, 4218, 5120, 6141, 7290, 8573, 10000, 11576, 13310, 15208, 17280, 19531, 21970, 24603, 27440, 30486, 33750, 37238, 40960, 44921, 49130, 53593, 58320, 63316, 68590, 74148, 80000, 86151, 92610, 99383, 106480, 113906, 121670, 129778, 138240, 147061, 156250, 165813, 175760, 186096, 196830, 207968, 219520, 231491, 243890, 256723, 270000, 283726, 297910, 312558, 327680, 343281, 359370, 375953, 393040, 410636, 428750, 447388, 466560, 486271, 506530, 527343, 548720, 570666, 593190, 616298, 640000, 664301, 689210, 714733, 740880, 767656, 795070, 823128, 851840, 881211, 911250, 941963, 973360, 1005446, 1038230, 1071718, 1105920, 1140841, 1176490, 1212873, 1250000],
+        'erratic': [0, 15, 52, 122, 237, 406, 637, 942, 1326, 1800, 2369, 3041, 3822, 4719, 5737, 6881, 8155, 9564, 11111, 12800, 14632, 16610, 18737, 21012, 23437, 26012, 28737, 31610, 34632, 37800, 41111, 44564, 48155, 51881, 55737, 59719, 63822, 68041, 72369, 76800, 81326, 85942, 90637, 95406, 100237, 105122, 110052, 115015, 120001, 125000, 131324, 137795, 144410, 151165, 158056, 165079, 172229, 179503, 186894, 194400, 202013, 209728, 217540, 225443, 233431, 241496, 249633, 257834, 267406, 276458, 286328, 296358, 305767, 316074, 326531, 336255, 346965, 357812, 367807, 378880, 390077, 400293, 411686, 423190, 433572, 445239, 457001, 467489, 479378, 491346, 501878, 513934, 526049, 536557, 548720, 560922, 571333, 583539, 591882, 600000],
+        'fluctuating': [0, 4, 13, 32, 65, 112, 178, 276, 393, 540, 745, 967, 1230, 1591, 1957, 2457, 3046, 3732, 4526, 5440, 6482, 7666, 9003, 10506, 12187, 14060, 16140, 18439, 20974, 23760, 26811, 30146, 33780, 37731, 42017, 46656, 50653, 55969, 60505, 66560, 71677, 78533, 84277, 91998, 98415, 107069, 114205, 123863, 131766, 142500, 151222, 163105, 172697, 185807, 196322, 210739, 222231, 238036, 250562, 267840, 281456, 300293, 315059, 335544, 351520, 373744, 390991, 415050, 433631, 459620, 479600, 507617, 529063, 559209, 582187, 614566, 639146, 673863, 700115, 737280, 765275, 804997, 834809, 877201, 908905, 954084, 987754, 1035837, 1071552, 1122660, 1160499, 1214753, 1254796, 1312322, 1354652, 1415577, 1460276, 1524731, 1571884, 1640000]
+    }
+    
+    # Pokemon species to growth rate mapping (Gen 1-3 Pokemon)
+    # Most Pokemon use medium_fast growth, so we'll define exceptions
+    SPECIES_GROWTH_RATES = {}
+    
+    # Initialize with medium_fast as default for all known Pokemon (1-386)
+    for i in range(1, 387):
+        SPECIES_GROWTH_RATES[i] = 'medium_fast'
+    
+    # Fast growth Pokemon (mainly Bug types and some Normal types)
+    fast_growth_pokemon = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
+    for pokemon_id in fast_growth_pokemon:
+        SPECIES_GROWTH_RATES[pokemon_id] = 'fast'
 
     # Common move names (subset)
     MOVE_NAMES = {
@@ -553,19 +585,29 @@ class PokemonFireRedReader(PokemonGameReader):
             }
 
     def _read_player_name(self) -> str:
-        """Read the player's name"""
+        """Read the player's name using Data Crystal documented address"""
         try:
-            name_bytes = self.client.read_bytes(self.ADDRESSES['player_name'], self.PLAYER_NAME_LENGTH + 1) # Read potential terminator
+            # Read SaveBlock1 pointer (personal data) for player name
+            save_block_1_addr = self.client.read_pointer(self.ADDRESSES['save_block_1_ptr'])
+            if save_block_1_addr is None:
+                self.client.log_debug("Failed to read SaveBlock1 pointer for player name")
+                return "Pointer Error"
+            
+            # Read player name from SaveBlock1 + offset (Data Crystal: Name = [0x0300500C] + 0x0000, 8 bytes)
+            name_addr = save_block_1_addr + self.ADDRESSES['player_name_offset']
+            name_bytes = self.client.read_bytes(name_addr, 8)  # 8 bytes as per Data Crystal
             if name_bytes is None:
-                self.client.log_debug("Failed to read player name bytes.")
+                self.client.log_debug(f"Failed to read player name bytes from {name_addr:08X}")
                 return "Read Error"
+            
+            self.client.log_debug(f"Read player name from {name_addr:08X}: {name_bytes.hex()}")
             return self._convert_text(name_bytes)
         except Exception as e:
             print(f"Error processing player name: {e}", file=sys.stderr)
             return "Processing Error"
 
     def _read_coordinates(self) -> Tuple[int, int]:
-        """Read player's current X,Y coordinates via SaveBlock8 pointer"""
+        """Read player's current X,Y coordinates via SaveBlock8 pointer using Data Crystal addresses"""
         try:
             # Read SaveBlock8 pointer first
             save_block_8_addr = self.client.read_pointer(self.ADDRESSES['save_block_8_ptr'])
@@ -575,24 +617,31 @@ class PokemonFireRedReader(PokemonGameReader):
             
             self.client.log_debug(f"SaveBlock8 address: 0x{save_block_8_addr:08X}")
             
-            # Read coordinates from SaveBlock8 + offset
-            coords_addr = save_block_8_addr + self.ADDRESSES['player_coords_offset']
-            coords_bytes = self.client.read_bytes(coords_addr, 4)
-            if coords_bytes is None or len(coords_bytes) < 4:
-                self.client.log_debug(f"Failed to read coordinate bytes at {coords_addr:08X}")
+            # Read X coordinate (Data Crystal: X = [0x03005008] + 0x000)
+            x_addr = save_block_8_addr + self.ADDRESSES['player_coords_x_offset']
+            x_bytes = self.client.read_bytes(x_addr, 2)
+            if x_bytes is None or len(x_bytes) < 2:
+                self.client.log_debug(f"Failed to read X coordinate bytes at {x_addr:08X}")
+                return (0, 0)
+            
+            # Read Y coordinate (Data Crystal: Y = [0x03005008] + 0x002)
+            y_addr = save_block_8_addr + self.ADDRESSES['player_coords_y_offset']
+            y_bytes = self.client.read_bytes(y_addr, 2)
+            if y_bytes is None or len(y_bytes) < 2:
+                self.client.log_debug(f"Failed to read Y coordinate bytes at {y_addr:08X}")
                 return (0, 0)
 
             # Read as unsigned 16-bit integers, little-endian
-            x = int.from_bytes(coords_bytes[0:2], byteorder='little', signed=False)
-            y = int.from_bytes(coords_bytes[2:4], byteorder='little', signed=False)
-            self.client.log_debug(f"Read coordinates: X={x}, Y={y}")
+            x = int.from_bytes(x_bytes, byteorder='little', signed=False)
+            y = int.from_bytes(y_bytes, byteorder='little', signed=False)
+            self.client.log_debug(f"Read coordinates from 0x{x_addr:08X},0x{y_addr:08X}: X={x}, Y={y}")
             return (x, y)
         except Exception as e:
             print(f"Error reading/processing coordinates: {e}", file=sys.stderr)
             return (-1, -1)
 
     def _read_location(self) -> str:
-        """Read current location (Map Bank and Map ID) via SaveBlock8 pointer"""
+        """Read current location (Map Bank and Map ID) via SaveBlock8 pointer using Data Crystal addresses"""
         try:
             # Read SaveBlock8 pointer first
             save_block_8_addr = self.client.read_pointer(self.ADDRESSES['save_block_8_ptr'])
@@ -600,20 +649,20 @@ class PokemonFireRedReader(PokemonGameReader):
                 self.client.log_debug("Failed to read SaveBlock8 pointer for location")
                 return "Unknown Location (Pointer Error)"
             
-            # Read map bank and ID from SaveBlock8
-            bank_addr = save_block_8_addr + self.ADDRESSES['map_bank_offset']
+            # Read map ID and bank from SaveBlock8 (Data Crystal: Map=[0x03005008]+0x0004, Bank=[0x03005008]+0x0005)
             map_id_addr = save_block_8_addr + self.ADDRESSES['map_id_offset']
+            bank_addr = save_block_8_addr + self.ADDRESSES['map_bank_offset']
             
-            bank_byte = self.client.read_byte(bank_addr)
             map_id_byte = self.client.read_byte(map_id_addr)
+            bank_byte = self.client.read_byte(bank_addr)
 
             if bank_byte is None or map_id_byte is None:
                 self.client.log_debug("Failed to read map bank or map ID bytes.")
                 return "Unknown Location (Read Error)"
 
-            bank = bank_byte[0]
             map_id = map_id_byte[0]
-            self.client.log_debug(f"Read location: Bank={bank}, MapID={map_id}")
+            bank = bank_byte[0]
+            self.client.log_debug(f"Read location from 0x{map_id_addr:08X},0x{bank_addr:08X}: Bank={bank}, MapID={map_id}")
 
             # Map name lookup dictionary - CONFIRMED LOCATIONS ONLY
             # Only includes locations we've verified through actual gameplay
@@ -669,26 +718,33 @@ class PokemonFireRedReader(PokemonGameReader):
             return False
 
     def _read_money(self) -> Optional[int]:
-        """Read the player's money, attempting decryption via SaveBlock1 pointer"""
+        """Read the player's money using Data Crystal documented addresses"""
         try:
-            # Read SaveBlock1 pointer first
-            save_block_1_addr = self.client.read_pointer(self.ADDRESSES['save_block_1_ptr'])
-            if save_block_1_addr is None:
-                self.client.log_debug("Failed to read SaveBlock1 pointer for money")
+            # Read SaveBlock8 pointer (map data) for hidden money value
+            save_block_8_addr = self.client.read_pointer(self.ADDRESSES['save_block_8_ptr'])
+            if save_block_8_addr is None:
+                self.client.log_debug("Failed to read SaveBlock8 pointer for money")
                 return None
             
+            # Read SaveBlock1 pointer (personal data) for encryption key
+            save_block_1_addr = self.client.read_pointer(self.ADDRESSES['save_block_1_ptr'])
+            if save_block_1_addr is None:
+                self.client.log_debug("Failed to read SaveBlock1 pointer for money key")
+                return None
+            
+            self.client.log_debug(f"SaveBlock8 address: 0x{save_block_8_addr:08X}")
             self.client.log_debug(f"SaveBlock1 address: 0x{save_block_1_addr:08X}")
             
-            # 1. Read the encrypted money value from SaveBlock1 + offset
-            money_addr = save_block_1_addr + self.ADDRESSES['money_offset']
+            # 1. Read the encrypted money value from SaveBlock8 + offset (Data Crystal: Money_Hidden = [0x03005008] + 0x0218)
+            money_addr = save_block_8_addr + self.ADDRESSES['money_hidden_offset']
             encrypted_money_bytes = self.client.read_bytes(money_addr, 4)
             if encrypted_money_bytes is None or len(encrypted_money_bytes) < 4:
                 self.client.log_debug("Failed to read encrypted money bytes.")
                 return None
             encrypted_money = int.from_bytes(encrypted_money_bytes, byteorder='little')
-            self.client.log_debug(f"Read encrypted money: 0x{encrypted_money:08X}")
+            self.client.log_debug(f"Read encrypted money from 0x{money_addr:08X}: 0x{encrypted_money:08X}")
 
-            # 2. Read the XOR key from SaveBlock1 + key offset
+            # 2. Read the XOR key from SaveBlock1 + key offset (Data Crystal: Key = [0x0300500C] + 0x0F20)
             key_addr = save_block_1_addr + self.ADDRESSES['money_key_offset']
             key_bytes = self.client.read_bytes(key_addr, 4)
             if key_bytes is None or len(key_bytes) < 4:
@@ -696,9 +752,9 @@ class PokemonFireRedReader(PokemonGameReader):
                 return None
             
             key = int.from_bytes(key_bytes, byteorder='little')
-            self.client.log_debug(f"Read money key: 0x{key:08X}")
+            self.client.log_debug(f"Read money key from 0x{key_addr:08X}: 0x{key:08X}")
 
-            # 3. Decrypt
+            # 3. Decrypt using XOR (Data Crystal: Money = Money_Hidden XOR Key)
             decrypted_money = encrypted_money ^ key
             self.client.log_debug(f"Decrypted money: {decrypted_money} (0x{decrypted_money:08X})")
 
@@ -706,7 +762,8 @@ class PokemonFireRedReader(PokemonGameReader):
             if 0 <= decrypted_money <= 999999:
                 return decrypted_money
             else:
-                return 0 # Or maybe return None? Let's return 0 for display.
+                self.client.log_debug(f"Money value {decrypted_money} outside valid range, returning 0")
+                return 0
 
         except Exception as e:
             print(f"Error reading/decrypting money: {e}", file=sys.stderr)
@@ -861,8 +918,8 @@ class PokemonFireRedReader(PokemonGameReader):
                                 else:
                                     move_pp.append(0)
 
-                    # For now, use basic level calculation (would need experience table for accuracy)
-                    level = 1  # Placeholder - proper calculation would need species experience table
+                    # Calculate level from experience using species-specific growth rate
+                    level = self._calculate_level_from_experience(species_id, experience)
                     
                     # HP and status from party stats (bytes 80+ in the 100-byte structure)
                     # Current HP is at offset 86 in the full structure
@@ -975,6 +1032,27 @@ class PokemonFireRedReader(PokemonGameReader):
                  all_items.extend(pocket_items)
 
         return all_items
+
+    def _calculate_level_from_experience(self, species_id: int, experience: int) -> int:
+        """Calculate Pokemon level from experience points using species-specific growth rate"""
+        try:
+            # Get the growth rate for this species (default to medium_fast if unknown)
+            growth_rate = self.SPECIES_GROWTH_RATES.get(species_id, 'medium_fast')
+            exp_table = self.EXPERIENCE_TABLES.get(growth_rate, self.EXPERIENCE_TABLES['medium_fast'])
+            
+            # Find the highest level where the required experience is <= current experience
+            level = 1
+            for i in range(1, min(101, len(exp_table))):  # Pokemon can be level 1-100
+                if experience >= exp_table[i]:
+                    level = i
+                else:
+                    break
+            
+            self.client.log_debug(f"Species {species_id} ({growth_rate} growth): {experience} exp = level {level}")
+            return max(1, min(100, level))  # Ensure level is between 1-100
+        except Exception as e:
+            self.client.log_debug(f"Error calculating level: {e}, defaulting to 1")
+            return 1
 
     def _convert_text(self, bytes_data: bytes) -> str:
         """Convert Pokémon FireRed text bytes to a readable string."""

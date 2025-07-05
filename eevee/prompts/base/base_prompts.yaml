@@ -273,7 +273,10 @@ exploration_strategy:
     RECENT ACTIONS: {recent_actions}
     
     **VISUAL ANALYSIS DATA:**
-    Use the visual analysis JSON to understand the current scene and available actions.
+    {visual_analysis_json}
+    
+    **COORDINATE_TAGS FROM VISUAL ANALYSIS:**
+    The visual analysis above contains coordinate_tags with exact locations of objects.
     Check for dialogue, obstacles, Pokemon Centers, trainers, and coordinate overlays.
     
     **NAVIGATION ANALYSIS INSTRUCTIONS:**
@@ -282,11 +285,11 @@ exploration_strategy:
     If dialogue is visible in the visual analysis, press A to engage/continue dialogue immediately.
     
     **STEP 2 - COORDINATE-BASED PATHFINDING (PRIORITY #1):**
-    **MANDATORY**: Check coordinate_tags from visual analysis FIRST
-    - Visual system provides coordinate_tags with objects and their locations
-    - Look for interesting targets: trainers, pokemon_centers, route_exits, buildings
+    **MANDATORY**: Check coordinate_tags in the VISUAL ANALYSIS DATA section above FIRST
+    - Look in the JSON above for "coordinate_tags" array with object locations
+    - Find interesting targets: trainers, pokemon_centers, route_exits, buildings
     - Your current position ({current_x},{current_y}) from RAM data
-    - Extract target coordinates from coordinate_tags for navigation
+    - Extract target x,y coordinates from coordinate_tags for navigation
     - Use pathfinding_action with target_x, target_y when targets found
     
     **STEP 3 - MANUAL NAVIGATION (only if pathfinding unavailable):**
@@ -322,8 +325,8 @@ exploration_strategy:
     Current Coordinates: Map {current_map_id} at ({current_x},{current_y})
     
     **COORDINATE_TAGS ANALYSIS (MANDATORY FIRST STEP):**
-    - CRITICAL: Visual analysis provides coordinate_tags with object locations and descriptions
-    - You MUST check coordinate_tags for navigation targets before any action
+    - CRITICAL: Check coordinate_tags in the VISUAL ANALYSIS DATA section above
+    - You MUST check coordinate_tags array for navigation targets before any action
     - Your current position ({current_x},{current_y}) from RAM data
     - ALWAYS scan coordinate_tags for interesting destinations (trainers, buildings, exits)
     - coordinate_tags format: {{"x": 31, "y": 17, "object": "trainer", "description": "..."}}
@@ -341,6 +344,20 @@ exploration_strategy:
     - MUST extract target coordinates from coordinate_tags before movement decisions  
     - MUST explain why pathfinding cannot be used if choosing manual movement
     
+    **EXAMPLE COORDINATE_TAGS USAGE:**
+    If VISUAL ANALYSIS DATA shows: "coordinate_tags": [{{"x": 15, "y": 10, "object": "pokemon_center"}}]
+    Then use: {{"pathfinding_action": "move_to_coordinate", "target_x": 15, "target_y": 10}}
+    
+    **COORDINATE EXTRACTION STEPS:**
+    Step 1: Look for "coordinate_tags" array in VISUAL ANALYSIS DATA section above
+    Step 2: Find objects matching your goal (pokemon_center for healing, trainer for battles)
+    Step 3: Extract exact "x" and "y" values from that object  
+    Step 4: Use those EXACT numbers as target_x and target_y
+    
+    **EXAMPLE EXTRACTION:**
+    VISUAL ANALYSIS DATA shows: "coordinate_tags": [{{"x": 13, "y": 23, "object": "pokemon_center"}}]
+    → Extract: target_x = 13, target_y = 23 (use exact numbers from JSON)
+    
     **VALID BUTTONS:**
     - Movement: "up", "down", "left", "right"
     - Actions: "a", "b", "start", "select"
@@ -348,45 +365,46 @@ exploration_strategy:
     **RESPONSE FORMAT (MANDATORY):**
     Return ONLY a JSON object with no additional text.
     
-    **CRITICAL**: Choose EXACTLY ONE response type - NEVER mix pathfinding_action and button_presses in same response!
+    **YOU MUST CHOOSE EXACTLY ONE OF THESE TWO RESPONSE FORMATS:**
     
-    **OPTION 1: Pathfinding Tool (use whenever coordinates are visible):**
+    **DECISION FLOWCHART:**
+    1. Do coordinate_tags contain any objects (pokemon_center, trainer, etc.)? 
+       → YES: Use FORMAT A (pathfinding_action ONLY)
+       → NO: Use FORMAT B (button_presses ONLY)
+    
+    **FORMAT A: Pathfinding Response (when coordinate_tags available)**
+    - ONLY include: pathfinding_action, target_x, target_y, reasoning, coordinate_source, confidence
+    - NEVER include: button_presses, context_detected, observations
+    
     ```json
     {{
       "pathfinding_action": "move_to_coordinate",
-      "target_x": 10,
-      "target_y": 15,
-      "reasoning": "pathfinding_to_trainer_from_coordinate_tags_at_x10_y15",
-      "observations": "Found trainer at coordinates 10,15 in coordinate_tags, using pathfinding for efficient navigation",
+      "target_x": 13,
+      "target_y": 23,
+      "reasoning": "pathfinding_to_pokemon_center_at_x13_y23",
       "coordinate_source": "coordinate_tags",
       "confidence": "high"
     }}
     ```
     
-    **OPTION 2: Manual Movement (only when pathfinding unavailable):**
+    **FORMAT B: Manual Movement Response (when no targets available)**  
+    - ONLY include: button_presses, reasoning, observations, context_detected, confidence
+    - NEVER include: pathfinding_action, target_x, target_y, coordinate_source
+    
     ```json
     {{
       "button_presses": ["up"],
       "reasoning": "manual_movement_because_no_targets_in_coordinate_tags",
-      "observations": "No interesting targets found in coordinate_tags, using manual exploration",
+      "observations": "No interesting targets found in coordinate_tags",
       "context_detected": "navigation",
       "confidence": "medium"
     }}
     ```
     
-    **FORBIDDEN**: Do NOT include both pathfinding_action AND button_presses in the same response!
-    
-    **MANDATORY FIELDS FOR PATHFINDING RESPONSES:**
-    - pathfinding_action: "move_to_coordinate" (ONLY - no button_presses field)
-    - target_x, target_y: Exact coordinates from coordinate_tags
-    - coordinate_source: "coordinate_tags" (confirms you read coordinates from visual analysis)
-    - reasoning: Must explain which object/target was chosen from coordinate_tags
-    
-    **MANDATORY FIELDS FOR MANUAL RESPONSES:**
-    - button_presses: Array of movement buttons (ONLY - no pathfinding_action field)
-    - reasoning: Must explain why pathfinding cannot be used
-    - observations: Current situation description
-    
+    **CRITICAL RULES:**
+    - DO NOT include both pathfinding_action AND button_presses
+    - DO NOT make up coordinates - use exact values from coordinate_tags
+    - DO NOT use manual movement if coordinate_tags contain targets
     
     Do not include any text before or after the JSON. No markdown, no code blocks, no explanations.
   variables:
@@ -395,6 +413,7 @@ exploration_strategy:
   - current_map_id
   - current_x
   - current_y
+  - visual_analysis_json
   version: '6.4'
 inventory_analysis:
   name: Pokemon Inventory Analysis (JSON Response)

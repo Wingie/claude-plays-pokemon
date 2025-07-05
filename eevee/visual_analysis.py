@@ -14,7 +14,12 @@ from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 # Import prompt manager to get universal template
 from prompt_manager import PromptManager
-            
+
+def fix_gemini_response(text):
+    """Fix Gemini's double brace escaping in JSON responses"""
+    # Replace double braces with single braces
+    return text.replace('{{', '{').replace('}}', '}')
+
 # Add path for importing from the main project
 project_root = Path(__file__).parent.parent  # eevee/ -> claude-plays-pokemon/
 sys.path.append(str(project_root))
@@ -490,6 +495,9 @@ This game state data should inform your visual analysis and scene understanding.
             clean_response = response_text.strip()
             if clean_response.startswith("```json"):
                 clean_response = clean_response.replace("```json", "").replace("```", "").strip()
+            
+            # Fix Gemini's double brace escaping before JSON parsing
+            clean_response = fix_gemini_response(clean_response)
             
             # Check for empty response
             if not clean_response:

@@ -593,13 +593,17 @@ class ContinuousGameplay:
                         json_data = json.loads(json_match.group(1))
                         
                         if "pathfinding_action" in json_data:
-                            print(json_data)
                             api_result["pathfinding_action"] = json_data["pathfinding_action"]
-                            api_result["target_coordinates"] = json_data.get("target_coordinates", {})
-                            # Use the correct pathfinding method
-                            target_x = json_data.get("target_coordinates", {}).get("x", 0)
-                            target_y = json_data.get("target_coordinates", {}).get("y", 0)
-                            api_result["button_presses"] = self._execute_pathfinding_to_coordinate(target_x, target_y)
+                            # Extract target coordinates directly from json_data
+                            target_x = json_data.get("target_x", 0)
+                            target_y = json_data.get("target_y", 0)
+                            # Execute pathfinding and store result separately (don't mix with button_presses)
+                            pathfinding_buttons = self._execute_pathfinding_to_coordinate(target_x, target_y)
+                            api_result["target_x"] = target_x
+                            api_result["target_y"] = target_y
+                            api_result["pathfinding_result"] = pathfinding_buttons
+                            # Clear button_presses when using pathfinding to avoid null execution
+                            api_result["button_presses"] = []
                         elif "button_presses" in json_data:
                             api_result["button_presses"] = json_data["button_presses"]
                         else:
@@ -2014,6 +2018,14 @@ class ContinuousGameplay:
                         include_playbook=playbook,
                         verbose=True
                     )
+                    
+                    # DEBUG: Print the actual prompt being sent to strategic AI
+                    if self.eevee.verbose:
+                        print("=" * 80)
+                        print("🧠 STRATEGIC AI PROMPT BEING SENT TO MISTRAL:")
+                        print("=" * 80)
+                        print(prompt)
+                        print("=" * 80)
                     
                     template_used = prompt_type
                     template_version = prompt_manager.base_prompts[prompt_type].get('version', 'direct_selection')
