@@ -1,0 +1,37 @@
+{
+  "conversion_time": "2025-07-08T23:31:19.803069",
+  "input_directory": "/Users/wingston/code/claude-plays-pokemon/eevee/runs",
+  "sessions_discovered": 5,
+  "sessions_processed": 5,
+  "sequences_created": 30,
+  "sequences_output": 30,
+  "quality_filters": {
+    "min_success_rate": 0.0,
+    "min_confidence": "low"
+  },
+  "sample_sequence": {
+    "frames": [
+      "/Users/wingston/code/claude-plays-pokemon/eevee/runs/session_20250625_184852/sshots/step_0001_grid.png",
+      "/Users/wingston/code/claude-plays-pokemon/eevee/runs/session_20250625_184852/sshots/step_0002_grid.png",
+      "/Users/wingston/code/claude-plays-pokemon/eevee/runs/session_20250625_184852/sshots/step_0003_grid.png",
+      "/Users/wingston/code/claude-plays-pokemon/eevee/runs/session_20250625_184852/sshots/step_0004_grid.png"
+    ],
+    "context": "\ud83c\udfae You are ASH KETCHUM with incredible memory and learning abilities.\n\n**CURRENT MISSION:** enter the pokehealth center and heal your pokemon\n\n**VISUAL CONTEXT:**\n- Location: Pokemon world exploration area\n- Observations: possible_interaction_point\n- Confidence Level: high\n\n**STRATEGIC CONTEXT:**\n- Template Strategy: exploration_strategy\n- AI Reasoning Chain: interact_with_environment\n- Pokemon Context: Ash Ketchum visiting Pokemon Center for party health restoration\n\n**4-FRAME SEQUENCE ANALYSIS:**\nYou are observing a temporal sequence showing progression from initial state through action execution to final outcome. Use your Pokemon expertise and strategic thinking to determine the optimal next action for continuing this successful pattern.\n\n**ASH'S CAPABILITIES:**\n- Expert Pokemon battle strategy and type effectiveness knowledge\n- Advanced navigation and exploration skills  \n- Memory of successful strategies and pattern recognition\n- Coordinate-based movement and pathfinding abilities\n- Pokemon party management and healing optimization",
+    "question": "**STEP 1 - VISUAL SEQUENCE ANALYSIS:**\nAnalyze the 4-frame temporal sequence to understand the progression from initial state through action execution to final outcome.\n\n**STEP 2 - STRATEGIC ANALYSIS:**\n- Context Detection: What type of situation is this? (navigation/battle/menu/dialogue)\n- Pattern Recognition: What successful strategy pattern is being executed?\n- Outcome Assessment: What was achieved by this sequence?\n\n**STEP 3 - OPTIMAL NEXT ACTION:**\nBased on Ash's Pokemon expertise and the successful pattern observed, determine the optimal next button press to continue this effective strategy.\n\n**RESPONSE FORMAT (MANDATORY JSON):**\n```json\n{\n  \"button\": \"action_name\",\n  \"reasoning\": \"strategic_explanation\", \n  \"context\": \"situation_type\",\n  \"scene_description\": \"detailed_scene_analysis\"\n}\n```\n\n**AVAILABLE ACTIONS:** up, down, left, right, a, b, start, select",
+    "output": "{\"button\": \"a\", \"reasoning\": \"exploration_interact_with_environment_coordinate_navigation\", \"context\": \"navigation\", \"scene_description\": \"navigation_pokemon_world_exploration_area_exploration_strategy_interaction_available\"}",
+    "metadata": {
+      "session_id": "20250625_184852",
+      "session_goal": "enter the pokehealth center and heal your pokemon",
+      "turns": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "confidence": "high",
+      "success_rate": 1.0,
+      "template_used": "exploration_strategy",
+      "template_version": "6.0"
+    }
+  }
+}

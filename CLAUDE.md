@@ -25,6 +25,17 @@ This repository contains a comprehensive AI gaming system for Pokemon, featuring
 - **Status**: Development phase - implementing execution layer
 - **Target**: 60 FPS gameplay with unlimited reasoning time
 
+##### **eevee_v2/gemma/** - Gemma VLM Training System
+- **Purpose**: Fine-tune Gemma 3/3n VLMs for 4-frame Pokemon temporal sequences
+- **Architecture**: TRL-based multi-image training with QLoRA optimization
+- **Key Features**:
+  - 4-frame temporal sequence processing (960ms Pokemon gameplay)
+  - 32K context utilization for rich game state (Ash persona + party + inventory)
+  - JSON button output format: `{"button": "right", "reasoning": "clear_path", "context": "navigation"}`
+  - Behavioral cloning from Eevee v1 expert demonstrations
+- **Models**: Gemma 3-4B (fast) and Gemma 3n-9B (high quality) variants
+- **Training**: Leverages existing TRL multi-image implementation for Pokemon-specific adaptation
+
 #### **Core Infrastructure**
 - **SkyEmu/**: Game Boy Advance emulator integration
 - **gemini-multimodal-playground/**: Gemini API experiments
@@ -49,6 +60,27 @@ python eevee/run_eevee.py --task "test compact memory" --max-turns 1 --neo4j-mem
 ```bash
 # Navigate to v2 directory
 cd eevee_v2
+
+# Gemma VLM Training (New)
+cd eevee_v2/gemma
+
+# Convert Eevee v1 data to 4-frame sequences
+python scripts/convert_eevee_data.py \
+    --input_dir ../../eevee/data \
+    --output_file training_data/pokemon_4frame_dataset.jsonl \
+    --copy_images
+
+# Train Gemma 3-4B VLM (faster)
+bash scripts/train_gemma3.sh
+
+# Train Gemma 3n-9B VLM (higher quality)
+bash scripts/train_gemma3n.sh
+
+# Test trained model inference
+python scripts/test_inference.py \
+    --model_path models/gemma-3-4b-pokemon-4frame \
+    --test_images "training_data/images/seq_000000_frame_*.png"
+```
 
 
 ## Technical Architecture
