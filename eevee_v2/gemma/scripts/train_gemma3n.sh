@@ -4,18 +4,29 @@ Training script for Google Gemma 3n-9B VLM on Pokemon 4-frame sequences
 Optimized for 32K context with QLoRA fine-tuning
 """
 
-# Training configuration
-MODEL_NAME="google/gemma-3n-9b-it"
-DATASET_PATH="training_data/pokemon_4frame_dataset.jsonl"
-OUTPUT_DIR="models/gemma-3n-9b-pokemon-4frame"
-MAX_STEPS=2000
-BATCH_SIZE=1
-GRAD_ACCUM=8
-LEARNING_RATE=1e-4
+# Load environment variables from .env file
+if [ -f .env ]; then
+    export $(cat .env | xargs)
+fi
+
+# Training configuration - can be overridden with environment variables
+MODEL_NAME="${MODEL_NAME:-google/gemma-3n-9b-it}"
+DATASET_PATH="${DATASET_PATH:-training_data/pokemon_4frame_dataset_full.jsonl}"
+OUTPUT_DIR="${OUTPUT_DIR:-models/gemma-3n-9b-pokemon-4frame}"
+MAX_STEPS="${MAX_STEPS:-2000}"
+BATCH_SIZE="${BATCH_SIZE:-1}"
+GRAD_ACCUM="${GRAD_ACCUM:-8}"
+LEARNING_RATE="${LEARNING_RATE:-1e-4}"
+ACCELERATE_CONFIG="${ACCELERATE_CONFIG:-accelerate_configs/deepspeed_zero3.yaml}"
+
+# Authentication
+export HF_TOKEN="${HUGGINGFACE_TOKEN:-$HF_TOKEN}"
+export WANDB_API_KEY="${WANDB_API_KEY:-}"
 
 # Memory optimization settings
-export CUDA_VISIBLE_DEVICES=0
-export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-max_split_size_mb:512}"
+export TOKENIZERS_PARALLELISM="${TOKENIZERS_PARALLELISM:-false}"
 
 echo "🎮 Training Pokemon Gemma 3n-9B VLM"
 echo "Model: $MODEL_NAME"
@@ -37,7 +48,7 @@ mkdir -p logs
 
 # Training command with optimized settings for Pokemon gameplay
 accelerate launch \
-    --config_file ../../../repos/trl/examples/accelerate_configs/deepspeed_zero3.yaml \
+    --config_file "$ACCELERATE_CONFIG" \
     scripts/sft_pokemon_gemma3.py \
     --dataset_name "$DATASET_PATH" \
     --model_name_or_path "$MODEL_NAME" \

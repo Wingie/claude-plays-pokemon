@@ -1,0 +1,78 @@
+# Weights & Biases Configuration for Pokemon Gemma VLM Training
+# This file configures experiment tracking and logging
+
+project: pokemon-gemma-vlm
+entity: your-wandb-username  # Replace with your wandb username
+
+# Experiment configuration
+experiment_defaults:
+  tags:
+    - pokemon
+    - gemma
+    - vlm
+    - 4-frame
+    - gaming-ai
+  
+  # Group related experiments
+  group: pokemon-gameplay-modeling
+  
+  # Notes template
+  notes: "Training Pokemon Gemma VLM on 4-frame temporal sequences for real-time gameplay"
+
+# Logging configuration
+logging:
+  # Log frequency
+  log_model: true  # Save model checkpoints to wandb
+  log_code: true   # Save code snapshot
+  log_graph: false # Model graph can be large for VLMs
+  
+  # Metrics to track
+  watch_model:
+    log: "all"           # Log gradients and parameters
+    log_freq: 100        # Every 100 steps
+    log_graph: false
+  
+  # Media logging
+  log_images: true       # Log sample predictions
+  max_images: 8          # Max images per log
+  
+  # Performance metrics
+  track_system: true     # GPU/CPU usage
+  
+# Hyperparameter sweeps configuration
+sweep_defaults:
+  method: bayes
+  metric:
+    goal: minimize
+    name: train/loss
+  
+  parameters:
+    learning_rate:
+      distribution: log_uniform_values
+      min: 1e-5
+      max: 1e-3
+    
+    lora_r:
+      values: [32, 64, 128]
+    
+    lora_alpha:
+      values: [64, 128, 256]
+    
+    batch_size:
+      values: [1, 2, 4]
+    
+    gradient_accumulation_steps:
+      values: [4, 8, 16]
+
+# Experiment naming convention
+run_name_template: "gemma-{model_size}-bs{batch_size}-lr{learning_rate}-r{lora_r}"
+
+# Alert configuration
+alerts:
+  # Slack/email notifications
+  on_failure: true
+  on_completion: true
+  
+  # Performance alerts
+  gpu_utilization_threshold: 0.8  # Alert if GPU util < 80%
+  memory_threshold: 0.9           # Alert if memory > 90%

@@ -1,0 +1,58 @@
+# Environment variables - NEVER COMMIT TOKENS!
+.env
+.env.*
+
+# Training outputs
+models/
+logs/
+runs/
+wandb/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Training data cache
+training_data/images/
+training_data/*.cache
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Model artifacts
+*.bin
+*.safetensors
+*.gguf
+*.mlx
+
+# Accelerate config (may contain sensitive paths)
+default_config.yaml
