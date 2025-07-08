@@ -9,3 +9,4 @@ skyemu-mcp/
 screenshots/
 __pycache__/
 *.pkl
+repos/*

@@ -1,0 +1,80 @@
+{
+  "conversion_summary": {
+    "timestamp": "2025-07-05 15:44:02",
+    "input_file": "/Users/wingston/code/claude-plays-pokemon/eevee_v2/training_data/eevee_v1_paligemma_training.jsonl",
+    "original_training_pairs": 1086,
+    "original_sessions": 65,
+    "paligemma_output": {
+      "file": "/Users/wingston/code/claude-plays-pokemon/eevee_v2/training_data/paligemma_dataset_pokemon.jsonl",
+      "training_pairs": 961,
+      "format": "simple prefix/suffix pairs",
+      "use_case": "action prediction and behavior cloning"
+    },
+    "pixtral_output": {
+      "file": "/Users/wingston/code/claude-plays-pokemon/eevee_v2/training_data/pixtral_dataset_pokemon.jsonl",
+      "conversations": 139,
+      "format": "multi-turn conversations",
+      "use_case": "strategic reasoning and context understanding"
+    }
+  },
+  "original_data_analysis": {
+    "context_distribution": {
+      "navigation": 474,
+      "null": 182,
+      "menu": 53,
+      "battle": 299,
+      "battle_menu": 1,
+      "post_battle": 10,
+      "menu_navigation": 3,
+      "battle_move_selection": 1,
+      "level_up": 1,
+      "dialogue": 2,
+      "pokemon_center": 1,
+      "overworld": 8,
+      "terrain": 4,
+      "building": 6,
+      "building_exit": 2,
+      "battle_level_up": 1,
+      "interaction": 8,
+      "trainer_interaction": 1,
+      "battle_phase_exp_gain": 2,
+      "post_defeat": 1,
+      "battle_aftermath": 2,
+      "evolution": 1,
+      "battle_phase_enemy_fainted": 1,
+      "battle_phase_main_menu": 4,
+      "battle_phase_move_selection": 1,
+      "battle_animation": 13,
+      "party_screen": 1,
+      "pokemon_party_management": 1,
+      "battle_exp_gain": 1,
+      "battle_end": 1
+    },
+    "total_sessions": 65,
+    "avg_turns_per_session": 16.70769230769231
+  },
+  "conversion_efficiency": {
+    "paligemma_retention": "88.5%",
+    "pixtral_compression": "7.8:1 turns to conversations"
+  },
+  "training_recommendations": {
+    "paligemma": {
+      "batch_size": "8-16 (Google recommended)",
+      "learning_rate": "0.03 (or lower)",
+      "training_steps": "~360 steps for 3 epochs",
+      "validation_split": "10-20% of data"
+    },
+    "pixtral": {
+      "batch_size": "1 (model limitation)",
+      "learning_rate": "5-10x smaller than language model",
+      "training_considerations": "Multi-turn context, longer sequences",
+      "conversation_quality": "Focus on coherent strategic reasoning"
+    }
+  },
+  "data_quality_notes": {
+    "action_extraction": "Robust multi-method extraction with confidence scoring",
+    "context_preservation": "Strategic reasoning maintained in both formats",
+    "pokemon_validation": "All actions validated against Game Boy button set",
+    "conversation_threading": "Natural context-aware conversation flows"
+  }
+}
