@@ -1,16 +1,20 @@
 # Pokemon Gemma VLM Training Pipeline
 
 A complete production-ready training pipeline for fine-tuning Google Gemma Vision-Language Models on Pokemon gameplay data using 4-frame temporal sequences.
-
-tl;dr
 ```
-  cd eevee_v2/gemma
-  ./init.sh                    # Setup environment
-  cp .env.example .env         # Add your tokens
-  python scripts/validate_training.py  # Test everything
-  ./train_gemma3.sh           # Start training!
-```
+  Usage Examples:
+  # Run complete production pipeline
+  python scripts/production_pipeline.py --checkpoint models/checkpoint-2000
 
+  # Start health monitoring
+  python scripts/health_monitor.py --server_url http://localhost:8000
+
+  # Register new model version
+  python scripts/model_registry.py register --name pokemon-gemma --checkpoint models/checkpoint-2000
+
+  # Deploy MLX-optimized model
+  MODEL_PATH=models/pokemon-gemma-mlx python scripts/mlx_inference_server.py
+```
 ## 🚀 Quick Start
 
 ### 1. Environment Setup
