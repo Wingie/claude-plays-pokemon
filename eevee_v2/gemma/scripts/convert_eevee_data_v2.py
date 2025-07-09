@@ -13,11 +13,20 @@ Key improvements:
 - Game state extraction (Pokemon party, inventory, location)
 
 Usage:
+    # Create 4-frame sequences (original approach)
     python scripts/convert_eevee_data_v2.py \
         --eevee_runs_dir /path/to/eevee/runs \
         --output_file training_data/pokemon_4frame_dataset_v2.jsonl \
         --min_success_rate 0.8 \
         --min_confidence_level high \
+        --copy_images
+    
+    # Create 2x2 grid images directly (bypass TRL multi-image bug)
+    python scripts/convert_eevee_data_v2.py \
+        --eevee_runs_dir /path/to/eevee/runs \
+        --output_file training_data/pokemon_grid_dataset.jsonl \
+        --min_success_rate 0.8 \
+        --create_grids \
         --copy_images
 """
 
@@ -30,6 +39,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
 from datetime import datetime, timedelta
 import glob
+from PIL import Image, ImageDraw, ImageFont
 
 
 class EeveeSessionLoader:
@@ -477,6 +487,113 @@ class QualityFilter:
         return filtered
 
 
+class GridGenerator:
+    """Creates 2x2 grid images from 4-frame sequences with temporal labels."""
+    
+    def __init__(self, frame_size: Tuple[int, int] = (240, 160)):
+        self.frame_size = frame_size
+        self.grid_size = (frame_size[0] * 2, frame_size[1] * 2)
+        self.border_width = 2
+        self.border_color = (255, 255, 255)
+        self.label_font_size = 12
+        self.label_color = (255, 255, 0)
+    
+    def create_grid_image(self, frame_paths: List[str], output_path: str) -> bool:
+        """Create a 2x2 grid from 4 frame images."""
+        try:
+            # Load frames
+            frames = []
+            for frame_path in frame_paths:
+                if Path(frame_path).exists():
+                    frame = Image.open(frame_path).convert("RGB")
+                    if frame.size != self.frame_size:
+                        frame = frame.resize(self.frame_size, Image.Resampling.LANCZOS)
+                else:
+                    # Create placeholder if frame missing
+                    frame = Image.new("RGB", self.frame_size, (64, 64, 64))
+                frames.append(frame)
+            
+            # Create grid canvas
+            grid_image = Image.new("RGB", self.grid_size, (32, 32, 32))
+            
+            # Position frames in 2x2 grid
+            positions = [
+                (0, 0),                              # t=0: Top-left
+                (self.frame_size[0], 0),             # t=1: Top-right
+                (0, self.frame_size[1]),             # t=2: Bottom-left
+                (self.frame_size[0], self.frame_size[1])  # t=3: Bottom-right
+            ]
+            
+            # Paste frames into grid
+            for frame, pos in zip(frames, positions):
+                grid_image.paste(frame, pos)
+            
+            # Add temporal labels
+            draw = ImageDraw.Draw(grid_image)
+            try:
+                font = ImageFont.truetype("arial.ttf", self.label_font_size)
+            except:
+                font = ImageFont.load_default()
+            
+            labels = ["t=0", "t=1", "t=2", "t=3"]
+            label_positions = [
+                (5, 5),                                    # t=0: Top-left
+                (self.frame_size[0] + 5, 5),               # t=1: Top-right
+                (5, self.frame_size[1] + 5),               # t=2: Bottom-left
+                (self.frame_size[0] + 5, self.frame_size[1] + 5)  # t=3: Bottom-right
+            ]
+            
+            for label, pos in zip(labels, label_positions):
+                draw.text(pos, label, fill=self.label_color, font=font)
+            
+            # Save grid image
+            grid_image.save(output_path)
+            return True
+            
+        except Exception as e:
+            print(f"Error creating grid image {output_path}: {e}")
+            return False
+    
+    def create_grid_dataset_format(self, sequence: Dict[str, Any], grid_path: str) -> Dict[str, Any]:
+        """Convert 4-frame sequence to grid dataset format."""
+        return {
+            "image": grid_path,
+            "context": sequence["context"],
+            "question": self._create_temporal_grid_question(),
+            "output": sequence["output"],
+            "metadata": sequence["metadata"]
+        }
+    
+    def _create_temporal_grid_question(self) -> str:
+        """Create question prompt explaining the temporal grid layout."""
+        return """**TEMPORAL GRID ANALYSIS:**
+This is a 2x2 grid showing 4 consecutive Pokemon gameplay frames (~960ms total):
+┌─────────┬─────────┐
+│ t=0     │ t=1     │  ← Temporal progression
+│ (start) │ (+240ms)│
+├─────────┼─────────┤
+│ t=2     │ t=3     │
+│ (+480ms)│ (+720ms)│
+└─────────┴─────────┘
+
+**ANALYSIS STEPS:**
+1. Observe the temporal progression from t=0 → t=1 → t=2 → t=3
+2. Identify the pattern of movement, interaction, or state changes
+3. Determine the optimal next action to continue this successful sequence
+
+**RESPONSE FORMAT (MANDATORY JSON):**
+```json
+{
+  "button": "action_name",
+  "reasoning": "strategic_explanation", 
+  "context": "situation_type",
+  "scene_description": "detailed_scene_analysis"
+}
+```
+
+**AVAILABLE ACTIONS:** up, down, left, right, a, b, start, select"""
+
+
 def copy_images_with_session_context(sequences: List[Dict[str, Any]], output_dir: str) -> List[Dict[str, Any]]:
     """Copy images with session context preserved in naming."""
     output_path = Path(output_dir)
@@ -516,10 +633,11 @@ def main():
     parser.add_argument("--eevee_runs_dir", required=True, help="Path to Eevee v1 runs directory")
     parser.add_argument("--output_file", required=True, help="Output JSONL file path")
     parser.add_argument("--frames_per_sequence", type=int, default=4, help="Frames per sequence")
-    parser.add_argument("--min_success_rate", type=float, default=0.8, help="Minimum session success rate")
-    parser.add_argument("--min_confidence", choices=["high", "medium", "low"], default="medium", 
-                       help="Minimum confidence level")
+    parser.add_argument("--min_success_rate", type=float, default=0.1, help="Minimum session success rate (aggressive: 0.1)")
+    parser.add_argument("--min_confidence", choices=["high", "medium", "low"], default="low", 
+                       help="Minimum confidence level (aggressive: low)")
     parser.add_argument("--copy_images", action="store_true", help="Copy images to output directory")
+    parser.add_argument("--create_grids", action="store_true", help="Create 2x2 grid images instead of 4-frame sequences")
     parser.add_argument("--max_sessions", type=int, help="Maximum sessions to process (for testing)")
     
     args = parser.parse_args()
@@ -527,14 +645,17 @@ def main():
     print("🎮 Enhanced Eevee v1 to Gemma VLM Converter v2.0")
     print(f"Input: {args.eevee_runs_dir}")
     print(f"Output: {args.output_file}")
-    print(f"Min Success Rate: {args.min_success_rate}")
-    print(f"Min Confidence: {args.min_confidence}")
+    print(f"Min Success Rate: {args.min_success_rate} (aggressive mode)")
+    print(f"Min Confidence: {args.min_confidence} (all levels included)")
+    print(f"Grid Creation: {args.create_grids}")
     print()
     
     # Initialize components
     loader = EeveeSessionLoader(args.eevee_runs_dir)
     sequence_creator = SequenceCreator(args.frames_per_sequence)
-    quality_filter = QualityFilter(args.min_success_rate, [args.min_confidence, "high"])
+    # Aggressive quality filtering: include all confidence levels
+    all_confidence_levels = ["low", "medium", "high"]
+    quality_filter = QualityFilter(args.min_success_rate, all_confidence_levels)
     
     # Discover and load sessions
     print("📁 Discovering sessions...")
@@ -580,6 +701,34 @@ def main():
         print("📸 Copying images with session context...")
         output_dir = Path(args.output_file).parent
         filtered_sequences = copy_images_with_session_context(filtered_sequences, str(output_dir))
+    
+    # Create grids if requested
+    if args.create_grids:
+        print("🎨 Creating 2x2 temporal grids...")
+        output_dir = Path(args.output_file).parent
+        grid_generator = GridGenerator()
+        grid_sequences = []
+        
+        for seq_idx, sequence in enumerate(filtered_sequences):
+            # Create grid image
+            metadata = sequence.get("metadata", {})
+            session_id = metadata.get("session_id", "unknown")
+            grid_filename = f"sess_{session_id}_seq_{seq_idx:06d}_grid.png"
+            grid_path = output_dir / "images" / grid_filename
+            
+            # Ensure images directory exists
+            grid_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            if grid_generator.create_grid_image(sequence["frames"], str(grid_path)):
+                # Convert to grid dataset format
+                grid_sequence = grid_generator.create_grid_dataset_format(sequence, str(grid_path.absolute()))
+                grid_sequences.append(grid_sequence)
+                
+                if (seq_idx + 1) % 100 == 0:
+                    print(f"  Created {seq_idx + 1} grids...")
+        
+        print(f"Created {len(grid_sequences)} grid images")
+        filtered_sequences = grid_sequences
     
     # Write output
     print("💾 Writing training data...")
