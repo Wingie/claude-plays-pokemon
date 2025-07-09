@@ -10,3 +10,4 @@ screenshots/
 __pycache__/
 *.pkl
 repos/*
+pokeagent/*
