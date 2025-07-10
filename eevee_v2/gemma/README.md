@@ -82,7 +82,10 @@ python scripts/find_batch_size.py \
 # 1. Test Mac compatibility first
 python scripts/test_mps_compatibility.py
 
-# 2. Train using CPU/MPS configuration
+# 2. Use Mac-optimized training script (RECOMMENDED)
+./train_grid_mac.sh
+
+# 3. Or manual training with Mac-specific settings
 accelerate launch \
     --config_file accelerate_configs/cpu_mps.yaml \
     scripts/train_frame_grid.py \
@@ -90,6 +93,7 @@ accelerate launch \
     --model_name_or_path google/gemma-3-4b-it \
     --per_device_train_batch_size 1 \
     --gradient_accumulation_steps 8 \
+    --fp16 \
     --torch_dtype float16 \
     --gradient_checkpointing \
     --dataloader_num_workers 0 \
