@@ -102,10 +102,17 @@ echo "Check logs in: logs/"
 # Test inference with trained model
 echo ""
 echo "🧪 Testing grid inference..."
-python scripts/test_grid_inference.py \
-    --model_path "$OUTPUT_DIR" \
-    --test_grid "training_data/grid_images/grid_000001.png" \
-    --output_file "results/grid_inference_test_mac.json"
+mkdir -p results
+# Use the first available grid image for testing
+TEST_GRID=$(find training_data -name "*grid.png" | head -1)
+if [ -n "$TEST_GRID" ]; then
+    python scripts/test_grid_inference.py \
+        --model_path "$OUTPUT_DIR" \
+        --test_grid "$TEST_GRID" \
+        --output_file "results/grid_inference_test_mac.json"
+else
+    echo "⚠️  No grid images found for testing"
+fi
 
 echo "✅ Mac training pipeline complete!"
 echo ""

@@ -1,11 +1,12 @@
 # Accelerate configuration for single GPU training
-# Optimized for Gemma VLM training with 4-frame sequences
+# Optimized for Gemma VLM training with grid sequences
 
 compute_environment: LOCAL_MACHINE
 debug: false
 distributed_type: 'NO'
 downcast_bf16: 'no'
 enable_cpu_affinity: false
+fsdp_config: {}
 machine_rank: 0
 main_training_function: main
 mixed_precision: bf16
