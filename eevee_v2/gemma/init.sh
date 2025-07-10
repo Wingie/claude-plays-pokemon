@@ -29,9 +29,9 @@ error() {
 
 # Configuration
 CONDA_ENV_NAME="pokemon-gemma-vlm"
-PYTHON_VERSION="3.9"
+PYTHON_VERSION="3.10"
 CUDA_VERSION="12.1"
-PROJECT_DIR="/Users/wingston/code/claude-plays-pokemon/eevee_v2/gemma"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 log "🎮 Pokemon Gemma VLM Training Environment Setup"
 log "================================================"
@@ -111,15 +111,14 @@ install_conda() {
 create_environment() {
     log "🐍 Setting up Python environment..."
     
-    # Remove existing environment if it exists
+    # Check if environment already exists
     if conda env list | grep -q "$CONDA_ENV_NAME"; then
-        warn "Environment $CONDA_ENV_NAME already exists. Removing..."
-        conda env remove -n "$CONDA_ENV_NAME" -y
+        log "Environment $CONDA_ENV_NAME already exists. Skipping creation..."
+    else
+        # Create new environment
+        log "Creating new conda environment: $CONDA_ENV_NAME"
+        conda create -n "$CONDA_ENV_NAME" python="$PYTHON_VERSION" -y
     fi
-    
-    # Create new environment
-    log "Creating new conda environment: $CONDA_ENV_NAME"
-    conda create -n "$CONDA_ENV_NAME" python="$PYTHON_VERSION" -y
     
     # Activate environment
     source "$(conda info --base)/etc/profile.d/conda.sh"
@@ -161,23 +160,17 @@ install_pytorch() {
     log "✅ PyTorch installed successfully"
 }
 
-# Install TRL from local development version
+# Install TRL from PyPI
 install_trl() {
-    log "🚀 Installing TRL from local repository..."
+    log "🚀 Installing TRL from PyPI..."
     
-    TRL_PATH="../../../repos/trl"
-    
-    if [[ ! -d "$TRL_PATH" ]]; then
-        error "TRL repository not found at $TRL_PATH"
-    fi
-    
-    # Install in development mode
-    pip install -e "$TRL_PATH"
+    # Install latest stable version from PyPI
+    pip install trl
     
     # Verify TRL installation
     python -c "import trl; print(f'TRL version: {trl.__version__}')"
     
-    log "✅ TRL installed from local repository"
+    log "✅ TRL installed from PyPI"
 }
 
 # Install other dependencies
@@ -192,6 +185,14 @@ install_dependencies() {
     
     # Install HuggingFace CLI
     pip install --upgrade huggingface_hub
+    
+    # Install MLX only on macOS (Apple Silicon)
+    if [[ "$PLATFORM" == "macos" ]]; then
+        log "🍎 Installing MLX dependencies for Apple Silicon..."
+        pip install mlx mlx-lm || warn "MLX installation failed (requires Apple Silicon)"
+    else
+        log "⏭️  Skipping MLX installation (Linux/Windows not supported)"
+    fi
     
     log "✅ Dependencies installed successfully"
 }

@@ -60,6 +60,6 @@ urllib3>=1.26.0,<2.1.0
 # Optional: For GGUF conversion
 # llama-cpp-python>=0.2.20,<0.3.0
 
-# MLX for Apple Silicon (uncomment for M1/M2/M3 Macs)
-mlx>=0.5.0,<0.7.0
-mlx-lm>=0.5.0,<0.7.0
+# MLX for Apple Silicon only (not available on Linux servers)
+# mlx>=0.26.0,<0.27.0
+# mlx-lm>=0.26.0,<0.27.0
