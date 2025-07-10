@@ -248,48 +248,4 @@ CREATE (strategy)-[:APPLIES_IN]->(context)
 
 ## Success Validation
 
-### Performance Benchmarks
-1. **Data Collection Rate**: 1000+ frames/minute sustained
-2. **Processing Latency**: 95% of frames processed in ≤2ms
-3. **Database Throughput**: 1000 writes/second concurrent
-4. **Storage Efficiency**: <10MB per minute of gameplay
-
-### Quality Metrics
-1. **Data Integrity**: Zero corruption in captured frames
-2. **Timing Accuracy**: Frame timestamps within ±1ms
-3. **Expert Annotation**: Inter-annotator agreement >0.8
-4. **System Reliability**: 99.9% uptime during collection
-
-### Integration Testing
-1. **End-to-end Pipeline**: Screenshot → Processing → Storage
-2. **Concurrent Operations**: Multiple expert sessions simultaneous
-3. **Recovery Testing**: Graceful handling of component failures
-4. **Performance Under Load**: Sustained operation for 8+ hours
-
-## Risk Mitigation
-
-### Technical Risks
-- **SkyEmu Compatibility**: Test across multiple emulator versions
-- **Timing Accuracy**: Hardware-specific timing calibration
-- **Database Performance**: Index optimization and query tuning
-- **Memory Management**: Careful buffer management for high-throughput
-
-### Operational Risks
-- **Expert Availability**: Recruit multiple experts with different skill levels
-- **Data Quality**: Implement real-time validation during collection
-- **Hardware Failures**: Redundant storage and automatic backups
-- **Development Delays**: Parallel implementation of independent components
-
-## Next Steps
-
-Upon completion of Milestone 1, the infrastructure will support:
-- Continuous expert data collection for Milestone 2
-- Real-time vision processing for behavior cloning training
-- Strategic knowledge accumulation for future reasoning systems
-- Performance monitoring foundation for optimization phases
-
-The deliverables from this milestone form the essential foundation for all subsequent development phases, ensuring that data collection, processing, and storage can meet the demanding requirements of real-time AI gaming systems.
-
----
-
-*This milestone establishes the technical foundation required for building Eevee v2's constraint-driven AI gaming architecture.*
+- we have a training script and training jsonl and isntructions for how to train it.

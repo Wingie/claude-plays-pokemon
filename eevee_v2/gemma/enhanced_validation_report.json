@@ -1,0 +1,39 @@
+{
+  "analysis": {
+    "total_samples": 10,
+    "unique_sessions": 1,
+    "avg_samples_per_session": 10.0,
+    "avg_success_rate": 1.0,
+    "valid_json_rate": 1.0,
+    "missing_images": 0,
+    "confidence_distribution": {
+      "high": 10
+    },
+    "button_distribution": {
+      "a": 4,
+      "up": 6
+    },
+    "context_distribution": {
+      "navigation": 10
+    },
+    "template_distribution": {
+      "exploration_strategy": 10
+    },
+    "session_distribution": {
+      "20250625_184852": 10
+    }
+  },
+  "issues": [
+    "Duplicate image paths detected"
+  ],
+  "recommendations": [
+    "Button distribution is imbalanced ('up': 60.0%)",
+    "Limited context diversity (1 unique contexts). Consider data augmentation."
+  ],
+  "neurips_readiness": {
+    "total_samples": 10,
+    "valid_json_rate": 1.0,
+    "avg_success_rate": 1.0,
+    "ready_for_competition": false
+  }
+}

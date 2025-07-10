@@ -245,23 +245,34 @@ class ProductionPipeline:
                         "python", "../scripts/convert_to_mlx.py",
                         "--model_path", "merged_model",
                         "--output_path", mlx_path,
-                        "--quantize",
-                        "--q_bits", str(bits)
+                        "--quantization_bits", str(bits)
                     ]
                     
-                    subprocess.run(convert_cmd, check=True)
+                    result = subprocess.run(convert_cmd, capture_output=True, text=True, check=True)
+                    
+                    # Verify MLX conversion output
+                    mlx_info_path = Path(mlx_path) / "mlx_model_info.json"
+                    if mlx_info_path.exists():
+                        with open(mlx_info_path) as f:
+                            mlx_info = json.load(f)
+                    else:
+                        mlx_info = {}
                     
                     conversion_results[f"mlx_{bits}bit"] = {
                         "path": mlx_path,
                         "success": True,
                         "format": "mlx",
-                        "quantization_bits": bits
+                        "quantization_bits": bits,
+                        "compression_ratio": mlx_info.get("compression_ratio", 1.0),
+                        "mlx_size_mb": mlx_info.get("mlx_size_mb", 0),
+                        "apple_silicon_optimized": True
                     }
                     
                 except subprocess.CalledProcessError as e:
                     conversion_results[f"mlx_{bits}bit"] = {
                         "success": False,
-                        "error": str(e)
+                        "error": f"MLX conversion failed: {e.stderr}",
+                        "stdout": e.stdout if hasattr(e, 'stdout') else ""
                     }
         
         return {
@@ -417,9 +428,48 @@ class ProductionPipeline:
         return {"success": True, "inference_time": 1.2, "format": "gguf"}
     
     def test_mlx_model(self, mlx_path: Path) -> Dict[str, Any]:
-        """Test MLX model."""
-        # This would implement MLX testing - simplified for now
-        return {"success": True, "inference_time": 0.8, "format": "mlx"}
+        """Test MLX model using convert_to_mlx.py test functionality."""
+        try:
+            # Use the test inference function from convert_to_mlx.py
+            test_cmd = [
+                "python", "../scripts/convert_to_mlx.py",
+                "--model_path", str(mlx_path),
+                "--output_path", f"{mlx_path}_test",
+                "--test_inference",
+                "--quantization_bits", "4"  # Use 4-bit for testing
+            ]
+            
+            result = subprocess.run(test_cmd, capture_output=True, text=True, timeout=120)
+            
+            if result.returncode == 0:
+                # Parse inference test results from output
+                success = "✅ MLX inference test passed" in result.stdout
+                
+                return {
+                    "success": success,
+                    "inference_test_passed": success,
+                    "format": "mlx",
+                    "test_output": result.stdout.split("\n")[-10:]  # Last 10 lines
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"MLX test failed: {result.stderr}",
+                    "format": "mlx"
+                }
+                
+        except subprocess.TimeoutExpired:
+            return {
+                "success": False,
+                "error": "MLX test timed out after 120s",
+                "format": "mlx"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"MLX test error: {str(e)}",
+                "format": "mlx"
+            }
     
     def find_fastest_format(self, benchmarks: Dict[str, Any]) -> str:
         """Find fastest model format from benchmarks."""
@@ -509,6 +559,13 @@ class ProductionPipeline:
 
 ### MLX Inference Server (Apple Silicon)
 ```bash
+# Quick inference test
+python ../scripts/convert_to_mlx.py \
+    --model_path pokemon_gemma_mlx_4bit \
+    --output_path test_output \
+    --test_inference
+
+# Full inference server (if available)
 MODEL_PATH=pokemon_gemma_mlx_4bit python ../scripts/mlx_inference_server.py
 ```
 

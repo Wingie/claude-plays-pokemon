@@ -9,6 +9,7 @@ enable_cpu_affinity: false
 machine_rank: 0
 main_training_function: main
 mixed_precision: 'no'  # Disable for CPU/MPS compatibility
+fsdp_config: {}
 num_machines: 1
 num_processes: 1
 rdzv_backend: static
